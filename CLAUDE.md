@@ -30,4 +30,7 @@ Two principles decide every tradeoff — see README. In practice:
 - **Dependencies point one way** (`BouncerFoundation → Hotkeys → Settings → MenuBar →
   BouncerUI`). Do not add a back edge; introduce a new module instead.
 - `Bouncer.xcodeproj` is generated — edit `project.yml`, never the project file.
-- App icon and README lockups derive from `App/Resources/Logo.svg`.
+- `App/Resources/Logo.svg` is the source of truth for the mark. The app icon, the
+  README lockups and `MenuBarIcon.imageset` are derived from it — update them
+  together. The menu bar copy is cropped and flattened to one colour because status
+  item images must be templates.

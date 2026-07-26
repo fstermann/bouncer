@@ -29,12 +29,16 @@ public final class MenuBarManager {
     public var iconMenu: NSMenu?
 
     private let settings: SettingsStore
+    private let iconImage: NSImage?
     private let hiddenDivider: ControlItem
     private let alwaysHiddenDivider: ControlItem
     private var observation: ObservationLoop?
 
-    public init(settings: SettingsStore) {
+    /// - Parameter iconImage: Bouncer's menu bar glyph. Supplied by the app layer so
+    ///   branding stays out of this module; should be a template image.
+    public init(settings: SettingsStore, iconImage: NSImage?) {
         self.settings = settings
+        self.iconImage = iconImage
         hiddenDivider = ControlItem(
             autosaveName: "bouncer.divider.hidden",
             symbolName: "chevron.left",
@@ -110,9 +114,10 @@ public final class MenuBarManager {
         }
 
         StatusItemPosition.seed(StatusItemPosition.icon, for: "bouncer.icon")
-        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        // The logo is wider than it is tall, so the item sizes to its image.
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item.autosaveName = "bouncer.icon"
-        item.button?.image = NSImage(systemSymbolName: "chevron.left.2", accessibilityDescription: "Bouncer")
+        item.button?.image = iconImage
         item.button?.target = self
         item.button?.action = #selector(iconClicked)
         item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])

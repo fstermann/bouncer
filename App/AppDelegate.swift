@@ -8,7 +8,7 @@ import SwiftUI
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settings = SettingsStore()
-    private lazy var menuBar = MenuBarManager(settings: settings)
+    private lazy var menuBar = MenuBarManager(settings: settings, iconImage: Self.menuBarIcon())
     private lazy var reveal = RevealController(manager: menuBar, settings: settings)
     private var settingsWindow: NSWindow?
 
@@ -20,6 +20,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         settings.flush()
+    }
+
+    /// Fitted to the menu bar's usable height; the width follows the logo's aspect.
+    private static func menuBarIcon() -> NSImage? {
+        guard let image = NSImage(named: "MenuBarIcon") else {
+            Log.app.error("MenuBarIcon missing from the asset catalog")
+            return nil
+        }
+        let height = 16.0
+        image.size = NSSize(width: height * image.size.width / image.size.height, height: height)
+        image.isTemplate = true
+        return image
     }
 
     private func makeIconMenu() -> NSMenu {
