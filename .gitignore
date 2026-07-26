@@ -1,0 +1,9 @@
+# Generated from project.yml
+Bouncer.xcodeproj/
+
+.build/
+.swiftpm/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+.DS_Store

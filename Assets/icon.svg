@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="bouncer">
+  <rect width="1024" height="1024" rx="228" fill="#F7F8FA"/>
+  <g transform="translate(96 339.86) scale(2.87) translate(-72 -128)">
+    <g transform="translate(22 100)">
+    <g fill="none" stroke="#1A2332" stroke-width="16" stroke-linecap="round">
+      <line x1="96" y1="44" x2="185" y2="44"/>
+      <line x1="58" y1="88" x2="170" y2="88"/>
+      <line x1="96" y1="132" x2="185" y2="132"/>
+    </g>
+    <circle cx="268" cy="88" r="64" fill="#2563EB"/>
+  </g>
+  </g>
+</svg>

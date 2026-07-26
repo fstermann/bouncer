@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 376 376" width="376" height="376" role="img" aria-label="Bouncer">
+  <g transform="translate(22 100)">
+    <g fill="none" stroke="#1A2332" stroke-width="16" stroke-linecap="round">
+      <line x1="96" y1="44" x2="185" y2="44"/>
+      <line x1="58" y1="88" x2="170" y2="88"/>
+      <line x1="96" y1="132" x2="185" y2="132"/>
+    </g>
+    <circle cx="268" cy="88" r="64" fill="#2563EB"/>
+  </g>
+</svg>
