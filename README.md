@@ -29,7 +29,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the hiding actually wor
 
 ## Building
 
-Requires Xcode 26 and [XcodeGen](https://github.com/yonaskolb/XcodeGen)
+Requires Xcode 16.4 or later and [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 (`brew install xcodegen swiftlint`).
 
 ```sh
