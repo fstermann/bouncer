@@ -35,10 +35,15 @@ public final class MenuBarManager {
 
     public init(settings: SettingsStore) {
         self.settings = settings
-        hiddenDivider = ControlItem(autosaveName: "bouncer.divider.hidden", symbolName: "chevron.left")
+        hiddenDivider = ControlItem(
+            autosaveName: "bouncer.divider.hidden",
+            symbolName: "chevron.left",
+            position: StatusItemPosition.hiddenDivider
+        )
         alwaysHiddenDivider = ControlItem(
             autosaveName: "bouncer.divider.alwaysHidden",
-            symbolName: "chevron.left.2"
+            symbolName: "chevron.left.2",
+            position: StatusItemPosition.alwaysHiddenDivider
         )
 
         observation = ObservationLoop { [weak self] in
@@ -104,6 +109,7 @@ public final class MenuBarManager {
             return
         }
 
+        StatusItemPosition.seed(StatusItemPosition.icon, for: "bouncer.icon")
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.autosaveName = "bouncer.icon"
         item.button?.image = NSImage(systemSymbolName: "chevron.left.2", accessibilityDescription: "Bouncer")

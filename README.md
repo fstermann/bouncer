@@ -43,6 +43,10 @@ make lint      # SwiftLint
 
 ## Status
 
+On first launch nothing is hidden yet: the dividers start at the far left of the menu
+bar, and Bouncer's chevron appears near the right. Open **Settings → Menu Bar → Arrange
+menu bar items**, then Cmd-drag items to the left of a divider to hide them.
+
 Working today:
 
 - Three-section menu bar with collapsing dividers

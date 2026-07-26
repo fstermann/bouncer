@@ -31,8 +31,10 @@ final class ControlItem {
     /// Frame in window-server coordinates, or `nil` before the item has a window.
     var frame: CGRect? { item.button?.window?.frame }
 
-    init(autosaveName: String, symbolName: String) {
+    init(autosaveName: String, symbolName: String, position: Double) {
         self.symbolName = symbolName
+        // Must precede creation: the slot is read when the item is made.
+        StatusItemPosition.seed(position, for: autosaveName)
         item = NSStatusBar.system.statusItem(withLength: Self.expandedLength)
         item.autosaveName = autosaveName
         item.button?.setAccessibilityLabel("Bouncer divider")

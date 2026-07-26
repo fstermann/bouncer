@@ -5,7 +5,6 @@ import MenuBar
 import Settings
 import SwiftUI
 
-@main
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settings = SettingsStore()
@@ -14,7 +13,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.setActivationPolicy(.accessory)
         menuBar.iconMenu = makeIconMenu()
         reveal.start()
         Log.app.info("Bouncer launched")
