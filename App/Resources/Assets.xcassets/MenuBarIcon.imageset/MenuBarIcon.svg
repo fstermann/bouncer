@@ -1,8 +1,9 @@
 <!-- Derived from App/Resources/Logo.svg: cropped to the content box and flattened to
-     one colour, because menu bar icons are template images. Update both together. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="72 124 282 128" width="282" height="128">
+     one colour, because menu bar icons are template images. The strokes are heavier
+     than the source (22 vs 16) so they still read at menu bar size. Update together. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="69 124 285 128" width="285" height="128">
   <g transform="translate(22 100)">
-    <g fill="none" stroke="#000" stroke-width="16" stroke-linecap="round">
+    <g fill="none" stroke="#000" stroke-width="22" stroke-linecap="round">
       <line x1="96" y1="44" x2="185" y2="44"/>
       <line x1="58" y1="88" x2="170" y2="88"/>
       <line x1="96" y1="132" x2="185" y2="132"/>

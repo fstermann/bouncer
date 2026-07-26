@@ -28,7 +28,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Log.app.error("MenuBarIcon missing from the asset catalog")
             return nil
         }
-        let height = 16.0
+        // The mark is ~2.2:1, so height drives width. Kept low so the item is no
+        // wider than a typical square menu bar icon.
+        let height = 8.0
         image.size = NSSize(width: height * image.size.width / image.size.height, height: height)
         image.isTemplate = true
         return image
