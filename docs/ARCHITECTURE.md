@@ -6,26 +6,39 @@ macOS lays status items out right to left and gives each item a width. There is 
 to hide someone else's status item — but an item's width is ours to choose, and a wide
 enough item pushes everything to its left past the edge of the display.
 
-Bouncer creates two zero-content status items and uses them as **dividers**:
+Bouncer creates two status items and uses them as **dividers**. Only `.fullyRevealed`
+puts all three sections on screen at once, so that is the state drawn here — and it is
+the only state in which the outer boundary is visible at all:
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  … app items …  ▏  … app items …  ▏  … app items …  ⌃  🕐    │
-│  always hidden  ▲     hidden       ▲     visible              │
-│                 │                  │                          │
-│    alwaysHidden divider      hidden divider                   │
+│  … app items …  ●● … app items …  ●  … app items …  ≡●  🕐   │
+│  always hidden  ▲     hidden      ▲     visible               │
+│                 │                 │                           │
+│    alwaysHidden divider     hidden divider                    │
 └──────────────────────────────────────────────────────────────┘
 ```
 
-Each divider is either **expanded** (10 000 pt — everything to its left is off screen)
-or a **hairline** (1 pt — invisible, but non-zero so macOS keeps the item and remembers
-its saved position among the user's other items).
+A divider is **expanded** (10 000 pt — everything to its left is off screen) or a
+**marker**: the boundary glyph, drawn on the divider's own button and clickable to
+collapse the section again. One dot for the hidden boundary, two for the one further out.
 
-| Visibility       | hidden divider | alwaysHidden divider |
-| ---------------- | -------------- | -------------------- |
-| `.collapsed`     | expanded       | expanded             |
-| `.revealed`      | hairline       | expanded             |
-| `.fullyRevealed` | hairline       | hairline             |
+| Visibility       | hidden divider | alwaysHidden divider | on screen                  |
+| ---------------- | -------------- | -------------------- | -------------------------- |
+| `.collapsed`     | expanded       | expanded             | Bouncer's icon only        |
+| `.revealed`      | `●`            | expanded             | hidden section, no `●●`    |
+| `.fullyRevealed` | `●`            | `●●`                 | everything                 |
+
+In `.revealed` the alwaysHidden divider is off screen along with the section it governs,
+so its marker is not drawn — there is no boundary to point at yet.
+
+The marker is the divider, not a neighbouring item. The boundary is wherever the divider
+sits, so a separate marker would put the drop target one slot off and items dropped
+beside it would land on the wrong side.
+
+The alwaysHidden divider exists only while the always-hidden section is enabled. A
+divider that is in the bar hides whatever is left of it, and a section the user cannot
+reveal must hide nothing.
 
 That is the entire mechanism: two width assignments. It costs nothing at rest, needs no
 permissions, and survives OS updates that break screenshot-based approaches.
@@ -70,7 +83,8 @@ why `make test` needs no Xcode project and finishes in under a second.
 
 ### Notable types
 
-- **`ControlItem`** — one divider. Owns the width policy, nothing else.
+- **`ControlItem`** — one divider. Owns the width policy and the boundary marker drawn
+  on it, nothing else.
 - **`MenuBarManager`** — structure and visibility state. Deliberately does not know
   *why* visibility changes.
 - **`RevealController`** — the *why*: shortcuts, hover, auto-rehide. Separated so input

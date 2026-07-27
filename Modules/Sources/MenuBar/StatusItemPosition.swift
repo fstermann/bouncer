@@ -8,9 +8,15 @@ import Foundation
 /// Bouncer's own icon to the left of its dividers — where the dividers immediately push
 /// it off screen.
 enum StatusItemPosition {
-    /// Far left, so nothing of the user's is hidden until they arrange it that way.
-    static let alwaysHiddenDivider = 1001.0
-    static let hiddenDivider = 1000.0
+    /// Bouncer's visible items form one cluster at the right end of the bar, ordered
+    /// right to left: icon, hidden divider. Everything of the user's therefore starts out
+    /// left of the divider — hidden when collapsed, which is what makes it a meaningful
+    /// boundary. Drag items right of it to keep them always visible.
+    static let hiddenDivider = 3.0
+    /// Left of everything, so the always-hidden section starts empty: it is off by
+    /// default, and turning it on must not swallow the whole bar. macOS clamps a seed
+    /// this large to the bar's extent, which puts the divider leftmost.
+    static let alwaysHiddenDivider = 10_000.0
     /// Far right, so the icon is always reachable regardless of divider state.
     static let icon = 1.0
 

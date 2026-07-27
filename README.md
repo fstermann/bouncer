@@ -64,7 +64,10 @@ Not built yet — see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#roadmap):
 
 ## Brand
 
-`App/Resources/Logo.svg` is the source of truth for the mark. `Assets/` holds the
+`App/Resources/Logo.svg` is the source of truth for the mark. The menu bar glyph and the
+boundary dot are cropped out of it into `MenuBarIcon.imageset` and `DividerIcon.imageset`
+and flattened to one colour, because status item images must be templates; both keep the
+mark's 96-unit box so one height sizes them together. `Assets/` holds the
 derived lockups and the app icon; the wordmark there is a geometric grotesque drawn as
 vector paths, so it renders identically everywhere with no font dependency. Gotham
 itself is a licensed Hoefler&Co face — if you hold a licence, reset the wordmark in

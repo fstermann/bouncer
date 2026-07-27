@@ -8,7 +8,12 @@ import SwiftUI
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settings = SettingsStore()
-    private lazy var menuBar = MenuBarManager(settings: settings, iconImage: Self.menuBarIcon())
+    private lazy var menuBar = MenuBarManager(
+        settings: settings,
+        iconImage: Self.templateImage(named: "MenuBarIcon"),
+        dividerImage: Self.templateImage(named: "DividerIcon"),
+        alwaysHiddenDividerImage: Self.templateImage(named: "AlwaysHiddenDividerIcon")
+    )
     private lazy var reveal = RevealController(manager: menuBar, settings: settings)
     private var settingsWindow: NSWindow?
 
@@ -22,14 +27,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settings.flush()
     }
 
-    /// Fitted to the menu bar's usable height; the width follows the logo's aspect.
-    private static func menuBarIcon() -> NSImage? {
-        guard let image = NSImage(named: "MenuBarIcon") else {
-            Log.app.error("MenuBarIcon missing from the asset catalog")
+    /// Fitted to the menu bar's usable height; the width follows the asset's aspect.
+    /// Every Bouncer glyph is drawn in the same 96-unit box, so one height keeps the
+    /// mark and the boundary dot the same size in the bar.
+    private static func templateImage(named name: String) -> NSImage? {
+        guard let image = NSImage(named: name) else {
+            Log.app.error("\(name, privacy: .public) missing from the asset catalog")
             return nil
         }
-        // The mark is ~2.2:1, so height drives width. Kept low so the item is no
-        // wider than a typical square menu bar icon.
+        // Kept low so the mark is no wider than a typical square menu bar icon.
         let height = 10.5
         image.size = NSSize(width: height * image.size.width / image.size.height, height: height)
         image.isTemplate = true

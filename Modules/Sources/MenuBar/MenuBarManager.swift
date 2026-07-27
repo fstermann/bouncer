@@ -30,25 +30,40 @@ public final class MenuBarManager {
 
     private let settings: SettingsStore
     private let iconImage: NSImage?
+    /// Held rather than passed straight through, because the always-hidden divider is
+    /// only built when its section is switched on.
+    private let alwaysHiddenDividerImage: NSImage?
     private let hiddenDivider: ControlItem
-    private let alwaysHiddenDivider: ControlItem
+    /// Exists only while the always-hidden section is enabled: a divider that is in the
+    /// bar hides whatever is left of it, and a section the user cannot reveal must hide
+    /// nothing. Not being there also costs no width.
+    private var alwaysHiddenDivider: ControlItem?
     private var observation: ObservationLoop?
 
-    /// - Parameter iconImage: Bouncer's menu bar glyph. Supplied by the app layer so
-    ///   branding stays out of this module; should be a template image.
-    public init(settings: SettingsStore, iconImage: NSImage?) {
+    /// - Parameters:
+    ///   - iconImage: Bouncer's menu bar glyph.
+    ///   - dividerImage: the dot marking the hidden section's boundary.
+    ///   - alwaysHiddenDividerImage: the same, one boundary further out.
+    ///
+    /// All are supplied by the app layer so branding stays out of this module, and all
+    /// should be template images.
+    public init(
+        settings: SettingsStore,
+        iconImage: NSImage?,
+        dividerImage: NSImage?,
+        alwaysHiddenDividerImage: NSImage?
+    ) {
         self.settings = settings
         self.iconImage = iconImage
+        self.alwaysHiddenDividerImage = alwaysHiddenDividerImage
         hiddenDivider = ControlItem(
             autosaveName: "bouncer.divider.hidden",
             symbolName: "chevron.left",
-            position: StatusItemPosition.hiddenDivider
+            position: StatusItemPosition.hiddenDivider,
+            markerImage: dividerImage
         )
-        alwaysHiddenDivider = ControlItem(
-            autosaveName: "bouncer.divider.alwaysHidden",
-            symbolName: "chevron.left.2",
-            position: StatusItemPosition.alwaysHiddenDivider
-        )
+
+        hiddenDivider.onClick = { [weak self] in self?.revealFurtherOrCollapse() }
 
         observation = ObservationLoop { [weak self] in
             self?.applyPreferences(self?.settings.preferences ?? Preferences())
@@ -68,6 +83,13 @@ public final class MenuBarManager {
         setVisibility(visibility == .collapsed ? .revealed : .collapsed)
     }
 
+    /// Clicking a boundary opens whatever is still beyond it, and collapses once there is
+    /// nothing left — so the always-hidden section is reachable without a shortcut.
+    private func revealFurtherOrCollapse() {
+        let hasMoreToShow = visibility == .revealed && alwaysHiddenDivider != nil
+        setVisibility(hasMoreToShow ? .fullyRevealed : .collapsed)
+    }
+
     /// The items macOS currently reports, annotated with the section they fall into.
     ///
     /// Returns `nil` while a divider is expanded: an off-screen divider has no
@@ -78,20 +100,18 @@ public final class MenuBarManager {
         return MenuBarLayout.classify(
             items: MenuBarItemScanner.scan(),
             hiddenDividerMinX: hiddenFrame.minX,
-            alwaysHiddenDividerMinX: settings.preferences.enableAlwaysHiddenSection
-                ? alwaysHiddenDivider.frame?.minX
-                : nil
+            alwaysHiddenDividerMinX: alwaysHiddenDivider?.frame?.minX
         )
     }
 
     private func apply(_ visibility: MenuBarVisibility) {
         hiddenDivider.isExpanded = !visibility.shows(.hidden)
-        alwaysHiddenDivider.isExpanded = !visibility.shows(.alwaysHidden)
+        alwaysHiddenDivider?.isExpanded = !visibility.shows(.alwaysHidden)
     }
 
     private func applyEditing() {
         hiddenDivider.isEditing = isEditingLayout
-        alwaysHiddenDivider.isEditing = isEditingLayout
+        alwaysHiddenDivider?.isEditing = isEditingLayout
         if isEditingLayout {
             setVisibility(.fullyRevealed)
         }
@@ -100,9 +120,29 @@ public final class MenuBarManager {
     private func applyPreferences(_ preferences: Preferences) {
         setIconVisible(preferences.showBouncerIcon)
 
+        setAlwaysHiddenSectionEnabled(preferences.enableAlwaysHiddenSection)
         if !preferences.enableAlwaysHiddenSection, visibility == .fullyRevealed {
             setVisibility(.revealed)
         }
+    }
+
+    private func setAlwaysHiddenSectionEnabled(_ isEnabled: Bool) {
+        guard isEnabled == (alwaysHiddenDivider == nil) else { return }
+        guard isEnabled else {
+            alwaysHiddenDivider?.remove()
+            alwaysHiddenDivider = nil
+            return
+        }
+
+        let divider = ControlItem(
+            autosaveName: "bouncer.divider.alwaysHidden",
+            symbolName: "chevron.left.2",
+            position: StatusItemPosition.alwaysHiddenDivider,
+            markerImage: alwaysHiddenDividerImage
+        )
+        divider.onClick = { [weak self] in self?.setVisibility(.revealed) }
+        divider.isExpanded = !visibility.shows(.alwaysHidden)
+        alwaysHiddenDivider = divider
     }
 
     private func setIconVisible(_ isVisible: Bool) {
