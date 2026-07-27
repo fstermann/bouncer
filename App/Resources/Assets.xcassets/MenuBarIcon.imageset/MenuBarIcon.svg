@@ -1,13 +1,14 @@
 <!-- Derived from App/Resources/Logo.svg: cropped to the content box and flattened to
-     one colour, because menu bar icons are template images. The strokes are heavier
-     than the source (22 vs 16) so they still read at menu bar size. Update together. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="69 124 285 128" width="285" height="128">
-  <g transform="translate(22 100)">
-    <g fill="none" stroke="#000" stroke-width="22" stroke-linecap="round">
-      <line x1="96" y1="44" x2="185" y2="44"/>
-      <line x1="58" y1="88" x2="170" y2="88"/>
-      <line x1="96" y1="132" x2="185" y2="132"/>
+     one colour, because menu bar icons are template images. The stroke matches the
+     source — at menu bar height the new mark's 16 already renders at the ~1.8pt the
+     old, lighter mark needed a bump to reach. Update together. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="29 80 198 96" width="198" height="96">
+  <g transform="translate(-9 0)">
+    <circle cx="196" cy="128" r="40" fill="#000"/>
+    <g fill="none" stroke="#000" stroke-width="16" stroke-linecap="round">
+      <line x1="91" y1="88" x2="146" y2="88"/>
+      <line x1="46" y1="128" x2="132" y2="128"/>
+      <line x1="91" y1="168" x2="146" y2="168"/>
     </g>
-    <circle cx="268" cy="88" r="64" fill="#000"/>
   </g>
 </svg>

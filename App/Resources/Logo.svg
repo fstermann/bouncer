@@ -1,10 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 376 376" width="376" height="376" role="img" aria-label="Bouncer">
-  <g transform="translate(22 100)">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="Bouncer">
+  <g transform="translate(-9 0)">
+    <circle cx="196" cy="128" r="40" fill="#1B5CFF"></circle>
     <g fill="none" stroke="#1A2332" stroke-width="16" stroke-linecap="round">
-      <line x1="96" y1="44" x2="185" y2="44"/>
-      <line x1="58" y1="88" x2="170" y2="88"/>
-      <line x1="96" y1="132" x2="185" y2="132"/>
+      <line x1="91" y1="88" x2="146" y2="88"></line>
+      <line x1="46" y1="128" x2="132" y2="128"></line>
+      <line x1="91" y1="168" x2="146" y2="168"></line>
     </g>
-    <circle cx="268" cy="88" r="64" fill="#2563EB"/>
   </g>
 </svg>
