@@ -54,11 +54,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func openSettings() {
         if settingsWindow == nil {
-            let window = NSWindow(contentViewController: NSHostingController(
+            let hosting = NSHostingController(
                 rootView: SettingsView(settings: settings, manager: menuBar)
-            ))
+            )
+            hosting.sizingOptions = [.preferredContentSize]
+            // The style mask has to be set at init; assigning it afterwards drops the
+            // layout the hosting controller established and the first tab renders empty.
+            let window = NSWindow(
+                contentRect: .zero,
+                styleMask: [.titled, .closable],
+                backing: .buffered,
+                defer: false
+            )
+            window.contentViewController = hosting
             window.title = "Bouncer Settings"
-            window.styleMask = [.titled, .closable]
+            window.setContentSize(hosting.view.fittingSize)
             window.isReleasedWhenClosed = false
             settingsWindow = window
         }
