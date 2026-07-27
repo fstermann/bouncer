@@ -17,13 +17,14 @@ final class ControlItem: NSObject {
 
     private let item: NSStatusItem
     private let symbolName: String
-    /// Drawn on the divider itself while its section is revealed, where the item is only
-    /// a glyph wide. It has to be this item and not a neighbour: the boundary is wherever
-    /// this item sits, so a separate marker would put the drop target a slot off, and
-    /// items dropped beside it would land on the wrong side of the divider.
+    /// Drawn on the divider's own button while its section is revealed, where the item is
+    /// only a glyph wide. It has to be this item and not a neighbour: a preferred position
+    /// is a hint, and macOS orders our items against other apps' however it likes, so any
+    /// separate item can drift a slot off the boundary. The divider *is* the boundary, so
+    /// the glyph on it is the one thing guaranteed to sit where hiding ends.
     private let markerImage: NSImage?
 
-    /// Invoked when the boundary marker is clicked.
+    /// Invoked when the marker is clicked.
     var onClick: (@MainActor () -> Void)?
 
     /// `true` collapses the section to this divider's left.
@@ -39,10 +40,10 @@ final class ControlItem: NSObject {
     /// Frame in window-server coordinates, or `nil` before the item has a window.
     var frame: CGRect? { item.button?.window?.frame }
 
-    /// - Parameter markerImage: shown while the section is revealed, so the user can see
-    ///   where hiding starts and drag items across it. Supplied by the app layer so
-    ///   branding stays out of this module; should be a template image. `nil` leaves the
-    ///   divider invisible in every state.
+    /// - Parameter markerImage: shown while the section is revealed, so the boundary is
+    ///   drawn exactly where hiding starts. Supplied by the app layer so branding stays
+    ///   out of this module; should be a template image. `nil` leaves the divider
+    ///   invisible in every state.
     init(autosaveName: String, symbolName: String, position: Double, markerImage: NSImage? = nil) {
         self.symbolName = symbolName
         self.markerImage = markerImage

@@ -1,6 +1,6 @@
 {
   "images" : [
-    { "idiom" : "universal", "filename" : "DividerIcon.svg" }
+    { "idiom" : "universal", "filename" : "MenuBarIconOpen.svg" }
   ],
   "info" : { "author" : "xcode", "version" : 1 },
   "properties" : {

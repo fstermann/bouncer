@@ -1,0 +1,12 @@
+<!-- SectionEndIcon mirrored, drawn on the always-hidden divider so the two boundaries
+     bracket the hidden section between them. Update together. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="29 80 152 96" width="152" height="96">
+  <g transform="translate(210 0) scale(-1 1)">
+    <g transform="translate(-9 0)" fill="none" stroke="#000" stroke-width="16" stroke-linecap="round" opacity="0.4">
+      <line x1="91" y1="88" x2="146" y2="88"/>
+      <line x1="46" y1="128" x2="132" y2="128"/>
+      <line x1="91" y1="168" x2="146" y2="168"/>
+      <line x1="182" y1="88" x2="182" y2="168"/>
+    </g>
+  </g>
+</svg>

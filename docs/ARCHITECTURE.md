@@ -6,35 +6,52 @@ macOS lays status items out right to left and gives each item a width. There is 
 to hide someone else's status item — but an item's width is ours to choose, and a wide
 enough item pushes everything to its left past the edge of the display.
 
-Bouncer creates two status items and uses them as **dividers**. Only `.fullyRevealed`
-puts all three sections on screen at once, so that is the state drawn here — and it is
-the only state in which the outer boundary is visible at all:
+Bouncer creates two status items and uses them as **dividers**. A divider is either
+**expanded** (10 000 pt — everything to its left is off screen) or a **boundary**: a glyph
+on the divider's own button, clickable to walk the bar back. Only `.fullyRevealed` puts
+all three sections on screen at once, so that is the state drawn here:
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  … app items …  ●● … app items …  ●  … app items …  ≡●  🕐   │
-│  always hidden  ▲     hidden      ▲     visible               │
-│                 │                 │                           │
-│    alwaysHidden divider     hidden divider                    │
+│  … app items …  |≡  … app items …  ≡|  … app items …  ≡○  🕐 │
+│  always hidden  ▲      hidden      ▲       visible    ▲       │
+│                 │                  │                 │       │
+│    alwaysHidden divider      hidden divider    Bouncer's icon │
 └──────────────────────────────────────────────────────────────┘
 ```
 
-A divider is **expanded** (10 000 pt — everything to its left is off screen) or a
-**marker**: the boundary glyph, drawn on the divider's own button and clickable to
-collapse the section again. One dot for the hidden boundary, two for the one further out.
+That glyph — the mark's bars, plus a rule at the boundary itself — is drawn **on the
+divider**, so it sits exactly where hiding ends. The hidden divider carries `≡|` and
+the always-hidden divider its mirror `|≡`, so the two bracket the hidden section between
+them. A section needs no other marking: it runs from its own divider leftwards to the next
+one, and everything left of the outermost boundary is always hidden. Clicking a boundary
+opens whatever is still beyond it and collapses once there is nothing left.
 
-| Visibility       | hidden divider | alwaysHidden divider | on screen                  |
-| ---------------- | -------------- | -------------------- | -------------------------- |
-| `.collapsed`     | expanded       | expanded             | Bouncer's icon only        |
-| `.revealed`      | `●`            | expanded             | hidden section, no `●●`    |
-| `.fullyRevealed` | `●`            | `●●`                 | everything                 |
+The boundary glyphs are drawn at partial alpha rather than in a second colour, so they sit
+back from the logo. A status item image must be a template, and the system tints its
+*alpha* — so partial alpha reads as a lighter grey and still follows a light or dark menu
+bar.
+
+Bouncer's icon is a *button*, not a boundary. It sits at the right end of the bar with the
+dot filled while everything is put away and hollow while anything is open, and the user's
+always-visible items may well sort between it and the divider — which is fine, because the
+divider's own glyph is what says where the hidden section stops.
+
+That split is forced. A status item's preferred position is a *hint*: macOS orders our
+items against every other app's however it likes, so an item that is merely meant to sit
+beside the boundary can end up a slot off it with someone else's item drawn in the gap.
+Only the glyph on the divider is exact — which is why no boundary is ever marked by a
+neighbouring item.
+
+| Visibility       | hidden divider | alwaysHidden divider | icon | on screen         |
+| ---------------- | -------------- | -------------------- | ---- | ----------------- |
+| `.collapsed`     | expanded       | expanded             | `≡●` | `≡●` and visible  |
+| `.revealed`      | `≡\|`          | expanded             | `≡○` | `… ≡\| … ≡○`      |
+| `.fullyRevealed` | `≡\|`          | `\|≡`                | `≡○` | `… \|≡ … ≡\| … ≡○` |
 
 In `.revealed` the alwaysHidden divider is off screen along with the section it governs,
-so its marker is not drawn — there is no boundary to point at yet.
-
-The marker is the divider, not a neighbouring item. The boundary is wherever the divider
-sits, so a separate marker would put the drop target one slot off and items dropped
-beside it would land on the wrong side.
+so its glyph is not drawn — there is no boundary to point at yet, and the hidden section
+simply runs off the edge of the display.
 
 The alwaysHidden divider exists only while the always-hidden section is enabled. A
 divider that is in the bar hides whatever is left of it, and a section the user cannot
@@ -83,8 +100,10 @@ why `make test` needs no Xcode project and finishes in under a second.
 
 ### Notable types
 
-- **`ControlItem`** — one divider. Owns the width policy and the boundary marker drawn
-  on it, nothing else.
+- **`ControlItem`** — one divider. Owns the width policy and the boundary glyph drawn on
+  it, nothing else.
+- **`StatusItemPosition`** — slots. Seeded once so Bouncer's own items start in the right
+  order, then left alone; the value is a hint, so nothing may depend on it.
 - **`MenuBarManager`** — structure and visibility state. Deliberately does not know
   *why* visibility changes.
 - **`RevealController`** — the *why*: shortcuts, hover, auto-rehide. Separated so input

@@ -1,7 +1,0 @@
-<!-- Derived from App/Resources/Logo.svg: the mark's dot twice, saying "one boundary
-     further out" the way chevron.left.2 did. Same 96-unit box as DividerIcon, so one
-     height sizes every Bouncer glyph together. Update together. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 184 96" width="184" height="96">
-  <circle cx="40" cy="48" r="40" fill="#000"/>
-  <circle cx="144" cy="48" r="40" fill="#000"/>
-</svg>

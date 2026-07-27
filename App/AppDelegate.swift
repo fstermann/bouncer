@@ -11,8 +11,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var menuBar = MenuBarManager(
         settings: settings,
         iconImage: Self.templateImage(named: "MenuBarIcon"),
-        dividerImage: Self.templateImage(named: "DividerIcon"),
-        alwaysHiddenDividerImage: Self.templateImage(named: "AlwaysHiddenDividerIcon")
+        iconOpenImage: Self.templateImage(named: "MenuBarIconOpen"),
+        dividerImage: Self.templateImage(named: "SectionEndIcon"),
+        outerDividerImage: Self.templateImage(named: "SectionStartIcon")
     )
     private lazy var reveal = RevealController(manager: menuBar, settings: settings)
     private var settingsWindow: NSWindow?
@@ -29,7 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Fitted to the menu bar's usable height; the width follows the asset's aspect.
     /// Every Bouncer glyph is drawn in the same 96-unit box, so one height keeps the
-    /// mark and the boundary dot the same size in the bar.
+    /// mark and the boundary glyphs the same size in the bar.
     private static func templateImage(named name: String) -> NSImage? {
         guard let image = NSImage(named: name) else {
             Log.app.error("\(name, privacy: .public) missing from the asset catalog")

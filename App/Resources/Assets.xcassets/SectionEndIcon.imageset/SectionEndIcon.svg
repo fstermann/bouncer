@@ -1,0 +1,16 @@
+<!-- Derived from App/Resources/Logo.svg: the mark's bars without its dot, plus the rule
+     that marks the boundary itself, drawn to the same height and weight as the bars.
+     Drawn on the hidden divider, where the section ends on the right. The rule is
+     glyph is drawn at partial alpha rather than in a second colour, because a status item
+     image is a template — the system tints its alpha, so it reads as a lighter grey in
+     both light and dark bars and sits back from the logo. The viewBox has to clear the
+     rule's stroke, or its outer edge is clipped square. Update together with
+     SectionStartIcon. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="29 80 152 96" width="152" height="96">
+  <g transform="translate(-9 0)" fill="none" stroke="#000" stroke-width="16" stroke-linecap="round" opacity="0.4">
+    <line x1="91" y1="88" x2="146" y2="88"/>
+    <line x1="46" y1="128" x2="132" y2="128"/>
+    <line x1="91" y1="168" x2="146" y2="168"/>
+    <line x1="182" y1="88" x2="182" y2="168"/>
+  </g>
+</svg>

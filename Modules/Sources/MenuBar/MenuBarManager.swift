@@ -30,9 +30,10 @@ public final class MenuBarManager {
 
     private let settings: SettingsStore
     private let iconImage: NSImage?
+    private let iconOpenImage: NSImage?
     /// Held rather than passed straight through, because the always-hidden divider is
     /// only built when its section is switched on.
-    private let alwaysHiddenDividerImage: NSImage?
+    private let outerDividerImage: NSImage?
     private let hiddenDivider: ControlItem
     /// Exists only while the always-hidden section is enabled: a divider that is in the
     /// bar hides whatever is left of it, and a section the user cannot reveal must hide
@@ -41,23 +42,29 @@ public final class MenuBarManager {
     private var observation: ObservationLoop?
 
     /// - Parameters:
-    ///   - iconImage: Bouncer's menu bar glyph.
-    ///   - dividerImage: the dot marking the hidden section's boundary.
-    ///   - alwaysHiddenDividerImage: the same, one boundary further out.
+    ///   - iconImage: Bouncer's menu bar glyph, the button at the right end of the bar.
+    ///   - iconOpenImage: the same mark with its dot hollowed out, drawn while anything
+    ///     is revealed.
+    ///   - dividerImage: the mark's bars and a boundary rule, drawn on the hidden divider
+    ///     where the section ends on the right.
+    ///   - outerDividerImage: the same mirrored, drawn on the always-hidden divider so the
+    ///     two boundaries bracket the hidden section between them.
     ///
     /// All are supplied by the app layer so branding stays out of this module, and all
     /// should be template images.
     public init(
         settings: SettingsStore,
         iconImage: NSImage?,
+        iconOpenImage: NSImage?,
         dividerImage: NSImage?,
-        alwaysHiddenDividerImage: NSImage?
+        outerDividerImage: NSImage?
     ) {
         self.settings = settings
         self.iconImage = iconImage
-        self.alwaysHiddenDividerImage = alwaysHiddenDividerImage
+        self.iconOpenImage = iconOpenImage
+        self.outerDividerImage = outerDividerImage
         hiddenDivider = ControlItem(
-            autosaveName: "bouncer.divider.hidden",
+            autosaveName: StatusItemPosition.hiddenDividerName,
             symbolName: "chevron.left",
             position: StatusItemPosition.hiddenDivider,
             markerImage: dividerImage
@@ -107,6 +114,14 @@ public final class MenuBarManager {
     private func apply(_ visibility: MenuBarVisibility) {
         hiddenDivider.isExpanded = !visibility.shows(.hidden)
         alwaysHiddenDivider?.isExpanded = !visibility.shows(.alwaysHidden)
+        iconItem?.button?.image = markImage(for: visibility)
+    }
+
+    /// The dot is filled while everything is put away and hollow while a section is open,
+    /// so the icon reads as the button for whatever is revealed. Where hiding actually
+    /// ends is the divider's own glyph, which may be several items further left.
+    private func markImage(for visibility: MenuBarVisibility) -> NSImage? {
+        visibility == .collapsed ? iconImage : iconOpenImage
     }
 
     private func applyEditing() {
@@ -135,10 +150,10 @@ public final class MenuBarManager {
         }
 
         let divider = ControlItem(
-            autosaveName: "bouncer.divider.alwaysHidden",
+            autosaveName: StatusItemPosition.alwaysHiddenDividerName,
             symbolName: "chevron.left.2",
             position: StatusItemPosition.alwaysHiddenDivider,
-            markerImage: alwaysHiddenDividerImage
+            markerImage: outerDividerImage
         )
         divider.onClick = { [weak self] in self?.setVisibility(.revealed) }
         divider.isExpanded = !visibility.shows(.alwaysHidden)
@@ -153,11 +168,11 @@ public final class MenuBarManager {
             return
         }
 
-        StatusItemPosition.seed(StatusItemPosition.icon, for: "bouncer.icon")
+        StatusItemPosition.seed(StatusItemPosition.icon, for: StatusItemPosition.iconName)
         // The logo is wider than it is tall, so the item sizes to its image.
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        item.autosaveName = "bouncer.icon"
-        item.button?.image = iconImage
+        item.autosaveName = StatusItemPosition.iconName
+        item.button?.image = markImage(for: visibility)
         item.button?.target = self
         item.button?.action = #selector(iconClicked)
         item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])

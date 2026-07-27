@@ -31,7 +31,9 @@ Two principles decide every tradeoff — see README. In practice:
   BouncerUI`). Do not add a back edge; introduce a new module instead.
 - `Bouncer.xcodeproj` is generated — edit `project.yml`, never the project file.
 - `App/Resources/Logo.svg` is the source of truth for the mark. The app icon, the
-  README lockups, `MenuBarIcon.imageset` and `DividerIcon.imageset` are derived from it
-  — update them together. The status item copies are cropped and flattened to one
-  colour because status item images must be templates; both keep the mark's 96-unit box
-  so one height sizes them together.
+  README lockups, `MenuBarIcon.imageset`, `MenuBarIconOpen.imageset`,
+  `SectionEndIcon.imageset` and its mirror `SectionStartIcon.imageset` are derived from
+  it — update them together. The status item copies are cropped and flattened to one
+  colour because status item images must be templates; a lighter tone is partial alpha,
+  never a second colour. All keep the mark's 96-unit box so one height sizes them
+  together.

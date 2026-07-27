@@ -1,0 +1,13 @@
+<!-- Derived from App/Resources/Logo.svg: MenuBarIcon with the dot hollowed out, drawn
+     while a section is revealed. The stroke matches the bars and the radius is inset by
+     half of it, so the outer edge and the 96-unit box are unchanged. Update together. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="29 80 198 96" width="198" height="96">
+  <g transform="translate(-9 0)" fill="none" stroke="#000" stroke-width="16">
+    <circle cx="196" cy="128" r="32"/>
+    <g stroke-linecap="round">
+      <line x1="91" y1="88" x2="146" y2="88"/>
+      <line x1="46" y1="128" x2="132" y2="128"/>
+      <line x1="91" y1="168" x2="146" y2="168"/>
+    </g>
+  </g>
+</svg>

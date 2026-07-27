@@ -1,5 +1,0 @@
-<!-- Derived from App/Resources/Logo.svg: the mark's dot on its own, in the same 96-unit
-     box, so the boundary and the logo render the same size in the bar. Update together. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
-  <circle cx="48" cy="48" r="40" fill="#000"/>
-</svg>

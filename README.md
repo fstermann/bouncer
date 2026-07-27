@@ -44,8 +44,10 @@ make lint      # SwiftLint
 ## Status
 
 On first launch nothing is hidden yet: the dividers start at the far left of the menu
-bar, and Bouncer's chevron appears near the right. Open **Settings → Menu Bar → Arrange
-menu bar items**, then Cmd-drag items to the left of a divider to hide them.
+bar, and Bouncer's mark appears near the right. Open **Settings → Menu Bar → Arrange
+menu bar items**, then Cmd-drag items to the left of a divider to hide them. A revealed
+section ends at the boundary glyph on its divider; anything to the right of it stays
+visible.
 
 Working today:
 
@@ -64,10 +66,13 @@ Not built yet — see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#roadmap):
 
 ## Brand
 
-`App/Resources/Logo.svg` is the source of truth for the mark. The menu bar glyph and the
-boundary dot are cropped out of it into `MenuBarIcon.imageset` and `DividerIcon.imageset`
-and flattened to one colour, because status item images must be templates; both keep the
-mark's 96-unit box so one height sizes them together. `Assets/` holds the
+`App/Resources/Logo.svg` is the source of truth for the mark. The menu bar glyph, the same
+glyph with its dot hollowed out, and the boundary glyph and its mirror are cropped out of
+it into `MenuBarIcon.imageset`, `MenuBarIconOpen.imageset`, `SectionEndIcon.imageset` and
+`SectionStartIcon.imageset` and flattened to one colour, because status item images must
+be templates — the boundary glyphs are a lighter tone by way of partial alpha, which the
+system tints along with the rest. All keep the mark's 96-unit box so one height sizes them
+together. `Assets/` holds the
 derived lockups and the app icon; the wordmark there is a geometric grotesque drawn as
 vector paths, so it renders identically everywhere with no font dependency. Gotham
 itself is a licensed Hoefler&Co face — if you hold a licence, reset the wordmark in

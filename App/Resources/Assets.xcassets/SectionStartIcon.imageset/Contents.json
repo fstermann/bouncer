@@ -1,6 +1,6 @@
 {
   "images" : [
-    { "idiom" : "universal", "filename" : "AlwaysHiddenDividerIcon.svg" }
+    { "idiom" : "universal", "filename" : "SectionStartIcon.svg" }
   ],
   "info" : { "author" : "xcode", "version" : 1 },
   "properties" : {
