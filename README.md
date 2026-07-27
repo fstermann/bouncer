@@ -1,29 +1,34 @@
+<div align="center">
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="Assets/logo-dark.svg">
   <img src="Assets/logo-light.svg" alt="bouncer" height="96">
 </picture>
 
-A menu bar manager for macOS. Decides what gets in.
+### A menu bar manager for macOS. Decides what gets in.
 
-bouncer splits the menu bar into three sections — **Visible**, **Hidden**, and
-**Always Hidden** — and collapses the ones you are not using. Reveal them with a click,
-a keyboard shortcut, or by moving the pointer into the menu bar.
+bouncer splits the menu bar into three sections — **Visible**, **Hidden** and
+**Always Hidden** — and collapses the ones you are not using.<br>
+Reveal them with a click, a keyboard shortcut, or by moving the pointer into the menu bar.
 
-Requires macOS 14 or later. Apple Silicon and Intel.
+<sub>Requires macOS 14 or later · Apple Silicon and Intel</sub>
 
-## Design principles
+</div>
 
-Two rules decide every tradeoff in this codebase:
+## Principles
 
-**Resource efficiency.** bouncer is idle almost all of the time, and idle must mean
-*zero work*. No polling loops, no timers ticking in the background, no global event
-monitors installed for features you have turned off. The core hide/show mechanism is a
-single `NSStatusItem` width assignment — no screen capture, no per-item bookkeeping,
-no private API. bouncer never asks for Accessibility or Screen Recording permission.
+Two things decide every tradeoff:
 
-**Clean design.** Logic lives in small SwiftPM modules with one job each and explicit
-dependencies. Anything worth testing is a pure function over plain values. The app
-target is a thin shell that wires modules together and owns no logic of its own.
+**Speed.** Revealing a section is instant, and idle means *zero work* — no polling loops,
+no background timers, no global event monitors installed for features you have turned off.
+The core hide/show mechanism is a single `NSStatusItem` width assignment: no screen
+capture, no per-item bookkeeping, no private API, and no Accessibility or Screen Recording
+permission.
+
+**Minimalism.** The interface is as small as the job allows. No dock icon, no window you
+have to keep around, no chrome on the menu bar beyond one mark and the dividers doing the
+work. Settings are a short list of plain choices rather than a wall of toggles, and
+nothing animates for the sake of animating.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the hiding actually works.
 
@@ -40,6 +45,10 @@ make lint      # SwiftLint
 
 `Bouncer.xcodeproj` is generated from `project.yml` and is not checked in — edit
 `project.yml`, then `make generate`.
+
+Logic lives in small SwiftPM modules under `Modules/` with one job each and explicit
+dependencies; anything worth testing is a pure function over plain values. The app target
+is a thin shell that wires them together and owns no logic of its own.
 
 ## Status
 
