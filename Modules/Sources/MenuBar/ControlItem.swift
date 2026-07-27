@@ -13,10 +13,8 @@ final class ControlItem: NSObject {
     /// Invisible in normal use, but non-zero so macOS keeps the item — and its saved
     /// position among the user's other items — alive.
     private static let hairlineLength: CGFloat = 1
-    private static let editingLength: CGFloat = 24
 
     private let item: NSStatusItem
-    private let symbolName: String
     /// Drawn on the divider's own button while its section is revealed, where the item is
     /// only a glyph wide. It has to be this item and not a neighbour: a preferred position
     /// is a hint, and macOS orders our items against other apps' however it likes, so any
@@ -32,11 +30,6 @@ final class ControlItem: NSObject {
         didSet { if isExpanded != oldValue { updateAppearance() } }
     }
 
-    /// Widens the divider and gives it a glyph so the user can Cmd-drag items across it.
-    var isEditing = false {
-        didSet { if isEditing != oldValue { updateAppearance() } }
-    }
-
     /// Frame in window-server coordinates, or `nil` before the item has a window.
     var frame: CGRect? { item.button?.window?.frame }
 
@@ -44,8 +37,7 @@ final class ControlItem: NSObject {
     ///   drawn exactly where hiding starts. Supplied by the app layer so branding stays
     ///   out of this module; should be a template image. `nil` leaves the divider
     ///   invisible in every state.
-    init(autosaveName: String, symbolName: String, position: Double, markerImage: NSImage? = nil) {
-        self.symbolName = symbolName
+    init(autosaveName: String, position: Double, markerImage: NSImage? = nil) {
         self.markerImage = markerImage
         // Must precede creation: the slot is read when the item is made.
         StatusItemPosition.seed(position, for: autosaveName)
@@ -71,14 +63,13 @@ final class ControlItem: NSObject {
     /// An expanded divider spans the whole bar, so it would otherwise intercept clicks on
     /// the app menu behind it. In every other state it is a glyph the user is meant to hit.
     private func applyClickThrough() {
-        let ignores = isExpanded && !isEditing
         guard let window = item.button?.window else {
             DispatchQueue.main.async { [self] in
-                item.button?.window?.ignoresMouseEvents = ignores
+                item.button?.window?.ignoresMouseEvents = isExpanded
             }
             return
         }
-        window.ignoresMouseEvents = ignores
+        window.ignoresMouseEvents = isExpanded
     }
 
     private func updateAppearance() {
@@ -89,12 +80,6 @@ final class ControlItem: NSObject {
             // item is thousands of points wide, so a glyph would land off screen too.
             item.length = Self.expandedLength
             item.button?.image = nil
-        } else if isEditing {
-            item.length = Self.editingLength
-            item.button?.image = NSImage(
-                systemSymbolName: symbolName,
-                accessibilityDescription: "Bouncer divider"
-            )
         } else if let markerImage {
             item.length = NSStatusItem.variableLength
             item.button?.image = markerImage

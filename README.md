@@ -9,7 +9,7 @@
 
 bouncer splits the menu bar into three sections — **Visible**, **Hidden** and
 **Always Hidden** — and collapses the ones you are not using.<br>
-Reveal them with a click, a keyboard shortcut, or by moving the pointer into the menu bar.
+Reveal them with a click, or by moving the pointer into the menu bar.
 
 <sub>Requires macOS 14 or later · Apple Silicon and Intel</sub>
 
@@ -53,17 +53,16 @@ is a thin shell that wires them together and owns no logic of its own.
 ## Status
 
 On first launch nothing is hidden yet: the dividers start at the far left of the menu
-bar, and Bouncer's mark appears near the right. Open **Settings → Menu Bar → Arrange
-menu bar items**, then Cmd-drag items to the left of a divider to hide them. A revealed
+bar, and Bouncer's mark appears near the right. Reveal a section, then Cmd-drag items to
+the left of a divider to hide them — the same drag macOS already gives you. A revealed
 section ends at the boundary glyph on its divider; anything to the right of it stays
 visible.
 
 Working today:
 
 - Three-section menu bar with collapsing dividers
-- Reveal by clicking bouncer's icon, a global shortcut, or pointer hover
+- Reveal by clicking bouncer's icon or its boundary glyph, or by pointer hover
 - Auto-rehide: never, after a delay, or on app switch
-- Layout inspector showing which section each item is in
 - Launch at login, preferences persisted
 
 Not built yet — see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#roadmap):

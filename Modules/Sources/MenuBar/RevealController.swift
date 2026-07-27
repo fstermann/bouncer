@@ -1,6 +1,5 @@
 import AppKit
 import BouncerFoundation
-import Hotkeys
 import Settings
 
 /// Translates user input and idle timeouts into visibility changes.
@@ -12,7 +11,6 @@ public final class RevealController {
     private let manager: MenuBarManager
     private let settings: SettingsStore
 
-    private var hotkeyTokens: [HotkeyRegistry.Token] = []
     private var hoverMonitor: Any?
     private var activationObserver: NSObjectProtocol?
     private var rehideTask: Task<Void, Never>?
@@ -42,22 +40,6 @@ public final class RevealController {
 
     private func configureInputs() {
         let preferences = settings.preferences
-
-        for token in hotkeyTokens { HotkeyRegistry.shared.unregister(token) }
-        hotkeyTokens = []
-
-        if let combo = preferences.revealHotkey,
-           let token = HotkeyRegistry.shared.register(combo, action: { [weak manager] in manager?.toggle() }) {
-            hotkeyTokens.append(token)
-        }
-        if preferences.enableAlwaysHiddenSection,
-           let combo = preferences.revealAlwaysHiddenHotkey,
-           let token = HotkeyRegistry.shared.register(combo, action: { [weak manager] in
-               guard let manager else { return }
-               manager.setVisibility(manager.visibility == .fullyRevealed ? .collapsed : .fullyRevealed)
-           }) {
-            hotkeyTokens.append(token)
-        }
 
         setHoverMonitorEnabled(preferences.revealOnHover)
         setActivationObserverEnabled(preferences.autoRehide == .onFocusedAppChange)

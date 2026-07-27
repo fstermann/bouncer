@@ -5,7 +5,6 @@ public enum Log {
 
     public static let menuBar = Logger(subsystem: subsystem, category: "menubar")
     public static let settings = Logger(subsystem: subsystem, category: "settings")
-    public static let hotkeys = Logger(subsystem: subsystem, category: "hotkeys")
     public static let app = Logger(subsystem: subsystem, category: "app")
 
     /// Signposts for measuring hot paths (`xctrace record --template 'Time Profiler'`).

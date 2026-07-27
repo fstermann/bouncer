@@ -63,8 +63,12 @@ permissions, and survives OS updates that break screenshot-based approaches.
 Section membership is not stored anywhere — it *is* the item's position relative to the
 dividers, which macOS already persists per app via `NSStatusItem.autosaveName`. Users
 rearrange sections by Cmd-dragging items across a divider, exactly as they already
-rearrange the menu bar. `MenuBarLayout.classify` reads membership back out of x-positions
-when the layout inspector needs to display it.
+rearrange the menu bar.
+
+Bouncer does not list what is in each section, because it cannot say anything useful about
+them. macOS hosts nearly every status item in the Control Center process, so the window
+server reports the same owner for almost all of them; the window name that would identify
+one — and the item's image — need Screen Recording. The menu bar itself is the display.
 
 ### Why not the screenshot approach
 
@@ -82,21 +86,18 @@ Logic lives in `Modules/` (a SwiftPM package); `App/` is a thin shell.
 ```
 BouncerFoundation   Logging, signposts, observation helper. No dependencies.
       ↑
-   Hotkeys          KeyCombo + Carbon global shortcut registration.
-      ↑
   Settings          Preferences value type, persistence, launch-at-login.
       ↑
-   MenuBar          Dividers, item scanning, section classification,
-                    visibility state, reveal/rehide policy.
+   MenuBar          Dividers, visibility state, reveal/rehide policy.
       ↑
-  BouncerUI         SwiftUI settings panes.
+  BouncerUI         The SwiftUI settings pane.
       ↑
     App             AppDelegate: constructs the graph, owns the menu and window.
 ```
 
 Dependencies point one way only. `MenuBar` is AppKit-facing but its decision logic
-(`MenuBarLayout`, `MenuBarVisibility`) is pure and tested without a running app, which is
-why `make test` needs no Xcode project and finishes in under a second.
+(`MenuBarVisibility`) is pure and tested without a running app, which is why `make test`
+needs no Xcode project and finishes in under a second.
 
 ### Notable types
 
@@ -106,11 +107,8 @@ why `make test` needs no Xcode project and finishes in under a second.
   order, then left alone; the value is a hint, so nothing may depend on it.
 - **`MenuBarManager`** — structure and visibility state. Deliberately does not know
   *why* visibility changes.
-- **`RevealController`** — the *why*: shortcuts, hover, auto-rehide. Separated so input
+- **`RevealController`** — the *why*: hover, auto-rehide. Separated so input
   policy can grow without touching the bar itself.
-- **`MenuBarItemScanner`** — reads the window server's list, keeping windows on layer 25
-  (`NSStatusWindowLevel`). Frames and owner names need no permission; item *images*
-  would, so we do not read them.
 - **`SettingsStore`** — one JSON blob in `UserDefaults`. One read at launch, one
   coalesced write per burst of edits.
 
@@ -123,9 +121,9 @@ These are enforced by review, not by tooling:
 2. **Pay only for what you enable.** The global mouse monitor is installed when
    `revealOnHover` is on and removed when it is off. Same for the app-activation
    observer. A user with both off has zero installed observers.
-3. **Polling is a last resort, is scoped, and is documented.** Exactly one poll exists:
-   item frames refresh at 2 Hz while the layout inspector is open, because dragging a
-   status item produces no notification. It stops when the pane closes.
+3. **Polling is a last resort, is scoped, and is documented.** No poll exists. Anything
+   that needs one has to justify why no notification carries the same change, and stop
+   polling the moment the feature that needs it is closed.
 4. **Value types over object graphs.** `Preferences` is one `Hashable` struct, so
    "did anything change" is `==` and persistence is one encode.
 5. **Release builds use whole-module optimisation and thin LTO** (`project.yml`).

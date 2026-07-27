@@ -55,7 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func openSettings() {
         if settingsWindow == nil {
             let hosting = NSHostingController(
-                rootView: SettingsView(settings: settings, manager: menuBar)
+                rootView: SettingsView(settings: settings)
             )
             hosting.sizingOptions = [.preferredContentSize]
             // The style mask has to be set at init; assigning it afterwards drops the

@@ -6,17 +6,12 @@ import Settings
 /// Owns the menu bar's structure: the dividers that define the sections, Bouncer's own
 /// status item, and which sections are currently on screen.
 ///
-/// Deliberately knows nothing about *why* visibility changes — hotkeys, hover and
-/// auto-rehide live in `RevealController`.
+/// Deliberately knows nothing about *why* visibility changes — hover and auto-rehide
+/// live in `RevealController`.
 @MainActor
 @Observable
 public final class MenuBarManager {
     public private(set) var visibility: MenuBarVisibility = .collapsed
-
-    /// Widens the dividers so the user can Cmd-drag items between sections.
-    public var isEditingLayout = false {
-        didSet { applyEditing() }
-    }
 
     /// Bouncer's own status item, when `showBouncerIcon` is enabled. Assign a `menu`
     /// to it from the app layer; left clicks toggle visibility.
@@ -65,7 +60,6 @@ public final class MenuBarManager {
         self.outerDividerImage = outerDividerImage
         hiddenDivider = ControlItem(
             autosaveName: StatusItemPosition.hiddenDividerName,
-            symbolName: "chevron.left",
             position: StatusItemPosition.hiddenDivider,
             markerImage: dividerImage
         )
@@ -91,24 +85,10 @@ public final class MenuBarManager {
     }
 
     /// Clicking a boundary opens whatever is still beyond it, and collapses once there is
-    /// nothing left — so the always-hidden section is reachable without a shortcut.
+    /// nothing left — so the always-hidden section is reachable from the bar alone.
     private func revealFurtherOrCollapse() {
         let hasMoreToShow = visibility == .revealed && alwaysHiddenDivider != nil
         setVisibility(hasMoreToShow ? .fullyRevealed : .collapsed)
-    }
-
-    /// The items macOS currently reports, annotated with the section they fall into.
-    ///
-    /// Returns `nil` while a divider is expanded: an off-screen divider has no
-    /// meaningful x-position to classify against, so ask for the layout only while
-    /// `.fullyRevealed` (which `isEditingLayout` guarantees).
-    public func currentLayout() -> [(item: MenuBarItem, section: MenuBarSection)]? {
-        guard visibility == .fullyRevealed, let hiddenFrame = hiddenDivider.frame else { return nil }
-        return MenuBarLayout.classify(
-            items: MenuBarItemScanner.scan(),
-            hiddenDividerMinX: hiddenFrame.minX,
-            alwaysHiddenDividerMinX: alwaysHiddenDivider?.frame?.minX
-        )
     }
 
     private func apply(_ visibility: MenuBarVisibility) {
@@ -122,14 +102,6 @@ public final class MenuBarManager {
     /// ends is the divider's own glyph, which may be several items further left.
     private func markImage(for visibility: MenuBarVisibility) -> NSImage? {
         visibility == .collapsed ? iconImage : iconOpenImage
-    }
-
-    private func applyEditing() {
-        hiddenDivider.isEditing = isEditingLayout
-        alwaysHiddenDivider?.isEditing = isEditingLayout
-        if isEditingLayout {
-            setVisibility(.fullyRevealed)
-        }
     }
 
     private func applyPreferences(_ preferences: Preferences) {
@@ -151,7 +123,6 @@ public final class MenuBarManager {
 
         let divider = ControlItem(
             autosaveName: StatusItemPosition.alwaysHiddenDividerName,
-            symbolName: "chevron.left.2",
             position: StatusItemPosition.alwaysHiddenDivider,
             markerImage: outerDividerImage
         )
