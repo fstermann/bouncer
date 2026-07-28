@@ -20,6 +20,10 @@ settings:
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
     DEAD_CODE_STRIPPING: YES
+    # Xcode's debug dylib splits the app in two and requires both halves to carry the same
+    # Team ID. A self-signed development certificate has none, so dyld refuses to load it
+    # and the app dies at launch. Nothing here needs the feature.
+    ENABLE_DEBUG_DYLIB: NO
     GCC_NO_COMMON_BLOCKS: YES
     CLANG_ENABLE_MODULES: YES
   configs:
@@ -45,6 +49,8 @@ targets:
         product: Settings
       - package: BouncerModules
         product: BouncerUI
+      - package: BouncerModules
+        product: StandaloneBar
     settings:
       base:
         INFOPLIST_FILE: App/Info.plist
