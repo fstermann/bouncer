@@ -97,14 +97,12 @@ struct LayoutTests {
 
 @Suite("Click mapping")
 struct HitTests {
-    @Test("A click on a replica maps to the same offset on the real item")
+    @Test("A click on a replica names the item it replicates")
     func mapsToRealItem() {
         let target = item(904, 40, id: 1)
         let (positions, _) = MenuBarItemGeometry.layout([target])
         // 12 pt into the replica, 16 pt down.
-        let hit = MenuBarItemGeometry.itemHit(at: CGPoint(x: 12, y: 16), positions: positions)
-        #expect(hit?.item == target)
-        #expect(hit?.pointOnItem == CGPoint(x: 916, y: 16))
+        #expect(MenuBarItemGeometry.item(at: CGPoint(x: 12, y: 16), positions: positions) == target)
     }
 
     @Test("A click in a gap hits nothing rather than the nearest item")
@@ -112,6 +110,6 @@ struct HitTests {
         let (positions, _) = MenuBarItemGeometry.layout(
             [item(904, 40, id: 1), item(1000, 40, id: 2)])
         // x = 60 falls in the gap between the two replicas.
-        #expect(MenuBarItemGeometry.itemHit(at: CGPoint(x: 60, y: 16), positions: positions) == nil)
+        #expect(MenuBarItemGeometry.item(at: CGPoint(x: 60, y: 16), positions: positions) == nil)
     }
 }

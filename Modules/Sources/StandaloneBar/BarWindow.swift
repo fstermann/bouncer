@@ -29,7 +29,10 @@ class BarWindow: NSWindow {
         backgroundColor = .clear
         hasShadow = false
         // The bar belongs to no space in particular and must not be cycled to.
-        collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenNone]
+        // Auxiliary rather than none: a window that does not participate in full screen is
+        // kept out of a full screen space altogether, which leaves the section revealed and
+        // uncovered there.
+        collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
     }
 
     /// AppKit would otherwise push the window out of the menu bar band.

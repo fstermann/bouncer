@@ -85,18 +85,11 @@ public enum MenuBarItemGeometry {
         return (positions, bounds.size)
     }
 
-    /// Maps a point inside the standalone bar back to the point on the real item it
-    /// replicates, so a click can be forwarded to where the item actually is.
+    /// The item whose replica contains `point`, so a click can be forwarded to it.
     ///
     /// Returns `nil` when the point hits a gap rather than a replica — the bar should
     /// swallow that click rather than guess at a neighbour.
-    public static func itemHit(
-        at point: CGPoint,
-        positions: [MenuBarItem: CGRect]
-    ) -> (item: MenuBarItem, pointOnItem: CGPoint)? {
-        guard let (item, rect) = positions.first(where: { $0.value.contains(point) }) else { return nil }
-        // Same offset within the replica, applied to the real item's frame.
-        let offset = CGPoint(x: point.x - rect.minX, y: point.y - rect.minY)
-        return (item, CGPoint(x: item.frame.minX + offset.x, y: item.frame.minY + offset.y))
+    public static func item(at point: CGPoint, positions: [MenuBarItem: CGRect]) -> MenuBarItem? {
+        positions.first { $0.value.contains(point) }?.key
     }
 }

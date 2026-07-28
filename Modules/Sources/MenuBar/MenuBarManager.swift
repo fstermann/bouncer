@@ -72,6 +72,13 @@ public final class MenuBarManager {
         apply(visibility)
     }
 
+    /// Hides the boundary markers while the section is being shown somewhere other than
+    /// the menu bar, where a boundary is a glyph that marks nothing.
+    public func setBoundaryMarkersVisible(_ areVisible: Bool) {
+        hiddenDivider.showsMarker = areVisible
+        alwaysHiddenDivider?.showsMarker = areVisible
+    }
+
     public func setVisibility(_ newValue: MenuBarVisibility) {
         guard newValue != visibility else { return }
         visibility = newValue
