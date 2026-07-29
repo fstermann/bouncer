@@ -62,6 +62,67 @@ struct CoverTests {
     }
 }
 
+@Suite("Landing strip")
+struct LandingStripTests {
+    /// Frames measured off a real bar: the parked section, and the run it comes back beside.
+    private let parked = [item(-4237, 45, id: 1), item(-4192, 36, id: 2), item(-4156, 38, id: 3)]
+    private let run = [item(1154, 32, id: 4), item(1186, 38, id: 5), item(1224, 44, id: 6)]
+
+    @Test("Predicts where the section lands, to the point")
+    func matchesWhereTheItemsActuallyLand() {
+        let predicted = MenuBarItemGeometry.landingStrip(for: parked, leftOf: run + parked)
+        // Where they actually landed: packed edge to edge, ending 17 pt short of the run
+        // because the divider is still between the two.
+        let landed = [item(1018, 45, id: 1), item(1063, 36, id: 2), item(1099, 38, id: 3)]
+        #expect(predicted == MenuBarItemGeometry.coverRect(for: landed))
+    }
+
+    @Test("Leaves room for the divider, which stays in the bar between the two")
+    func allowsForTheDivider() {
+        let predicted = MenuBarItemGeometry.landingStrip(for: parked, leftOf: run + parked)
+        #expect(predicted.maxX == 1154 - MenuBarItemGeometry.collapsedDividerWidth)
+    }
+
+    @Test("Lands beside the run, not beside a lone item further left")
+    func ignoresAnItemAcrossAGap() {
+        let stray = item(400, 33, id: 7)
+        let predicted = MenuBarItemGeometry.landingStrip(for: parked, leftOf: [stray] + run)
+        #expect(predicted.maxX == 1137)
+    }
+
+    @Test("Nothing parked is nothing to cover")
+    func nothingParked() {
+        #expect(MenuBarItemGeometry.landingStrip(for: [], leftOf: run).width == 0)
+    }
+}
+
+@Suite("Packing the section into its landing strip")
+struct PackingTests {
+    private let parked = [item(-4237, 45, id: 1), item(-4192, 36, id: 2), item(-4156, 38, id: 3)]
+    private let strip = CGRect(x: 1000, y: 0, width: 119, height: 33)
+
+    @Test("Packs edge to edge from the left of the strip")
+    func packsEdgeToEdge() {
+        let packed = MenuBarItemGeometry.packed(parked, into: strip, like: [])
+        #expect(packed.map(\.frame.minX) == [1000, 1045, 1081])
+        #expect(MenuBarItemGeometry.coverRect(for: packed) == strip)
+    }
+
+    @Test("Follows the order the section came back in last time")
+    func followsTheRememberedOrder() {
+        // Measured: two items of the same width traded places on the way back on screen.
+        let packed = MenuBarItemGeometry.packed(parked, into: strip, like: [1, 3, 2])
+        #expect(packed.map(\.windowID) == [1, 3, 2])
+        #expect(packed.map(\.frame.minX) == [1000, 1045, 1083])
+    }
+
+    @Test("An item the remembered order has never seen keeps its parked place, at the end")
+    func unknownItemsGoLast() {
+        let packed = MenuBarItemGeometry.packed(parked, into: strip, like: [3])
+        #expect(packed.map(\.windowID) == [3, 1, 2])
+    }
+}
+
 @Suite("Replica layout")
 struct LayoutTests {
     @Test("Replicas mirror the real horizontal positions, so menus open under them")

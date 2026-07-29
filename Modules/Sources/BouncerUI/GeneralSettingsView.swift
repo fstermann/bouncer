@@ -20,6 +20,17 @@ struct GeneralSettingsView: View {
                      + "Needs Screen Recording to read the items, and Accessibility to click them.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
+
+                Toggle("Slide the bar in and out", isOn: $settings.preferences.animateBar)
+                if settings.preferences.animateBar {
+                    Slider(value: animationMilliseconds, in: 60...500, step: 20) {
+                        Text("Speed")
+                    } minimumValueLabel: {
+                        Text("Fast")
+                    } maximumValueLabel: {
+                        Text("Slow")
+                    }
+                }
             }
 
             Picker("Hide again", selection: rehideMode) {
@@ -66,6 +77,12 @@ struct GeneralSettingsView: View {
             case .onFocusedAppChange: .onFocusedAppChange
             }
         }
+    }
+
+    private var animationMilliseconds: Binding<Double> {
+        Binding {
+            settings.preferences.barAnimationDuration * 1000
+        } set: { settings.preferences.barAnimationDuration = $0 / 1000 }
     }
 
     private var delaySeconds: Binding<Double> {

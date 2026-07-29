@@ -3,6 +3,7 @@ import BouncerFoundation
 import CoreGraphics
 import MenuBar
 import Observation
+import Settings
 
 /// Opens and closes the standalone bar.
 ///
@@ -26,6 +27,7 @@ public final class StandaloneBarController {
     private static let graceBeforeClosing = Duration.milliseconds(700)
 
     private let menuBar: MenuBarManager
+    private let settings: SettingsStore
     private let itemCapture = ItemCapture()
     private let cover = CoverWindow()
     private let shield = ClickShield()
@@ -45,9 +47,20 @@ public final class StandaloneBarController {
     /// What a replica's click is delivered to, resolved while the bar opens and awaited only
     /// when one is clicked.
     private var resolvingElements: Task<[UInt32: ItemElement], Never>?
+    /// How long the panel takes to come out of the menu bar, or `nil` while animation is
+    /// switched off. Read once per open, and used again to put the bar away.
+    private var slide: TimeInterval?
+    /// The order the section came back in when it was last revealed.
+    ///
+    /// The panel is drawn before the reveal, so the order the replicas go in has to be
+    /// predicted — and the parked order is not always the answer: two items of the same width
+    /// were measured trading places on the way back on screen. What the section did last time
+    /// is the best guide there is, and it is replaced by the truth on every open.
+    private var orderLastTime: [UInt32] = []
 
-    public init(menuBar: MenuBarManager) {
+    public init(menuBar: MenuBarManager, settings: SettingsStore) {
         self.menuBar = menuBar
+        self.settings = settings
         bar.onClick = { [weak self] item in
             self?.forward(to: item)
         }
@@ -78,6 +91,9 @@ public final class StandaloneBarController {
             return
         }
         Log.menuBar.info("Standalone bar: opening")
+        // Read once per open, so the bar leaves the way it arrived even if the preference
+        // changes while it is up.
+        slide = settings.preferences.animateBar ? settings.preferences.barAnimationDuration : nil
 
         // Which items are hidden has to be settled *before* revealing them, because once
         // they are back on screen they are indistinguishable from the ones that were
@@ -95,13 +111,6 @@ public final class StandaloneBarController {
         // untouched — and it is what keeps the replicas out of the reveal's way entirely.
         itemCapture.capture(parked)
 
-        // Covered before anything moves. Revealing is what puts the items back on screen, so
-        // a cover that arrives late shows them in the gap.
-        //
-        // Over the stretch the section is about to land in, not over the whole bar: the rest
-        // of the bar is not hiding anything and has no business being painted over.
-        cover.show(over: landingStrip(leftOf: all, forWide: parked))
-
         // Resolved before anything moves, and left to run across the reveal. The
         // accessibility tree lags the window server by a moment after a layout change, so an
         // item looked up just after being revealed is matched against where it no longer is;
@@ -113,6 +122,21 @@ public final class StandaloneBarController {
         // its element only once one is clicked.
         resolvingElements = Task.detached { await ClickForwarder.elements(for: Array(hidden)) }
 
+        // The panel is built where the section is about to land — the shelf over that stretch
+        // of bar, the cover over it — and run out of the menu bar as one piece. It can be
+        // built before the reveal because the landing is worked out rather than measured, and
+        // because a replica's position within the shelf is the item's position within its own
+        // section, which the reveal does not change: it moves the section, not its packing.
+        //
+        // Nothing of the real bar is disturbed while it comes down. The section is still
+        // parked off the display, so the replicas cross empty menu bar, and only once the
+        // cover has landed over that stretch are the real items brought back underneath it.
+        let landing = MenuBarItemGeometry.landingStrip(for: parked, leftOf: all)
+        cover.show(over: landing.insetBy(dx: -Self.coverBleed, dy: 0))
+        bar.update(images: itemCapture.images)
+        bar.show(MenuBarItemGeometry.packed(parked, into: landing, like: orderLastTime), below: landing)
+        await runThePanelOut()
+
         let revealed = await reveal(hidden)
         guard let strip = MenuBarItemGeometry.coverRect(for: revealed) else {
             Log.menuBar.info("Standalone bar: the hidden section did not come back on screen")
@@ -120,23 +144,51 @@ public final class StandaloneBarController {
             return
         }
         items = revealed
-        // Tightened to where the section actually landed, now that it can be measured, and
-        // widened to match the shelf: the two stand for the same items, so a cover narrower
-        // than the shelf reads as the shelf hanging out past its own section.
-        cover.show(over: strip.insetBy(dx: -Self.coverBleed, dy: 0))
+        orderLastTime = revealed.map(\.windowID)
+        // Corrected onto where the section actually landed, now that it can be measured — a
+        // move of nothing at all unless the landing was worked out wrong, and a glide rather
+        // than a jump when it was. The cover is widened to match the shelf: the two stand for
+        // the same items, so a cover narrower than the shelf reads as the shelf hanging out
+        // past its own section.
+        cover.settle(onto: strip.insetBy(dx: -Self.coverBleed, dy: 0), over: slide)
+        bar.show(revealed, below: strip)
         // The items under the cover are painted over, not moved, and so still take clicks.
         shield.show(over: strip)
 
-        let beforeCapture = PlacementWait.frames(of: hidden)
+        finishOpening(of: hidden, from: PlacementWait.frames(of: hidden), over: strip)
+    }
 
-        // Shown at the positions the items hold now. Anything arriving in the bar — the
-        // recording indicator a capture earns, most often — pushes every item along, so these
-        // positions are not guaranteed to last; `followTheShift` moves the bar afterwards on
-        // the occasions they do not.
-        bar.update(images: itemCapture.images)
-        bar.show(revealed, below: strip)
+    /// Runs the panel down out of the menu bar: replicas first, cover behind them.
+    ///
+    /// Both halves travel the height of the shelf's window — the shelf's own height plus the
+    /// band it comes through — in one animation group, which is what keeps them a single
+    /// panel. Awaited, because the cover being over the section is what makes it safe to
+    /// reveal, and eased out so the panel settles rather than stopping dead.
+    private func runThePanelOut() async {
+        guard let slide, let shelf = bar.panel else { return }
+        let travel = bar.travel
+        cover.park(by: travel)
+        bar.park(by: travel)
+        await Slide.run([shelf, cover.panel], to: .zero, over: slide, easing: .easeOut)
+    }
 
-        finishOpening(of: hidden, from: beforeCapture, over: strip)
+    /// Takes the panel back into the menu bar, and returns once it has gone.
+    ///
+    /// Only ever called with the section already put away: the cover leaves with the panel, so
+    /// anything it was hiding has to have stopped being there first.
+    ///
+    /// Eased at both ends rather than mirroring the way in. The reverse of an ease out is an
+    /// ease in, which spends its slow half creeping and then throws the panel out of sight in
+    /// the last few frames — the leaving is the part being watched, and it read as the bar
+    /// vanishing rather than going.
+    private func runThePanelIn() async {
+        guard let slide, let shelf = bar.panel else { return }
+        await Slide.run(
+            [shelf, cover.panel],
+            to: CGPoint(x: 0, y: bar.travel),
+            over: slide,
+            easing: .easeInEaseOut
+        )
     }
 
     /// Reveals the section into the menu bar and reads back where its items landed.
@@ -154,42 +206,6 @@ public final class StandaloneBarController {
         return MenuBarItemGeometry.excludingDividers(StatusItemScanner.scan())
             .filter { hidden.contains($0.windowID) && $0.frame.minX >= 0 }
     }
-
-    /// Where the section is about to land, before it has.
-    ///
-    /// The cover has to be up before the reveal — that is what keeps the items from being
-    /// seen — so the strip cannot be measured, only predicted. Items come back immediately
-    /// left of the run of items already on screen, so the right edge is known exactly; the
-    /// width is their own plus room for the gaps between them, which is guesswork, and
-    /// covering a little too much costs nothing but a stretch of empty bar.
-    private func landingStrip(leftOf all: [MenuBarItem], forWide parked: [MenuBarItem]) -> CGRect {
-        let width = parked.map(\.frame.width).reduce(0, +) * Self.landingSlack
-        let height = parked.map(\.frame.height).max() ?? 0
-        return CGRect(x: leftEdgeOfTheRun(in: all) - width, y: 0, width: width, height: height)
-    }
-
-    /// The left edge of the run of items at the right of the bar.
-    ///
-    /// Not simply the leftmost item on screen: a collapsed divider sits alone at the far left,
-    /// and anchoring on that puts the cover off the display, where it hides nothing at all.
-    /// Walked from the right instead, stopping at the first gap too wide to be the space
-    /// between two neighbours.
-    private func leftEdgeOfTheRun(in all: [MenuBarItem]) -> CGFloat {
-        let onScreen = all.filter { $0.frame.minX >= 0 }.sorted { $0.frame.minX > $1.frame.minX }
-        guard var edge = onScreen.first?.frame.minX else { return 0 }
-        for item in onScreen.dropFirst() {
-            guard edge - item.frame.maxX < Self.widestGapInARun else { break }
-            edge = item.frame.minX
-        }
-        return edge
-    }
-
-    /// More space than two neighbouring items ever leave between them.
-    private static let widestGapInARun: CGFloat = 80
-
-    /// How much wider than the items themselves the predicted strip is drawn, to allow for
-    /// the gaps between them.
-    private static let landingSlack: CGFloat = 1.3
 
     /// How far past the section the cover reaches at each end: the same as the shelf below
     /// it, so the two are exactly as wide as each other.
@@ -209,16 +225,17 @@ public final class StandaloneBarController {
             "Standalone bar: open, \(self.items.count, privacy: .public) items over \(width, privacy: .public) pt")
     }
 
-    /// Unwinds an open that failed after the cover went up and the section was revealed.
+    /// Unwinds an open that failed after the panel came out and the section was revealed.
     ///
-    /// Left alone, the cover stays over the bar as a still picture and the boundary markers
-    /// never come back.
+    /// Left alone, the panel stays over the bar and the boundary markers never come back.
     private func abandonOpen(of ids: Set<UInt32>) async {
         resolvingElements?.cancel()
         resolvingElements = nil
         menuBar.setVisibility(.collapsed)
         await PlacementWait.removal(of: ids)
         menuBar.setBoundaryMarkersVisible(true)
+        // The panel is already out by this point, replicas and all, so it goes too.
+        bar.hide()
         cover.hide()
         shield.hide()
         menuBar.isRevealHeld = false
@@ -260,7 +277,6 @@ public final class StandaloneBarController {
         settling = nil
         menus.stop()
         isMenuOpen = false
-        bar.hide()
         let replicated = Set(items.map(\.windowID))
         items = []
         resolvingElements?.cancel()
@@ -268,15 +284,18 @@ public final class StandaloneBarController {
 
         itemCapture.stop()
 
-        // The cover comes down last, once the section is off screen again. Taking it away
-        // first leaves the items it was hiding sitting in the bar, in plain sight, until the
-        // divider has pushed them off — the same flash as opening, in reverse.
+        // The section goes away first, underneath the panel that is still over it — the open
+        // run backwards. The cover leaves with the panel it is half of, so anything it was
+        // hiding has to be gone by then, or the items sit in plain sight until the divider
+        // catches up.
         menuBar.setVisibility(.collapsed)
         await PlacementWait.removal(of: replicated)
-        // Before the cover comes down rather than after: showing a marker changes the
-        // divider's width, and every item to the left of it shifts to make room. Cheaper to
-        // do that while something is still over it than to find out it shows.
+        // Before the panel goes rather than after: showing a marker changes the divider's
+        // width, and every item to the left of it shifts to make room. Cheaper to do that
+        // while something is still over it than to find out it shows.
         menuBar.setBoundaryMarkersVisible(true)
+        await runThePanelIn()
+        bar.hide()
         cover.hide()
         shield.hide()
         // Released last, so releasing it cannot re-arm a rehide for a section that is on its

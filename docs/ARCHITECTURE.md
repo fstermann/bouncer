@@ -101,6 +101,12 @@ its ordinary place, that stretch of bar is covered with a picture of itself take
 the reveal — which is therefore already a picture without the items — and the items are
 drawn again a row lower. Hidden from the eye, fully alive to the capture.
 
+The cover and the shelf are two windows and one panel: it slides out of the menu bar with the
+replicas leading and the cover behind them, and slides back in the same way. That is why the
+landing has to be *worked out* rather than measured — the panel is built and moving before the
+reveal, so it cannot wait to be told where the section went. It lands where the items pack
+edge to edge left of the visible run, one collapsed divider's width clear of it.
+
 Three consequences worth knowing before changing any of it:
 
 - **Replicas are stills.** The pictures are taken once per open. Streaming them keeps the
@@ -161,7 +167,9 @@ needs no Xcode project and finishes in under a second.
   coalesced write per burst of edits. Keys added after 0.1.0 decode as optional, so a blob
   written before one existed keeps the user's other settings.
 - **`StandaloneBarController`** — opens and closes the replica bar, and owns the ordering
-  the whole feature turns on: cover, reveal, capture, draw, and the reverse on the way out.
+  the whole feature turns on: photograph, draw the panel where the section is about to land,
+  run it out of the menu bar, reveal underneath it — and the reverse on the way out, where
+  the section is put away *before* the panel goes, because the cover leaves with it.
 - **`MenuBarItemGeometry`** — the standalone bar's decisions as pure functions over frames:
   what is off screen, what is a divider, where the cover goes, where each replica sits.
   Tested against recorded window lists with no running app, the same way `MenuBarVisibility`

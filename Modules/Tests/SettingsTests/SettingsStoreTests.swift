@@ -62,6 +62,8 @@ private final class MemoryPersistence: PreferencesPersistence, @unchecked Sendab
         #expect(store.preferences.revealOnHover)
         #expect(!store.preferences.showBouncerIcon)
         #expect(!store.preferences.showItemsInBar)
+        #expect(store.preferences.animateBar)
+        #expect(store.preferences.barAnimationDuration == 0.18)
     }
 
     @Test func corruptStoredDataFallsBackToDefaults() {
