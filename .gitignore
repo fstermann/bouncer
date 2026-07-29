@@ -8,5 +8,3 @@ DerivedData/
 xcuserdata/
 .DS_Store
 .signing.mk
-Spikes/.bin/
-Spikes/out/

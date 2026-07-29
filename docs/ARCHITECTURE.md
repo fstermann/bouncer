@@ -107,8 +107,8 @@ is why two things exist that otherwise look redundant: `MenuBarManager.isRevealH
 auto-rehide does not put the section away underneath an open bar, and `ClickShield`, so the
 covered strip does not open the menus of items the user cannot see.
 
-Each of these came out of a spike rather than from first principles; `Spikes/README.md` has
-the measurements.
+Each of these came out of a spike rather than from first principles;
+[SPIKES.md](SPIKES.md) has the measurements.
 
 ## Modules
 
