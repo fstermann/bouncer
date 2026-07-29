@@ -1,21 +1,22 @@
 import AppKit
 import BouncerFoundation
+import CoreGraphics
 import MenuBar
 import Observation
-// See `ItemCapture`: only the macOS 26 SDK annotates these types `Sendable`.
-@preconcurrency import ScreenCaptureKit
 
 /// Opens and closes the standalone bar.
 ///
 /// The whole feature is an inversion of how Bouncer normally hides things. Bouncer's
-/// dividers hide a section by pushing it past the edge of the display, and an item parked
-/// there is no longer drawn, so it has no pixels to replicate. This does the opposite: it
-/// reveals the section into its ordinary place, covers that stretch of menu bar with a
-/// capture of the bar without the items, and draws the items again a row lower. The section
-/// is hidden from the eye and fully alive to the capture at the same time.
+/// dividers hide a section by pushing it past the edge of the display; this reveals it into
+/// its ordinary place, covers that stretch of bar, and draws the items again a row lower. The
+/// section is hidden from the eye and fully alive to a click at the same time.
 ///
-/// Nothing runs while the bar is closed. The streams, the cover and the bar window all go
-/// away on `close`, and the divider goes back to doing the hiding.
+/// The items are photographed before any of that, while they are still parked, so the
+/// pictures owe nothing to the reveal. The reveal is for the menus alone: one opens out of
+/// the real item, and an item off the display opens its menu off the display with it.
+///
+/// Nothing runs while the bar is closed. The cover and the bar window go away on `close`, and
+/// the divider goes back to doing the hiding.
 @MainActor
 @Observable
 public final class StandaloneBarController {
@@ -94,31 +95,12 @@ public final class StandaloneBarController {
         // untouched — and it is what keeps the replicas out of the reveal's way entirely.
         itemCapture.capture(parked)
 
-        // Fetched once and used for both captures. Enumerating every window on the system is
-        // the expensive half of a capture, and it was being paid for twice per open.
-        guard let content = try? await SCShareableContent.excludingDesktopWindows(
-            false, onScreenWindowsOnly: false
-        ) else {
-            Log.menuBar.error("Standalone bar: no shareable content; is Screen Recording granted?")
-            return
-        }
-
-        // Covered before anything moves, painted before it is shown, and never resized after.
-        // Revealing is what puts the items back on screen, so a cover that arrives late, that
-        // goes up empty, or that changes size once the section has been measured shows them —
-        // in the gap, or in the frame it takes to redraw.
+        // Covered before anything moves. Revealing is what puts the items back on screen, so
+        // a cover that arrives late shows them in the gap.
         //
-        // The whole bar rather than the section, and nothing excluded from it: the items are
-        // still off screen at this point, so a picture of the bar taken now is already a
-        // picture of the bar without them. That ordering is what makes the cover correct —
-        // sampled after the reveal it would contain the very items it has to hide.
-        var bandImage: CGImage?
-        if let band = menuBarBand(around: all) {
-            bandImage = await BackgroundCapture.sample(rect: band, excluding: [], in: content)
-            // Nothing to paint it with means no cover: the window is opaque, so it would go
-            // up as a black strip across the whole bar.
-            if let bandImage { coverBar(band, with: bandImage) }
-        }
+        // Over the stretch the section is about to land in, not over the whole bar: the rest
+        // of the bar is not hiding anything and has no business being painted over.
+        cover.show(over: landingStrip(leftOf: all, forWide: parked))
 
         // Resolved before anything moves, and left to run across the reveal. The
         // accessibility tree lags the window server by a moment after a layout change, so an
@@ -138,37 +120,32 @@ public final class StandaloneBarController {
             return
         }
         items = revealed
+        // Tightened to where the section actually landed, now that it can be measured, and
+        // widened to match the shelf: the two stand for the same items, so a cover narrower
+        // than the shelf reads as the shelf hanging out past its own section.
+        cover.show(over: strip.insetBy(dx: -Self.coverBleed, dy: 0))
         // The items under the cover are painted over, not moved, and so still take clicks.
         shield.show(over: strip)
 
         let beforeCapture = PlacementWait.frames(of: hidden)
 
-        // Shown as soon as there are pictures to show, at the positions the items hold now.
-        // Capturing can put a recording indicator in the bar, and anything arriving in the bar
-        // pushes every item along, so these positions are not guaranteed to last. Waiting that
-        // out before showing anything cost more than half the open; `followTheShift` moves the
-        // bar afterwards on the occasions it is needed.
+        // Shown at the positions the items hold now. Anything arriving in the bar — the
+        // recording indicator a capture earns, most often — pushes every item along, so these
+        // positions are not guaranteed to last; `followTheShift` moves the bar afterwards on
+        // the occasions they do not.
         bar.update(images: itemCapture.images)
-        bar.matchShade(to: bandImage)
         bar.show(revealed, below: strip)
-
-        // Without a cover over the whole bar — no band to anchor on, or nothing to paint one
-        // with — the section itself is covered, sampled now the items are on screen and so
-        // with them left out explicitly.
-        if bandImage == nil {
-            await coverSection(strip, replicating: revealed)
-        }
 
         finishOpening(of: hidden, from: beforeCapture, over: strip)
     }
 
     /// Reveals the section into the menu bar and reads back where its items landed.
     ///
-    /// The items have no frames worth reading and no pixels at all while they are off the
-    /// display, so everything after this depends on them being back — and on them staying
-    /// back, which is what the hold is for: auto-rehide would otherwise put the section away
-    /// underneath a bar that is still open. The boundary marker goes with them: it points at
-    /// where hiding ends in a bar the user is not being shown.
+    /// The items have no frames worth reading while they are off the display, so where the
+    /// replicas go depends on them being back — and on them staying back, which is what the
+    /// hold is for: auto-rehide would otherwise put the section away underneath a bar that is
+    /// still open. The boundary marker goes with them: it points at where hiding ends in a bar
+    /// the user is not being shown.
     private func reveal(_ hidden: Set<UInt32>) async -> [MenuBarItem] {
         menuBar.isRevealHeld = true
         menuBar.setBoundaryMarkersVisible(false)
@@ -178,11 +155,46 @@ public final class StandaloneBarController {
             .filter { hidden.contains($0.windowID) && $0.frame.minX >= 0 }
     }
 
-    /// Puts the cover up over the whole bar, painted with a capture of it.
-    private func coverBar(_ band: CGRect, with image: CGImage) {
-        cover.update(image, of: band)
-        cover.show(over: band)
+
+    /// Where the section is about to land, before it has.
+    ///
+    /// The cover has to be up before the reveal — that is what keeps the items from being
+    /// seen — so the strip cannot be measured, only predicted. Items come back immediately
+    /// left of the run of items already on screen, so the right edge is known exactly; the
+    /// width is their own plus room for the gaps between them, which is guesswork, and
+    /// covering a little too much costs nothing but a stretch of empty bar.
+    private func landingStrip(leftOf all: [MenuBarItem], forWide parked: [MenuBarItem]) -> CGRect {
+        let width = parked.map(\.frame.width).reduce(0, +) * Self.landingSlack
+        let height = parked.map(\.frame.height).max() ?? 0
+        return CGRect(x: leftEdgeOfTheRun(in: all) - width, y: 0, width: width, height: height)
     }
+
+    /// The left edge of the run of items at the right of the bar.
+    ///
+    /// Not simply the leftmost item on screen: a collapsed divider sits alone at the far left,
+    /// and anchoring on that puts the cover off the display, where it hides nothing at all.
+    /// Walked from the right instead, stopping at the first gap too wide to be the space
+    /// between two neighbours.
+    private func leftEdgeOfTheRun(in all: [MenuBarItem]) -> CGFloat {
+        let onScreen = all.filter { $0.frame.minX >= 0 }.sorted { $0.frame.minX > $1.frame.minX }
+        guard var edge = onScreen.first?.frame.minX else { return 0 }
+        for item in onScreen.dropFirst() {
+            guard edge - item.frame.maxX < Self.widestGapInARun else { break }
+            edge = item.frame.minX
+        }
+        return edge
+    }
+
+    /// More space than two neighbouring items ever leave between them.
+    private static let widestGapInARun: CGFloat = 80
+
+    /// How much wider than the items themselves the predicted strip is drawn, to allow for
+    /// the gaps between them.
+    private static let landingSlack: CGFloat = 1.3
+
+    /// How far past the section the cover reaches at each end: the same as the shelf below
+    /// it, so the two are exactly as wide as each other.
+    private static let coverBleed = ReplicaBar.padding
 
     /// Marks the bar open and installs the two things that outlive `open`: the watch for the
     /// pointer leaving, and the one bounded wait for the recording indicator to shift the
@@ -198,15 +210,6 @@ public final class StandaloneBarController {
             "Standalone bar: open, \(self.items.count, privacy: .public) items over \(width, privacy: .public) pt")
     }
 
-    /// Covers just the section's strip, sampled with the items and Bouncer's own windows
-    /// left out.
-    private func coverSection(_ strip: CGRect, replicating revealed: [MenuBarItem]) async {
-        let sample = await BackgroundCapture.sample(
-            rect: strip, excluding: ownWindows(replicating: revealed))
-        cover.update(sample, of: strip)
-        cover.show(over: strip)
-        bar.matchShade(to: sample)
-    }
 
     /// Unwinds an open that failed after the cover went up and the section was revealed.
     ///
@@ -217,9 +220,9 @@ public final class StandaloneBarController {
         resolvingElements = nil
         menuBar.setVisibility(.collapsed)
         await PlacementWait.removal(of: ids)
+        menuBar.setBoundaryMarkersVisible(true)
         cover.hide()
         shield.hide()
-        menuBar.setBoundaryMarkersVisible(true)
         menuBar.isRevealHeld = false
     }
 
@@ -272,46 +275,15 @@ public final class StandaloneBarController {
         // divider has pushed them off — the same flash as opening, in reverse.
         menuBar.setVisibility(.collapsed)
         await PlacementWait.removal(of: replicated)
+        // Before the cover comes down rather than after: showing a marker changes the
+        // divider's width, and every item to the left of it shifts to make room. Cheaper to
+        // do that while something is still over it than to find out it shows.
+        menuBar.setBoundaryMarkersVisible(true)
         cover.hide()
         shield.hide()
-        menuBar.setBoundaryMarkersVisible(true)
         // Released last, so releasing it cannot re-arm a rehide for a section that is on its
         // way off screen anyway.
         menuBar.isRevealHeld = false
-    }
-
-    /// The full menu bar the items live on, in window-server coordinates.
-    ///
-    /// Anchored on an item rather than on `NSScreen.main`, which is the screen with keyboard
-    /// focus: open the bar while working on a second display and the cover would go up over
-    /// that screen's menu bar, leaving the items it is meant to hide in plain sight for as
-    /// long as the bar is open.
-    ///
-    /// Height is the tallest item there is, not the first one's: items are not all the same
-    /// height — 30 and 33 sit side by side in one bar — and a cover cut to a short one leaves
-    /// the bottom of every taller icon showing. The gap between a screen and its visible
-    /// frame is no better; it counts whatever else macOS reserves up there.
-    ///
-    /// The y is zero because the scanner only ever reports items at the top of the primary
-    /// display.
-    private func menuBarBand(around items: [MenuBarItem]) -> CGRect? {
-        guard let onScreen = items.first(where: { $0.frame.minX >= 0 }),
-              let height = items.map(\.frame.height).max(),
-              let screen = NSScreen.screens.first(where: {
-                  $0.frame.minX...$0.frame.maxX ~= onScreen.frame.midX
-              })
-        else { return nil }
-        return CGRect(x: screen.frame.minX, y: 0, width: screen.frame.width, height: height)
-    }
-
-    /// The windows a capture of the menu bar has to leave out: the items being replicated,
-    /// and Bouncer's own, which sit over the very strip being captured.
-    private func ownWindows(replicating items: [MenuBarItem]) -> Set<UInt32> {
-        var ids = Set(items.map(\.windowID))
-        if let cover = cover.windowID { ids.insert(cover) }
-        if let bar = bar.windowID { ids.insert(bar) }
-        if let shield = shield.windowID { ids.insert(shield) }
-        return ids
     }
 
     /// Closes the bar once the pointer moves below it.

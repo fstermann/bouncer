@@ -12,17 +12,15 @@ public final class ReplicaBar {
     public var onClick: (@MainActor (MenuBarItem) -> Void)?
 
     /// The shelf is wider than the replicas it holds, so the outermost icons are not flush
-    /// against a rounded corner.
-    private static let padding: CGFloat = 8
+    /// against a rounded corner. The cover over the real section uses the same figure, so the
+    /// two line up rather than the shelf hanging out past what is hiding its items.
+    static let padding: CGFloat = 8
     /// Only the lower corners are rounded: the shelf hangs off the menu bar, and a gap above
     /// it would show it is a window of its own rather than part of the bar.
     private static let cornerRadius: CGFloat = 10
 
     private var window: BarWindow?
     private var shelf: NSView?
-    /// Kept so a shade taken before the shelf exists is not lost: the colour is sampled from
-    /// a capture of the menu bar, which is ready before there is anything to paint with it.
-    private var shade: CGColor?
     private let view = ReplicaBarView()
 
     public init() {
@@ -60,61 +58,6 @@ public final class ReplicaBar {
     /// The bar's lower edge, in AppKit screen coordinates: below it, the pointer has left.
     var bottomEdge: CGFloat { window?.frame.minY ?? 0 }
 
-    /// Takes the shelf's colour from a capture of the menu bar.
-    ///
-    /// One colour for the whole shelf, averaged: the bar is translucent and so shades across
-    /// its width, but a shelf that shaded differently from the bar directly above it would
-    /// look like a mismatch rather than a continuation.
-    public func matchShade(to menuBar: CGImage?) {
-        guard let menuBar, let colour = Self.averageColour(of: menuBar) else { return }
-        shade = colour
-        shelf?.layer?.backgroundColor = colour
-    }
-
-    /// How many samples the strip is reduced to before the middle one is taken.
-    private static let samples = 15
-
-    private static func averageColour(of image: CGImage) -> CGColor? {
-        // Only the bottom of the strip: the shelf meets the menu bar along that edge, and it
-        // is the join that gives a mismatch away. The bar is not one flat colour from top to
-        // bottom, so matching its middle leaves a seam.
-        //
-        // The middle sample of many rather than the average of all. Anything sitting in the
-        // strip is averaged into the result otherwise, and the screen recording indicator —
-        // which capturing puts there — is bright purple, enough to tint the whole shelf.
-        //
-        // Sampled in the capture's own colour space and handed back in it. Going through a
-        // device space instead lands a visibly different shade next to the bar it continues.
-        let depth = max(1, image.height / 8)
-        let lowest = image.cropping(
-            to: CGRect(x: 0, y: image.height - depth, width: image.width, height: depth)
-        ) ?? image
-        let space = image.colorSpace ?? CGColorSpaceCreateDeviceRGB()
-        var pixels = [UInt8](repeating: 0, count: samples * 4)
-        guard let context = CGContext(
-            data: &pixels,
-            width: samples, height: 1,
-            bitsPerComponent: 8, bytesPerRow: samples * 4,
-            space: space,
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else { return nil }
-
-        context.interpolationQuality = .medium
-        context.draw(lowest, in: CGRect(x: 0, y: 0, width: samples, height: 1))
-
-        var colours: [[CGFloat]] = []
-        for sample in 0..<samples {
-            let start = sample * 4
-            colours.append([
-                CGFloat(pixels[start]) / 255,
-                CGFloat(pixels[start + 1]) / 255,
-                CGFloat(pixels[start + 2]) / 255
-            ])
-        }
-        colours.sort { ($0[0] + $0[1] + $0[2]) < ($1[0] + $1[1] + $1[2]) }
-        return CGColor(colorSpace: space, components: colours[samples / 2] + [1])
-    }
-
     /// Fades the bar while a menu is open over it.
     ///
     /// The menu comes out of the real item a row above and covers the replicas, which cannot
@@ -145,10 +88,8 @@ public final class ReplicaBar {
         // Replicas are icons on nothing, so the bar has to bring its own surface or they sit
         // unreadable on whatever window is behind.
         //
-        // Painted with the menu bar's own colour rather than given a material. A material
-        // cannot match it: the menu bar is translucent over the desktop, while the shelf
-        // hangs over whatever window happens to be beneath it, so the same recipe comes out
-        // a different shade. `matchShade` fills it from the capture that feeds the cover.
+        // Painted in `BarSurface.colour`, the same as the cover over the real section, so the
+        // two read as one panel rather than as a strip and a patch that nearly agree.
         let backing = NSView(frame: CGRect(origin: .zero, size: frame.size))
         backing.autoresizingMask = [.width, .height]
         backing.wantsLayer = true
@@ -156,10 +97,7 @@ public final class ReplicaBar {
         backing.layer?.cornerRadius = Self.cornerRadius
         backing.layer?.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
         backing.layer?.masksToBounds = true
-        // Whatever shade has been measured so far, applied before the shelf is ever drawn.
-        // A shelf that appears before its background does is a row of icons floating over
-        // whatever window is behind it.
-        backing.layer?.backgroundColor = shade
+        backing.layer?.backgroundColor = BarSurface.colour.cgColor
         backing.addSubview(view)
         bar.contentView = backing
         shelf = backing

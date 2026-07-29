@@ -76,10 +76,22 @@ one — and the item's image — need Screen Recording. The menu bar itself is t
 
 Ice and friends can render hidden items inside their own bar, which is nicer than
 revealing the real menu bar. It requires reading other apps' item images, which means
-Screen Recording permission, captures while the bar is open, and click forwarding — a
-large, permission-hungry, fragile subsystem next to two width assignments. So it is built,
-in `StandaloneBar`, and it is opt-in: off by default, asking for its permissions only when
-the user switches it on, with the divider mechanism still doing the hiding.
+Screen Recording permission, and click forwarding, which means Accessibility — a large,
+permission-hungry, fragile subsystem next to two width assignments. So it is built, in
+`StandaloneBar`, and it is opt-in: off by default, asking for its permissions only when the
+user switches it on, with the divider mechanism still doing the hiding.
+
+There is no capture pipeline. The section is photographed once per open, in a single call,
+while its items are still parked off the display — ScreenCaptureKit cannot reach a window
+out there, so that call goes through SkyLight's private window capture, and a macOS release
+that drops it leaves the bar without pictures rather than crashing. The cover that hides
+the real items while they are revealed is a flat colour, not a picture of the bar: a still
+of the whole bar swapped in and out was visible as the bar twitching, and it knew nothing
+about the wallpaper moving under it or the shadow a menu casts over it.
+
+The reveal is for the menus alone. A status item anchors its menu to its own window, so an
+item left parked off the display opens its menu off the display too — measured, at x =
+-4237. That is the one thing the pictures cannot stand in for.
 
 It inverts the divider mechanism rather than reusing it. **An item pushed off the display
 stops being drawn, and an item that is not drawn has no pixels to copy** — so a section
