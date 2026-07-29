@@ -34,6 +34,16 @@ final class ClickShield {
     private func make(_ rect: CGRect) -> BarWindow {
         // Above the cover, which is itself a level above the items. Order only decides which
         // window is hit; there is nothing here to see in front of anything.
-        BarWindow(frame: rect, level: NSWindow.Level(rawValue: BarWindow.statusLevel.rawValue + 2))
+        let shield = BarWindow(
+            frame: rect,
+            level: NSWindow.Level(rawValue: BarWindow.statusLevel.rawValue + 2)
+        )
+        // Not `.clear`, which would defeat the whole point: the window server hit-tests
+        // against the alpha in a window's backing store, so a fully transparent window is
+        // click-through and the items underneath keep taking the clicks. One step off
+        // transparent is a target; at 1/255 over a strip that is already a picture of empty
+        // bar, there is nothing to see.
+        shield.backgroundColor = NSColor.black.withAlphaComponent(1.0 / 255.0)
+        return shield
     }
 }
