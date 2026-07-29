@@ -79,7 +79,10 @@ public final class RevealController {
             object: nil,
             queue: .main
         ) { _ in
-            MainActor.assumeIsolated { self.manager.setVisibility(.collapsed) }
+            MainActor.assumeIsolated {
+                guard !self.manager.isRevealHeld else { return }
+                self.manager.setVisibility(.collapsed)
+            }
         }
     }
 
@@ -92,7 +95,10 @@ public final class RevealController {
         rehideTask?.cancel()
         rehideTask = nil
 
-        guard visibility != .collapsed, case .afterDelay(let seconds) = autoRehide else { return }
+        guard !manager.isRevealHeld,
+              visibility != .collapsed,
+              case .afterDelay(let seconds) = autoRehide
+        else { return }
         rehideTask = Task { [weak manager] in
             try? await Task.sleep(for: .seconds(seconds))
             guard !Task.isCancelled else { return }

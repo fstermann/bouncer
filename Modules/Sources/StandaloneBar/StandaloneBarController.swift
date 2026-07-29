@@ -52,6 +52,10 @@ public final class StandaloneBarController {
 
     /// Whether an `open` is underway, so a second click mid-open starts nothing.
     private var isOpening = false
+    /// The same for `close`, which is not simply the absence of `isOpen`: closing clears that
+    /// flag first and then waits for the section to go off screen, and an open started in
+    /// that gap has its cover pulled down by the close that is still finishing.
+    private var isClosing = false
 
     public func toggle() async {
         isOpen ? await close() : await open()
@@ -59,7 +63,7 @@ public final class StandaloneBarController {
 
     /// Reveals the hidden section, hides it again behind a cover, and replicates it below.
     public func open() async {
-        guard !isOpen, !isOpening else { return }
+        guard !isOpen, !isOpening, !isClosing else { return }
         isOpening = true
         defer { isOpening = false }
         guard CGPreflightScreenCaptureAccess() else {
@@ -92,14 +96,17 @@ public final class StandaloneBarController {
         // goes up empty, or that changes size once the section has been measured shows them —
         // in the gap, or in the frame it takes to redraw.
         //
-        // The whole bar rather than the section, for as long as it is open. The stream that
-        // paints this renders the bar with the replicated items left out, so a cover the width
-        // of the bar hides exactly them and shows everything else live.
+        // The whole bar rather than the section, and nothing excluded from it: the items are
+        // still off screen at this point, so a picture of the bar taken now is already a
+        // picture of the bar without them. That ordering is what makes the cover correct —
+        // sampled after the reveal it would contain the very items it has to hide.
         let band = menuBarBand(around: all)
         var bandImage: CGImage?
         if let band {
             bandImage = await BackgroundCapture.sample(rect: band, excluding: [], in: content)
-            coverBar(band, with: bandImage)
+            // Nothing to paint it with means no cover: the window is opaque, so it would go
+            // up as a black strip across the whole bar.
+            if bandImage != nil { coverBar(band, with: bandImage) }
         }
 
         // Resolved before anything moves, and left to run across the reveal. The
@@ -133,9 +140,10 @@ public final class StandaloneBarController {
         bar.matchShade(to: bandImage)
         bar.show(revealed, below: strip)
 
-        // Without a band there is nothing to cover the whole bar with, so the section itself
-        // is covered — the only option on a bar with no visible item to anchor on.
-        if band == nil {
+        // Without a cover over the whole bar — no band to anchor on, or nothing to paint one
+        // with — the section itself is covered, sampled now the items are on screen and so
+        // with them left out explicitly.
+        if bandImage == nil {
             await coverSection(strip, replicating: revealed)
         }
 
@@ -152,9 +160,12 @@ public final class StandaloneBarController {
     /// Reveals the section into the menu bar and reads back where its items landed.
     ///
     /// The items have no frames worth reading and no pixels at all while they are off the
-    /// display, so everything after this depends on them being back. The boundary marker
-    /// goes with them: it points at where hiding ends in a bar the user is not being shown.
+    /// display, so everything after this depends on them being back — and on them staying
+    /// back, which is what the hold is for: auto-rehide would otherwise put the section away
+    /// underneath a bar that is still open. The boundary marker goes with them: it points at
+    /// where hiding ends in a bar the user is not being shown.
     private func reveal(_ hidden: Set<UInt32>) async -> [MenuBarItem] {
+        menuBar.isRevealHeld = true
         menuBar.setBoundaryMarkersVisible(false)
         menuBar.setVisibility(.revealed)
         await PlacementWait.placement(of: hidden)
@@ -189,6 +200,7 @@ public final class StandaloneBarController {
         await PlacementWait.removal(of: ids)
         cover.hide()
         menuBar.setBoundaryMarkersVisible(true)
+        menuBar.isRevealHeld = false
     }
 
     /// Moves the bar to wherever the recording indicator pushed the items.
@@ -215,6 +227,8 @@ public final class StandaloneBarController {
     public func close() async {
         guard isOpen else { return }
         isOpen = false
+        isClosing = true
+        defer { isClosing = false }
 
         if let pointerObservation { NSEvent.removeMonitor(pointerObservation) }
         pointerObservation = nil
@@ -239,6 +253,9 @@ public final class StandaloneBarController {
         await PlacementWait.removal(of: replicated)
         cover.hide()
         menuBar.setBoundaryMarkersVisible(true)
+        // Released last, so releasing it cannot re-arm a rehide for a section that is on its
+        // way off screen anyway.
+        menuBar.isRevealHeld = false
     }
 
     /// The full menu bar the items live on, in window-server coordinates.

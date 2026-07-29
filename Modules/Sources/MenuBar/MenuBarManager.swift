@@ -13,6 +13,14 @@ import Settings
 public final class MenuBarManager {
     public private(set) var visibility: MenuBarVisibility = .collapsed
 
+    /// Suspends automatic hiding while something else is showing the section.
+    ///
+    /// The standalone bar reveals the section in order to replicate it, and the items have to
+    /// stay put for as long as that bar is open. Auto-rehide would otherwise collapse them a
+    /// few seconds later — or the moment a replica's click activates the item's own app —
+    /// leaving a bar of replicas whose menus open off screen.
+    public var isRevealHeld = false
+
     /// Bouncer's own status item, when `showBouncerIcon` is enabled. Assign a `menu`
     /// to it from the app layer; left clicks toggle visibility.
     public private(set) var iconItem: NSStatusItem?

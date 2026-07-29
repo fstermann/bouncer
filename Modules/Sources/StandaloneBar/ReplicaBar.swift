@@ -133,6 +133,7 @@ public final class ReplicaBar {
     public func hide() {
         window?.orderOut(nil)
         window = nil
+        shelf = nil
         view.images = [:]
         view.positions = [:]
     }

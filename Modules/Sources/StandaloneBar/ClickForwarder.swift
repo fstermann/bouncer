@@ -59,9 +59,13 @@ public enum ClickForwarder {
         var unmatched = StatusItemScanner.scan().filter { wanted.contains($0.windowID) }
         guard !unmatched.isEmpty else { return [:] }
 
-        let pids = NSWorkspace.shared.runningApplications
-            .filter { $0.activationPolicy != .prohibited }
-            .map(\.processIdentifier)
+        // The running-application list is read on the main actor; only the accessibility
+        // calls below belong off it.
+        let pids = await MainActor.run {
+            NSWorkspace.shared.runningApplications
+                .filter { $0.activationPolicy != .prohibited }
+                .map(\.processIdentifier)
+        }
 
         // One task per app. A couple of processes never answer at all, and asking them in
         // turn spends the whole timeout on each — seconds, all of it in front of a click.
