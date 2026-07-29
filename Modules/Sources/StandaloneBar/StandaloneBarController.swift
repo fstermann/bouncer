@@ -26,6 +26,7 @@ public final class StandaloneBarController {
     private let menuBar: MenuBarManager
     private let itemCapture = ItemCapture()
     private let cover = CoverWindow()
+    private let shield = ClickShield()
     private let bar = ReplicaBar()
     private let menus = MenuWatcher()
 
@@ -127,6 +128,8 @@ public final class StandaloneBarController {
             return
         }
         items = revealed
+        // The items under the cover are painted over, not moved, and so still take clicks.
+        shield.show(over: strip)
 
         let beforeCapture = PlacementWait.frames(of: hidden)
         await itemCapture.begin(revealed, in: content)
@@ -199,6 +202,7 @@ public final class StandaloneBarController {
         menuBar.setVisibility(.collapsed)
         await PlacementWait.removal(of: ids)
         cover.hide()
+        shield.hide()
         menuBar.setBoundaryMarkersVisible(true)
         menuBar.isRevealHeld = false
     }
@@ -221,6 +225,7 @@ public final class StandaloneBarController {
 
         items = settled
         bar.show(settled, below: strip)
+        shield.show(over: strip)
     }
 
     /// Puts everything away and hands hiding back to the divider.
@@ -252,6 +257,7 @@ public final class StandaloneBarController {
         menuBar.setVisibility(.collapsed)
         await PlacementWait.removal(of: replicated)
         cover.hide()
+        shield.hide()
         menuBar.setBoundaryMarkersVisible(true)
         // Released last, so releasing it cannot re-arm a rehide for a section that is on its
         // way off screen anyway.
@@ -288,6 +294,7 @@ public final class StandaloneBarController {
         var ids = Set(items.map(\.windowID))
         if let cover = cover.windowID { ids.insert(cover) }
         if let bar = bar.windowID { ids.insert(bar) }
+        if let shield = shield.windowID { ids.insert(shield) }
         return ids
     }
 

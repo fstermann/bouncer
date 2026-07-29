@@ -100,9 +100,9 @@ public final class CoverWindow {
             frame: rect,
             level: NSWindow.Level(rawValue: BarWindow.statusLevel.rawValue + 1)
         )
-        // Clicks on the covered strip belong to the real items underneath: the user is
-        // meant to reach them through their replicas, and swallowing the clicks here would
-        // make the menu bar feel broken where the section used to be.
+        // The cover spans the whole bar, so it must let every click through: taking them
+        // would swallow clicks on the visible items and the app menus alike. The one stretch
+        // that should not take clicks is the section, and `ClickShield` takes it back.
         cover.ignoresMouseEvents = true
         cover.isOpaque = true
         imageView.frame = CGRect(origin: .zero, size: rect.size)
