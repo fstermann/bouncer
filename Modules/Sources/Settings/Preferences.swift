@@ -35,4 +35,15 @@ public struct Preferences: Codable, Hashable, Sendable {
         self.showBouncerIcon = showBouncerIcon
         self.showItemsInBar = showItemsInBar
     }
+
+    /// A blob stored before a key existed must keep the user's other settings, not throw
+    /// them away — so every key added after 0.1.0 decodes as optional with its default.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        autoRehide = try container.decode(AutoRehide.self, forKey: .autoRehide)
+        enableAlwaysHiddenSection = try container.decode(Bool.self, forKey: .enableAlwaysHiddenSection)
+        revealOnHover = try container.decode(Bool.self, forKey: .revealOnHover)
+        showBouncerIcon = try container.decode(Bool.self, forKey: .showBouncerIcon)
+        showItemsInBar = try container.decodeIfPresent(Bool.self, forKey: .showItemsInBar) ?? false
+    }
 }

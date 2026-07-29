@@ -50,6 +50,20 @@ private final class MemoryPersistence: PreferencesPersistence, @unchecked Sendab
         #expect(persistence.writeCount == 1)  // only the explicit flush
     }
 
+    @Test func blobStoredBeforeAKeyExistedKeepsItsOtherSettings() {
+        // The 0.1.0 schema, before showItemsInBar.
+        let stored = Data("""
+        {"autoRehide":{"onFocusedAppChange":{}},"enableAlwaysHiddenSection":true,\
+        "revealOnHover":true,"showBouncerIcon":false}
+        """.utf8)
+        let store = SettingsStore(persistence: MemoryPersistence(data: stored))
+        #expect(store.preferences.autoRehide == .onFocusedAppChange)
+        #expect(store.preferences.enableAlwaysHiddenSection)
+        #expect(store.preferences.revealOnHover)
+        #expect(!store.preferences.showBouncerIcon)
+        #expect(!store.preferences.showItemsInBar)
+    }
+
     @Test func corruptStoredDataFallsBackToDefaults() {
         let store = SettingsStore(persistence: MemoryPersistence(data: Data("not json".utf8)))
         #expect(store.preferences == Preferences())
