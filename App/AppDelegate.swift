@@ -3,6 +3,7 @@ import BouncerFoundation
 import BouncerUI
 import MenuBar
 import Settings
+import StandaloneBar
 import SwiftUI
 
 @MainActor
@@ -16,11 +17,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         outerDividerImage: Self.templateImage(named: "SectionStartIcon")
     )
     private lazy var reveal = RevealController(manager: menuBar, settings: settings)
+    private lazy var standaloneBar = StandaloneBarController(menuBar: menuBar)
     private var settingsWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         menuBar.iconMenu = makeIconMenu()
         reveal.start()
+        // After `reveal.start()`, which installs the default click behaviour: whether a
+        // click reveals the menu bar or opens Bouncer's own bar is a preference, and
+        // RevealController has no business knowing about the standalone bar.
+        menuBar.onIconClick = { [weak self] in self?.handleIconClick() }
         Log.app.info("Bouncer launched")
     }
 
@@ -50,6 +56,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit Bouncer", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         return menu
+    }
+
+    /// A left click either walks the menu bar open, or opens Bouncer's own bar.
+    private func handleIconClick() {
+        guard settings.preferences.showItemsInBar else {
+            menuBar.toggle()
+            return
+        }
+        guard hasStandaloneBarPermissions() else { return }
+        Task { await standaloneBar.toggle() }
+    }
+
+    /// Asks for the two permissions the standalone bar needs, at the moment the user asks
+    /// for the bar — never at launch, and never for anything else Bouncer does.
+    ///
+    /// Both are reported rather than failing quietly. Screen Recording in particular only
+    /// takes effect on the next launch, and without saying so the bar simply does nothing.
+    private func hasStandaloneBarPermissions() -> Bool {
+        if !CGPreflightScreenCaptureAccess() {
+            Log.app.error("Standalone bar: requesting Screen Recording; Bouncer must be restarted after granting")
+            CGRequestScreenCaptureAccess()
+            return false
+        }
+        if !ClickForwarder.isPermitted {
+            Log.app.error("Standalone bar: requesting Accessibility; replicas will not be clickable until granted")
+            ClickForwarder.requestPermission()
+            // The bar is still worth showing: the items are visible, just not yet clickable.
+        }
+        return true
     }
 
     @objc private func openSettings() {

@@ -30,6 +30,14 @@ final class ControlItem: NSObject {
         didSet { if isExpanded != oldValue { updateAppearance() } }
     }
 
+    /// Whether the boundary is drawn while its section is revealed.
+    ///
+    /// The marker says where hiding ends, which is worth knowing when the items are sitting
+    /// in the bar — and worth nothing when they are being shown somewhere else entirely.
+    var showsMarker = true {
+        didSet { if showsMarker != oldValue { updateAppearance() } }
+    }
+
     /// Frame in window-server coordinates, or `nil` before the item has a window.
     var frame: CGRect? { item.button?.window?.frame }
 
@@ -80,7 +88,7 @@ final class ControlItem: NSObject {
             // item is thousands of points wide, so a glyph would land off screen too.
             item.length = Self.expandedLength
             item.button?.image = nil
-        } else if let markerImage {
+        } else if let markerImage, showsMarker {
             item.length = NSStatusItem.variableLength
             item.button?.image = markerImage
         } else {

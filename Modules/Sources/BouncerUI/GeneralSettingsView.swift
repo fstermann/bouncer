@@ -14,6 +14,14 @@ struct GeneralSettingsView: View {
             Toggle("Reveal when the pointer enters the menu bar", isOn: $settings.preferences.revealOnHover)
             Toggle("Enable an always-hidden section", isOn: $settings.preferences.enableAlwaysHiddenSection)
 
+            Toggle("Show hidden items in a bar of their own", isOn: $settings.preferences.showItemsInBar)
+            if settings.preferences.showItemsInBar {
+                Text("Clicking Bouncer's icon opens the bar instead of revealing the menu bar. "
+                     + "Needs Screen Recording to read the items, and Accessibility to click them.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+
             Picker("Hide again", selection: rehideMode) {
                 ForEach(RehideMode.allCases, id: \.self) { mode in
                     Text(mode.label).tag(mode)
