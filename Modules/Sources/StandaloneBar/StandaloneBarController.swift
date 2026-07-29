@@ -50,13 +50,18 @@ public final class StandaloneBarController {
         }
     }
 
+    /// Whether an `open` is underway, so a second click mid-open starts nothing.
+    private var isOpening = false
+
     public func toggle() async {
         isOpen ? await close() : await open()
     }
 
     /// Reveals the hidden section, hides it again behind a cover, and replicates it below.
     public func open() async {
-        guard !isOpen else { return }
+        guard !isOpen, !isOpening else { return }
+        isOpening = true
+        defer { isOpening = false }
         guard CGPreflightScreenCaptureAccess() else {
             Log.menuBar.error("Standalone bar: Screen Recording not granted")
             return
@@ -66,9 +71,8 @@ public final class StandaloneBarController {
         // Which items are hidden has to be settled *before* revealing them, because once
         // they are back on screen they are indistinguishable from the ones that were
         // visible all along. Identity survives the move; position does not.
-        let screens = NSScreen.screens.map(\.frame)
         let all = MenuBarItemGeometry.excludingDividers(StatusItemScanner.scan())
-        let hidden = Set(MenuBarItemGeometry.offScreen(all, screens: screens).map(\.windowID))
+        let hidden = Set(MenuBarItemGeometry.offScreen(all, screens: NSScreen.screens.map(\.frame)).map(\.windowID))
         guard !hidden.isEmpty else {
             Log.menuBar.info("Standalone bar: nothing is hidden — is the section already revealed?")
             return
@@ -95,8 +99,7 @@ public final class StandaloneBarController {
         var bandImage: CGImage?
         if let band {
             bandImage = await BackgroundCapture.sample(rect: band, excluding: [], in: content)
-            cover.update(bandImage, of: band)
-            cover.show(over: band)
+            coverBar(band, with: bandImage)
         }
 
         // Resolved before anything moves, and left to run across the reveal. The
@@ -110,24 +113,15 @@ public final class StandaloneBarController {
         // its element only once one is clicked.
         resolvingElements = Task.detached { await ClickForwarder.elements(for: Array(hidden)) }
 
-        // Reveal: the items have no frames worth reading and no pixels at all while they
-        // are off the display, so everything below depends on them being back. The boundary
-        // marker goes with them: it points at where hiding ends in a bar the user is not
-        // being shown.
-        menuBar.setBoundaryMarkersVisible(false)
-        menuBar.setVisibility(.revealed)
-        await waitForPlacement(of: hidden)
-
-        let revealed = MenuBarItemGeometry.excludingDividers(StatusItemScanner.scan())
-            .filter { hidden.contains($0.windowID) && $0.frame.minX >= 0 }
+        let revealed = await reveal(hidden)
         guard let strip = MenuBarItemGeometry.coverRect(for: revealed) else {
             Log.menuBar.info("Standalone bar: the hidden section did not come back on screen")
-            menuBar.setVisibility(.collapsed)
+            await abandonOpen(of: hidden)
             return
         }
         items = revealed
 
-        let beforeCapture = frames(of: hidden)
+        let beforeCapture = PlacementWait.frames(of: hidden)
         await itemCapture.begin(revealed, in: content)
 
         // Shown as soon as there are pictures to show, at the positions the items hold now.
@@ -141,13 +135,8 @@ public final class StandaloneBarController {
 
         // Without a band there is nothing to cover the whole bar with, so the section itself
         // is covered — the only option on a bar with no visible item to anchor on.
-        let covered = band ?? strip
         if band == nil {
-            let sample = await BackgroundCapture.sample(
-                rect: covered, excluding: ownWindows(replicating: revealed))
-            cover.update(sample, of: covered)
-            cover.show(over: covered)
-            bar.matchShade(to: sample)
+            await coverSection(strip, replicating: revealed)
         }
 
         isOpen = true
@@ -160,6 +149,48 @@ public final class StandaloneBarController {
             "Standalone bar: open, \(revealed.count, privacy: .public) items over \(width, privacy: .public) pt")
     }
 
+    /// Reveals the section into the menu bar and reads back where its items landed.
+    ///
+    /// The items have no frames worth reading and no pixels at all while they are off the
+    /// display, so everything after this depends on them being back. The boundary marker
+    /// goes with them: it points at where hiding ends in a bar the user is not being shown.
+    private func reveal(_ hidden: Set<UInt32>) async -> [MenuBarItem] {
+        menuBar.setBoundaryMarkersVisible(false)
+        menuBar.setVisibility(.revealed)
+        await PlacementWait.placement(of: hidden)
+        return MenuBarItemGeometry.excludingDividers(StatusItemScanner.scan())
+            .filter { hidden.contains($0.windowID) && $0.frame.minX >= 0 }
+    }
+
+    /// Puts the cover up over the whole bar, painted with a capture of it.
+    private func coverBar(_ band: CGRect, with image: CGImage?) {
+        cover.update(image, of: band)
+        cover.show(over: band)
+    }
+
+    /// Covers just the section's strip, sampled with the items and Bouncer's own windows
+    /// left out.
+    private func coverSection(_ strip: CGRect, replicating revealed: [MenuBarItem]) async {
+        let sample = await BackgroundCapture.sample(
+            rect: strip, excluding: ownWindows(replicating: revealed))
+        cover.update(sample, of: strip)
+        cover.show(over: strip)
+        bar.matchShade(to: sample)
+    }
+
+    /// Unwinds an open that failed after the cover went up and the section was revealed.
+    ///
+    /// Left alone, the cover stays over the bar as a still picture and the boundary markers
+    /// never come back.
+    private func abandonOpen(of ids: Set<UInt32>) async {
+        resolvingElements?.cancel()
+        resolvingElements = nil
+        menuBar.setVisibility(.collapsed)
+        await PlacementWait.removal(of: ids)
+        cover.hide()
+        menuBar.setBoundaryMarkersVisible(true)
+    }
+
     /// Moves the bar to wherever the recording indicator pushed the items.
     ///
     /// A replica has to sit under the item it stands for: the menu comes out of the real
@@ -167,7 +198,7 @@ public final class StandaloneBarController {
     /// icon whose menu opens somewhere else. This is the one shift there is to follow — it
     /// ends when the indicator has landed, and nothing is left running after it.
     private func followTheShift(of ids: Set<UInt32>, from before: [UInt32: CGRect]) async {
-        await waitForStillness(of: ids, movedFrom: before)
+        await PlacementWait.stillness(of: ids, movedFrom: before)
         guard !Task.isCancelled, isOpen else { return }
 
         let settled = MenuBarItemGeometry.excludingDividers(StatusItemScanner.scan())
@@ -205,7 +236,7 @@ public final class StandaloneBarController {
         // first leaves the items it was hiding sitting in the bar, in plain sight, until the
         // divider has pushed them off — the same flash as opening, in reverse.
         menuBar.setVisibility(.collapsed)
-        await waitForRemoval(of: replicated)
+        await PlacementWait.removal(of: replicated)
         cover.hide()
         menuBar.setBoundaryMarkersVisible(true)
     }
@@ -282,85 +313,6 @@ public final class StandaloneBarController {
             await self?.close()
         }
     }
-
-    /// Waits for the window server to place the items the divider just released.
-    ///
-    /// Collapsing the divider does not move anything synchronously, and frames read before
-    /// the move lands are the old off-screen ones — which puts the cover and the bar in
-    /// the wrong place, visibly. Yielding once is not enough; the move takes a few frames.
-    ///
-    /// This is a bounded wait inside an interaction the user just asked for, not a poll: it
-    /// returns the moment the frames arrive, and nothing runs outside an open.
-    private func waitForPlacement(of ids: Set<UInt32>) async {
-        for _ in 0..<30 {
-            let placed = StatusItemScanner.scan()
-                .filter { ids.contains($0.windowID) && $0.frame.minX >= 0 }
-            if placed.count == ids.count { return }
-            try? await Task.sleep(for: .milliseconds(8))
-        }
-        Log.menuBar.error("Standalone bar: revealed items never landed on screen")
-    }
-
-    /// Waits for the divider to push the items back off the display.
-    ///
-    /// The mirror of `waitForPlacement`: collapsing does not move anything synchronously
-    /// either, and the cover has to stay up until it has.
-    private func waitForRemoval(of ids: Set<UInt32>) async {
-        for _ in 0..<30 {
-            let onScreen = StatusItemScanner.scan()
-                .filter { ids.contains($0.windowID) && $0.frame.minX >= 0 }
-            if onScreen.isEmpty { return }
-            try? await Task.sleep(for: .milliseconds(8))
-        }
-        Log.menuBar.error("Standalone bar: the section never went back off screen")
-    }
-
-    /// The frames of `ids`, as the window server currently reports them.
-    private func frames(of ids: Set<UInt32>) -> [UInt32: CGRect] {
-        Dictionary(
-            StatusItemScanner.scan()
-                .filter { ids.contains($0.windowID) }
-                .map { ($0.windowID, $0.frame) },
-            uniquingKeysWith: { first, _ in first }
-        )
-    }
-
-    /// Waits until the items have held still for a while, or gives up.
-    ///
-    /// The recording indicator does not arrive with the first captured frame — it takes a
-    /// few hundred milliseconds, and shifts the whole bar when it lands. Two readings in a
-    /// row agreeing proves nothing at that distance, so stillness has to be held.
-    ///
-    /// The hold is short, and the wait ends early once the shift has come and gone: what is
-    /// being waited for is a single event, so a run of agreeing readings after it has landed
-    /// is the answer, not evidence towards it. `movedFrom` is where the items sat before the
-    /// capture, which is what makes the shift recognisable rather than merely absent.
-    ///
-    /// Bounded, and inside an open the user asked for.
-    private func waitForStillness(of ids: Set<UInt32>, movedFrom before: [UInt32: CGRect]) async {
-        var previous = before
-        var still = 0
-        var hasMoved = false
-        for reading in 0..<Self.stillnessLimit {
-            // Nothing has stirred in the time the indicator takes to land, so nothing is
-            // going to: it was already in the bar before this open, and shifted it then.
-            if !hasMoved, reading >= Self.shiftDeadline { return }
-
-            try? await Task.sleep(for: .milliseconds(16))
-            let current = frames(of: ids)
-            still = current == previous ? still + 1 : 0
-            hasMoved = hasMoved || current != before
-            previous = current
-            if hasMoved, still >= Self.stillnessRequired { return }
-        }
-    }
-
-    /// Readings that must agree in a row once the bar has shifted, how long a shift is waited
-    /// for before concluding there will not be one, and the most that will be waited for
-    /// either way — about a tenth, a quarter and half a second.
-    private static let stillnessRequired = 6
-    private static let shiftDeadline = 16
-    private static let stillnessLimit = 30
 
     /// Opens the real item a replica stands for.
     ///

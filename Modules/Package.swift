@@ -17,7 +17,7 @@ let package = Package(
         .target(name: "MenuBar", dependencies: ["BouncerFoundation", "Settings"]),
         .target(name: "BouncerUI", dependencies: ["MenuBar", "Settings"]),
         // Behind its own module because it is the one feature that asks for permissions.
-        .target(name: "StandaloneBar", dependencies: ["BouncerFoundation", "Settings", "MenuBar"]),
+        .target(name: "StandaloneBar", dependencies: ["BouncerFoundation", "MenuBar"]),
         .testTarget(name: "MenuBarTests", dependencies: ["MenuBar"]),
         .testTarget(name: "SettingsTests", dependencies: ["Settings"]),
         .testTarget(name: "StandaloneBarTests", dependencies: ["StandaloneBar"]),

@@ -106,9 +106,12 @@ public enum ClickForwarder {
         // An app that has stopped answering must not hold its own task up for long. A second
         // is generous: the apps that do answer take tens of milliseconds.
         AXUIElementSetMessagingTimeout(app, 1)
+        // Downcast only after the type ID check: a plain cast between CF types is unchecked.
         guard let extras = attribute(of: app, named: kAXExtrasMenuBarAttribute),
-              let children = attribute(of: extras as! AXUIElement, named: kAXChildrenAttribute)
-              as? [AXUIElement]
+              CFGetTypeID(extras) == AXUIElementGetTypeID(),
+              let children = attribute(
+                  of: unsafeDowncast(extras, to: AXUIElement.self), named: kAXChildrenAttribute
+              ) as? [AXUIElement]
         else { return [] }
 
         return children.compactMap { child in
@@ -128,14 +131,17 @@ public enum ClickForwarder {
     /// Built from position and size rather than read whole: `AXFrame` is not part of the
     /// published attribute set, and these two are.
     private static func itemFrame(of element: AXUIElement) -> CGRect? {
+        // Downcast only after the type ID checks: a plain cast between CF types is unchecked.
         guard let positionValue = attribute(of: element, named: kAXPositionAttribute),
-              let sizeValue = attribute(of: element, named: kAXSizeAttribute)
+              let sizeValue = attribute(of: element, named: kAXSizeAttribute),
+              CFGetTypeID(positionValue) == AXValueGetTypeID(),
+              CFGetTypeID(sizeValue) == AXValueGetTypeID()
         else { return nil }
 
         var origin = CGPoint.zero
         var size = CGSize.zero
-        guard AXValueGetValue(positionValue as! AXValue, .cgPoint, &origin),
-              AXValueGetValue(sizeValue as! AXValue, .cgSize, &size)
+        guard AXValueGetValue(unsafeDowncast(positionValue, to: AXValue.self), .cgPoint, &origin),
+              AXValueGetValue(unsafeDowncast(sizeValue, to: AXValue.self), .cgSize, &size)
         else { return nil }
         return CGRect(origin: origin, size: size)
     }

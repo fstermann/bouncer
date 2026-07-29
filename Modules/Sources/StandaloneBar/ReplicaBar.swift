@@ -108,7 +108,7 @@ public final class ReplicaBar {
             colours.append([
                 CGFloat(pixels[start]) / 255,
                 CGFloat(pixels[start + 1]) / 255,
-                CGFloat(pixels[start + 2]) / 255,
+                CGFloat(pixels[start + 2]) / 255
             ])
         }
         colours.sort { ($0[0] + $0[1] + $0[2]) < ($1[0] + $1[1] + $1[2]) }
