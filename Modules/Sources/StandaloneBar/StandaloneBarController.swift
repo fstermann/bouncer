@@ -72,17 +72,27 @@ public final class StandaloneBarController {
             Log.menuBar.error("Standalone bar: Screen Recording not granted")
             return
         }
+        guard ItemCapture.isAvailable else {
+            Log.menuBar.error("Standalone bar: this macOS cannot photograph the items")
+            return
+        }
         Log.menuBar.info("Standalone bar: opening")
 
         // Which items are hidden has to be settled *before* revealing them, because once
         // they are back on screen they are indistinguishable from the ones that were
         // visible all along. Identity survives the move; position does not.
         let all = MenuBarItemGeometry.excludingDividers(StatusItemScanner.scan())
-        let hidden = Set(MenuBarItemGeometry.offScreen(all, screens: NSScreen.screens.map(\.frame)).map(\.windowID))
+        let parked = MenuBarItemGeometry.offScreen(all, screens: NSScreen.screens.map(\.frame))
+        let hidden = Set(parked.map(\.windowID))
         guard !hidden.isEmpty else {
             Log.menuBar.info("Standalone bar: nothing is hidden — is the section already revealed?")
             return
         }
+
+        // Photographed where they are, before anything moves. The pictures do not depend on
+        // the items being on screen, only the menus do, so this runs while the bar is still
+        // untouched — and it is what keeps the replicas out of the reveal's way entirely.
+        itemCapture.capture(parked)
 
         // Fetched once and used for both captures. Enumerating every window on the system is
         // the expensive half of a capture, and it was being paid for twice per open.
@@ -132,7 +142,6 @@ public final class StandaloneBarController {
         shield.show(over: strip)
 
         let beforeCapture = PlacementWait.frames(of: hidden)
-        await itemCapture.begin(revealed, in: content)
 
         // Shown as soon as there are pictures to show, at the positions the items hold now.
         // Capturing can put a recording indicator in the bar, and anything arriving in the bar
