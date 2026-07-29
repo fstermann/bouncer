@@ -155,7 +155,6 @@ public final class StandaloneBarController {
             .filter { hidden.contains($0.windowID) && $0.frame.minX >= 0 }
     }
 
-
     /// Where the section is about to land, before it has.
     ///
     /// The cover has to be up before the reveal — that is what keeps the items from being
@@ -209,7 +208,6 @@ public final class StandaloneBarController {
         Log.menuBar.info(
             "Standalone bar: open, \(self.items.count, privacy: .public) items over \(width, privacy: .public) pt")
     }
-
 
     /// Unwinds an open that failed after the cover went up and the section was revealed.
     ///
