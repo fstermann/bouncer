@@ -1,5 +1,6 @@
 import BouncerFoundation
-import ScreenCaptureKit
+// See `ItemCapture`: only the macOS 26 SDK annotates these types `Sendable`.
+@preconcurrency import ScreenCaptureKit
 
 /// A picture of the menu bar as it looks with the replicated items removed.
 ///

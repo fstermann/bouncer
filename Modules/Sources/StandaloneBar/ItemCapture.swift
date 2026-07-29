@@ -1,6 +1,9 @@
 import BouncerFoundation
 import Observation
-import ScreenCaptureKit
+// ScreenCaptureKit's types are only annotated `Sendable` in the macOS 26 SDK. Bouncer builds
+// against Xcode 16.4 too, where handing a filter to a framework call that is nonisolated —
+// exactly how the API is meant to be used — is an error rather than a warning.
+@preconcurrency import ScreenCaptureKit
 
 /// Pictures of the status items the standalone bar replicates.
 ///

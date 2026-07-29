@@ -2,7 +2,8 @@ import AppKit
 import BouncerFoundation
 import MenuBar
 import Observation
-import ScreenCaptureKit
+// See `ItemCapture`: only the macOS 26 SDK annotates these types `Sendable`.
+@preconcurrency import ScreenCaptureKit
 
 /// Opens and closes the standalone bar.
 ///
