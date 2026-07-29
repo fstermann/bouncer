@@ -58,7 +58,9 @@ divider that is in the bar hides whatever is left of it, and a section the user 
 reveal must hide nothing.
 
 That is the entire mechanism: two width assignments. It costs nothing at rest, needs no
-permissions, and survives OS updates that break screenshot-based approaches.
+permissions, and survives OS updates that break screenshot-based approaches. It is what
+hides the items no matter what else is switched on — the standalone bar below borrows the
+section for as long as it is open and hands it straight back.
 
 Section membership is not stored anywhere — it *is* the item's position relative to the
 dividers, which macOS already persists per app via `NSStatusItem.autosaveName`. Users
@@ -70,14 +72,43 @@ them. macOS hosts nearly every status item in the Control Center process, so the
 server reports the same owner for almost all of them; the window name that would identify
 one — and the item's image — need Screen Recording. The menu bar itself is the display.
 
-### Why not the screenshot approach
+### The standalone bar
 
 Ice and friends can render hidden items inside their own bar, which is nicer than
 revealing the real menu bar. It requires reading other apps' item images, which means
-Screen Recording permission, a capture pipeline running whenever the bar is open, and
-click forwarding by synthesising events. That is a large, permission-hungry, fragile
-subsystem. Bouncer's default is the cheap mechanism; if the standalone bar is built
-later it goes behind an opt-in, with the divider mechanism still doing the hiding.
+Screen Recording permission, captures while the bar is open, and click forwarding — a
+large, permission-hungry, fragile subsystem next to two width assignments. So it is built,
+in `StandaloneBar`, and it is opt-in: off by default, asking for its permissions only when
+the user switches it on, with the divider mechanism still doing the hiding.
+
+It inverts the divider mechanism rather than reusing it. **An item pushed off the display
+stops being drawn, and an item that is not drawn has no pixels to copy** — so a section
+hidden the usual way cannot be replicated at all. Covering one costs nothing by comparison,
+because a window capture ignores whatever is on top of it. So the section is revealed into
+its ordinary place, that stretch of bar is covered with a picture of itself taken *before*
+the reveal — which is therefore already a picture without the items — and the items are
+drawn again a row lower. Hidden from the eye, fully alive to the capture.
+
+Three consequences worth knowing before changing any of it:
+
+- **Replicas are stills.** The pictures are taken once per open. Streaming them keeps the
+  clock ticking and earns the large screen recording pill, which lands *in* the bar and
+  pushes every item along — moving the very items the replicas have to stay aligned with.
+- **Replicas sit at their real horizontal positions**, not packed together. A status item
+  anchors its menu to its own window and the real item cannot be moved, so a packed bar
+  would open menus nowhere near the replica clicked.
+- **Clicks go through Accessibility, not synthesised events.** Since macOS 26 every status
+  item window belongs to Control Center, so a click posted at an item's position reaches
+  only the items Control Center genuinely owns. Each app still publishes its own items
+  under its extras menu bar, where pressing one opens the same menu a real click would.
+
+The items stay revealed and live underneath the cover for as long as the bar is open, which
+is why two things exist that otherwise look redundant: `MenuBarManager.isRevealHeld`, so
+auto-rehide does not put the section away underneath an open bar, and `ClickShield`, so the
+covered strip does not open the menus of items the user cannot see.
+
+Each of these came out of a spike rather than from first principles; `Spikes/README.md` has
+the measurements.
 
 ## Modules
 
@@ -89,11 +120,16 @@ BouncerFoundation   Logging, signposts, observation helper. No dependencies.
   Settings          Preferences value type, persistence, launch-at-login.
       ↑
    MenuBar          Dividers, visibility state, reveal/rehide policy.
-      ↑
-  BouncerUI         The SwiftUI settings pane.
-      ↑
-    App             AppDelegate: constructs the graph, owns the menu and window.
+      ↑         ↑
+  BouncerUI  StandaloneBar    The SwiftUI settings pane; the replica bar and all
+      ↑         ↑             it needs — capture, cover, click forwarding.
+      └── App ──┘             AppDelegate: constructs the graph, owns the menu
+                              and window.
 ```
+
+`StandaloneBar` is a module of its own because it is the one feature that asks for
+permissions. Keeping it off to the side means the permission surface is a directory, not a
+grep.
 
 Dependencies point one way only. `MenuBar` is AppKit-facing but its decision logic
 (`MenuBarVisibility`) is pure and tested without a running app, which is why `make test`
@@ -110,7 +146,14 @@ needs no Xcode project and finishes in under a second.
 - **`RevealController`** — the *why*: hover, auto-rehide. Separated so input
   policy can grow without touching the bar itself.
 - **`SettingsStore`** — one JSON blob in `UserDefaults`. One read at launch, one
-  coalesced write per burst of edits.
+  coalesced write per burst of edits. Keys added after 0.1.0 decode as optional, so a blob
+  written before one existed keeps the user's other settings.
+- **`StandaloneBarController`** — opens and closes the replica bar, and owns the ordering
+  the whole feature turns on: cover, reveal, capture, draw, and the reverse on the way out.
+- **`MenuBarItemGeometry`** — the standalone bar's decisions as pure functions over frames:
+  what is off screen, what is a divider, where the cover goes, where each replica sits.
+  Tested against recorded window lists with no running app, the same way `MenuBarVisibility`
+  is.
 
 ## Performance rules
 
@@ -120,10 +163,16 @@ These are enforced by review, not by tooling:
    State changes come from user input or system notifications.
 2. **Pay only for what you enable.** The global mouse monitor is installed when
    `revealOnHover` is on and removed when it is off. Same for the app-activation
-   observer. A user with both off has zero installed observers.
-3. **Polling is a last resort, is scoped, and is documented.** No poll exists. Anything
-   that needs one has to justify why no notification carries the same change, and stop
-   polling the moment the feature that needs it is closed.
+   observer. A user with both off has zero installed observers. The standalone bar goes
+   further: its pointer monitor, its menu observer and its windows exist only while the
+   bar is open, so a user who has enabled it and closed it is paying nothing either.
+3. **Polling is a last resort, is scoped, and is documented.** One exists: `PlacementWait`
+   reads item frames every 8–16 ms while the standalone bar opens and closes. The window
+   server places status items over several frames and sends no notification when it has
+   finished, so there is nothing to observe; each wait returns the moment the state it is
+   after arrives, is bounded, and runs only inside an interaction the user just asked for.
+   Anything else that needs one has to justify why no notification carries the same change,
+   and stop polling the moment the feature that needs it is closed.
 4. **Value types over object graphs.** `Preferences` is one `Hashable` struct, so
    "did anything change" is `==` and persistence is one encode.
 5. **Release builds use whole-module optimisation and thin LTO** (`project.yml`).
@@ -137,12 +186,15 @@ Ordered by how much of the current design they disturb — earlier items fit the
 boundaries, later ones need new ones.
 
 1. **Per-display behavior.** `MenuBarManager` assumes `NSScreen.main`; dividers exist
-   per screen already. Needs a manager per screen.
+   per screen already. Needs a manager per screen, and the standalone bar needs one bar
+   per screen with it.
 2. **Rules.** "Always keep this app's item visible", "hide this item after N minutes".
    A new `Rules` module feeding `RevealController`; no change to the bar.
 3. **Profiles.** `Preferences` becomes one of several named values; `SettingsStore`
    grows a selection. The rest of the app already only reads `preferences`.
 4. **Appearance.** Custom menu bar tint/shape. Needs an overlay window; independent of
    the divider mechanism.
-5. **Standalone bar.** The screenshot approach described above, opt-in. The largest
-   change: new capture module, new permission, click forwarding.
+
+The standalone bar was item 5 and is built; what is left of it is a full screen space,
+where the menu bar is not drawn and so nothing can be captured, and the per-display work
+in item 1.

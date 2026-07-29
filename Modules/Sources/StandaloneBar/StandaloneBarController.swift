@@ -101,13 +101,12 @@ public final class StandaloneBarController {
         // still off screen at this point, so a picture of the bar taken now is already a
         // picture of the bar without them. That ordering is what makes the cover correct —
         // sampled after the reveal it would contain the very items it has to hide.
-        let band = menuBarBand(around: all)
         var bandImage: CGImage?
-        if let band {
+        if let band = menuBarBand(around: all) {
             bandImage = await BackgroundCapture.sample(rect: band, excluding: [], in: content)
             // Nothing to paint it with means no cover: the window is opaque, so it would go
             // up as a black strip across the whole bar.
-            if bandImage != nil { coverBar(band, with: bandImage) }
+            if let bandImage { coverBar(band, with: bandImage) }
         }
 
         // Resolved before anything moves, and left to run across the reveal. The
@@ -150,14 +149,7 @@ public final class StandaloneBarController {
             await coverSection(strip, replicating: revealed)
         }
 
-        isOpen = true
-        watchForThePointerLeaving()
-        settling = Task { [weak self] in
-            await self?.followTheShift(of: hidden, from: beforeCapture)
-        }
-        let width = Int(strip.width)
-        Log.menuBar.info(
-            "Standalone bar: open, \(revealed.count, privacy: .public) items over \(width, privacy: .public) pt")
+        finishOpening(of: hidden, from: beforeCapture, over: strip)
     }
 
     /// Reveals the section into the menu bar and reads back where its items landed.
@@ -177,9 +169,23 @@ public final class StandaloneBarController {
     }
 
     /// Puts the cover up over the whole bar, painted with a capture of it.
-    private func coverBar(_ band: CGRect, with image: CGImage?) {
+    private func coverBar(_ band: CGRect, with image: CGImage) {
         cover.update(image, of: band)
         cover.show(over: band)
+    }
+
+    /// Marks the bar open and installs the two things that outlive `open`: the watch for the
+    /// pointer leaving, and the one bounded wait for the recording indicator to shift the
+    /// items out from under the replicas.
+    private func finishOpening(of hidden: Set<UInt32>, from before: [UInt32: CGRect], over strip: CGRect) {
+        isOpen = true
+        watchForThePointerLeaving()
+        settling = Task { [weak self] in
+            await self?.followTheShift(of: hidden, from: before)
+        }
+        let width = Int(strip.width)
+        Log.menuBar.info(
+            "Standalone bar: open, \(self.items.count, privacy: .public) items over \(width, privacy: .public) pt")
     }
 
     /// Covers just the section's strip, sampled with the items and Bouncer's own windows

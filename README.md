@@ -23,7 +23,9 @@ Two things decide every tradeoff:
 no background timers, no global event monitors installed for features you have turned off.
 The core hide/show mechanism is a single `NSStatusItem` width assignment: no screen
 capture, no per-item bookkeeping, no private API, and no Accessibility or Screen Recording
-permission.
+permission. The standalone bar is the one exception and is off by default: switching it on
+asks for both, uses them for nothing else, and everything it installs goes away again when
+the bar closes.
 
 **Minimalism.** The interface is as small as the job allows. No dock icon, no window you
 have to keep around, no chrome on the menu bar beyond one mark and the dividers doing the
@@ -64,10 +66,12 @@ Working today:
 - Reveal by clicking bouncer's icon or its boundary glyph, or by pointer hover
 - Auto-rehide: never, after a delay, or on app switch
 - Launch at login, preferences persisted
+- Standalone bar: the hidden section replicated below the menu bar rather than revealed in
+  it — opt-in, and experimental. One display only, and nothing is drawn in a full screen
+  space
 
 Not built yet — see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#roadmap):
 
-- Rendering hidden items in a standalone bar rather than revealing the real menu bar
 - Per-app rules and profiles
 - Custom menu bar appearance
 - Per-display behavior
