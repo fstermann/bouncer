@@ -1,3 +1,4 @@
+import AppKit
 import Settings
 import SwiftUI
 
@@ -30,6 +31,18 @@ struct GeneralSettingsView: View {
                     } maximumValueLabel: {
                         Text("Slow")
                     }
+                }
+
+                Picker("Bar style", selection: barStyleChoice) {
+                    Text("Match the menu bar").tag(BarStyleChoice.automatic)
+                    if #available(macOS 26.0, *) {
+                        Text("Liquid Glass").tag(BarStyleChoice.glass)
+                    }
+                    Text("Custom colour").tag(BarStyleChoice.custom)
+                }
+                if case .custom = settings.preferences.barStyle {
+                    // No opacity: the bar covers the real icons, and any alpha shows them.
+                    ColorPicker("Colour", selection: barColour, supportsOpacity: false)
                 }
             }
 
@@ -76,6 +89,42 @@ struct GeneralSettingsView: View {
             case .afterDelay: .afterDelay(seconds: 10)
             case .onFocusedAppChange: .onFocusedAppChange
             }
+        }
+    }
+
+    private enum BarStyleChoice: Hashable {
+        case automatic, glass, custom
+    }
+
+    private var barStyleChoice: Binding<BarStyleChoice> {
+        Binding {
+            switch settings.preferences.barStyle {
+            case .automatic: .automatic
+            case .glass: .glass
+            case .custom: .custom
+            }
+        } set: { choice in
+            settings.preferences.barStyle = switch choice {
+            case .automatic: .automatic
+            case .glass: .glass
+            case .custom: .custom(red: 0.5, green: 0.5, blue: 0.5)
+            }
+        }
+    }
+
+    private var barColour: Binding<Color> {
+        Binding {
+            guard case .custom(let red, let green, let blue) = settings.preferences.barStyle else {
+                return Color(white: 0.5)
+            }
+            return Color(.sRGB, red: red, green: green, blue: blue)
+        } set: { colour in
+            guard let resolved = NSColor(colour).usingColorSpace(.sRGB) else { return }
+            settings.preferences.barStyle = .custom(
+                red: resolved.redComponent,
+                green: resolved.greenComponent,
+                blue: resolved.blueComponent
+            )
         }
     }
 

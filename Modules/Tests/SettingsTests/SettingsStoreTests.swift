@@ -64,6 +64,17 @@ private final class MemoryPersistence: PreferencesPersistence, @unchecked Sendab
         #expect(!store.preferences.showItemsInBar)
         #expect(store.preferences.animateBar)
         #expect(store.preferences.barAnimationDuration == 0.18)
+        #expect(store.preferences.barStyle == .automatic)
+    }
+
+    @Test func barStyleRoundTrips() throws {
+        let persistence = MemoryPersistence()
+        let store = SettingsStore(persistence: persistence)
+        store.preferences.barStyle = .custom(red: 0.2, green: 0.4, blue: 0.6)
+        store.flush()
+
+        let reloaded = SettingsStore(persistence: persistence)
+        #expect(reloaded.preferences.barStyle == .custom(red: 0.2, green: 0.4, blue: 0.6))
     }
 
     @Test func storedAnimationDurationIsClampedToTheSlidersRange() {

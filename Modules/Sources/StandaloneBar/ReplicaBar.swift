@@ -1,4 +1,5 @@
 import AppKit
+import Settings
 
 /// The standalone bar: the hidden section's items, drawn one row below the menu bar.
 ///
@@ -21,6 +22,14 @@ public final class ReplicaBar {
     /// Only the lower corners are rounded: the shelf hangs off the menu bar, and a gap above
     /// it would show it is a window of its own rather than part of the bar.
     private static let cornerRadius: CGFloat = 10
+
+    /// How the shelf is painted. Set by the controller before each open, so the shelf leaves
+    /// the way it arrived even if the preference changes while it is out.
+    var style: BarStyle = .automatic
+    /// The dimming layer over the shelf's glass, faded through `BarSurface.fade` together
+    /// with the cover's, so the dim never shows as a step at the seam between them. The
+    /// replicas sit above it: they slide in plain view, only their background dims.
+    private(set) var veil: NSView?
 
     private var window: BarWindow?
     private var shelf: NSView?
@@ -114,6 +123,7 @@ public final class ReplicaBar {
         window?.orderOut(nil)
         window = nil
         shelf = nil
+        veil = nil
         view.images = [:]
         view.positions = [:]
     }
@@ -130,7 +140,7 @@ public final class ReplicaBar {
         // Replicas are icons on nothing, so the bar has to bring its own surface or they sit
         // unreadable on whatever window is behind.
         //
-        // Painted in `BarSurface.colour`, the same as the cover over the real section, so the
+        // Dressed by `BarSurface`, the same as the cover over the real section, so the
         // two read as one panel rather than as a strip and a patch that nearly agree.
         // The shelf comes down from above the window, so it is clipped to it: while it is up
         // there it must not be drawn over the screen it has not reached yet.
@@ -146,7 +156,7 @@ public final class ReplicaBar {
         backing.layer?.cornerRadius = Self.cornerRadius
         backing.layer?.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
         backing.layer?.masksToBounds = true
-        backing.layer?.backgroundColor = BarSurface.colour.cgColor
+        veil = BarSurface.dress(backing, in: style, coveringIcons: false)
         view.wantsLayer = true
         backing.addSubview(view)
         clip.addSubview(backing)

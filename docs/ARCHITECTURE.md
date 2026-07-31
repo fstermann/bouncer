@@ -85,9 +85,13 @@ There is no capture pipeline. The section is photographed once per open, in a si
 while its items are still parked off the display — ScreenCaptureKit cannot reach a window
 out there, so that call goes through SkyLight's private window capture, and a macOS release
 that drops it leaves the bar without pictures rather than crashing. The cover that hides
-the real items while they are revealed is a flat colour, not a picture of the bar: a still
+the real items while they are revealed is a painted surface, not a picture of the bar: a still
 of the whole bar swapped in and out was visible as the bar twitching, and it knew nothing
-about the wallpaper moving under it or the shadow a menu casts over it.
+about the wallpaper moving under it or the shadow a menu casts over it. What the paint is —
+a flat colour, or dimmed Liquid Glass — is the user's choice, stored in `Preferences.barStyle`
+and resolved by `BarSurface`, which dresses both halves of the panel alike. Glass over the
+cover is dimmed rather than clear, a knowing trade of airtight hiding for a panel that reads
+as one material: clear glass would refract the very icons the cover exists to hide.
 
 The reveal is for the menus alone. A status item anchors its menu to its own window, so an
 item left parked off the display opens its menu off the display too — measured, at x =

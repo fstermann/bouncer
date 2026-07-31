@@ -103,6 +103,8 @@ public final class StandaloneBarController {
         Log.menuBar.info("Standalone bar: opening")
         // Read once per open, so the bar leaves the way it arrived even if the preference changes.
         slide = settings.preferences.animateBar ? settings.preferences.barAnimationDuration : nil
+        cover.style = settings.preferences.barStyle
+        bar.style = settings.preferences.barStyle
 
         // Which items are hidden has to be settled *before* revealing them, because once
         // they are back on screen they are indistinguishable from the ones that were
@@ -156,6 +158,9 @@ public final class StandaloneBarController {
         bar.show(revealed, below: strip)
         // The items under the cover are painted over, not moved, and so still take clicks.
         shield.show(over: strip)
+        // Not awaited: the bar is usable while the smudges ease in behind the glass. Given
+        // twice the slide, so the reveal reads unhurried rather than snapping clear.
+        Task { await BarSurface.fade([cover.veil, bar.veil], toDimmed: false, over: slide.map { $0 * 2 }) }
 
         finishOpening(of: hidden, from: PlacementWait.frames(of: hidden), over: strip)
     }
@@ -259,7 +264,8 @@ public final class StandaloneBarController {
         // The section goes away first, underneath the panel that is still over it — the open
         // run backwards. The cover leaves with the panel it is half of, so anything it was
         // hiding has to be gone by then, or the items sit in plain sight until the divider
-        // catches up.
+        // catches up. Awaited: dimmed first, or the glass shows the smudges vanishing in a frame.
+        await BarSurface.fade([cover.veil, bar.veil], toDimmed: true, over: slide)
         menuBar.setVisibility(.collapsed)
         await PlacementWait.removal(of: replicated)
         // Before the panel goes rather than after: showing a marker changes the divider's

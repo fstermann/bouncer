@@ -7,6 +7,20 @@ public enum AutoRehide: Codable, Hashable, Sendable {
     case onFocusedAppChange
 }
 
+/// How the standalone bar's panel is painted.
+///
+/// Plain values rather than a colour type, so the choice encodes with the rest of the
+/// preferences and Settings stays free of AppKit. There is no opacity: the cover half of the
+/// panel exists to hide icons, and anything short of opaque leaves them ghosting through.
+public enum BarStyle: Codable, Hashable, Sendable {
+    /// A grey that follows a light or dark menu bar.
+    case automatic
+    /// Liquid Glass, on a macOS that has it; the automatic grey where it does not.
+    case glass
+    /// A flat colour of the user's choosing, in sRGB.
+    case custom(red: Double, green: Double, blue: Double)
+}
+
 /// The complete user-facing configuration. One value type so it round-trips as a
 /// single encode/decode and comparing two states is a plain `==`.
 public struct Preferences: Codable, Hashable, Sendable {
@@ -26,6 +40,8 @@ public struct Preferences: Codable, Hashable, Sendable {
     public var animateBar: Bool
     /// How long that slide takes, in seconds.
     public var barAnimationDuration: TimeInterval
+    /// What that bar's cover and shelf are painted with.
+    public var barStyle: BarStyle
 
     public init(
         autoRehide: AutoRehide = .afterDelay(seconds: 10),
@@ -34,7 +50,8 @@ public struct Preferences: Codable, Hashable, Sendable {
         showBouncerIcon: Bool = true,
         showItemsInBar: Bool = false,
         animateBar: Bool = true,
-        barAnimationDuration: TimeInterval = 0.18
+        barAnimationDuration: TimeInterval = 0.18,
+        barStyle: BarStyle = .automatic
     ) {
         self.autoRehide = autoRehide
         self.enableAlwaysHiddenSection = enableAlwaysHiddenSection
@@ -43,6 +60,7 @@ public struct Preferences: Codable, Hashable, Sendable {
         self.showItemsInBar = showItemsInBar
         self.animateBar = animateBar
         self.barAnimationDuration = barAnimationDuration
+        self.barStyle = barStyle
     }
 
     /// A blob stored before a key existed must keep the user's other settings, not throw
@@ -61,5 +79,6 @@ public struct Preferences: Codable, Hashable, Sendable {
             max(try container.decodeIfPresent(TimeInterval.self, forKey: .barAnimationDuration) ?? 0.18, 0.06),
             0.5
         )
+        barStyle = try container.decodeIfPresent(BarStyle.self, forKey: .barStyle) ?? .automatic
     }
 }
