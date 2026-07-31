@@ -53,14 +53,20 @@ public final class CoverWindow {
         surface.setFrameOrigin(CGPoint(x: 0, y: travel))
     }
 
-    /// Settles the cover onto the section it has just hidden.
+    /// Settles the cover onto the section as it now stands.
     ///
-    /// Where the section would land was worked out while it was still parked, and the answer
-    /// is exact to the point unless an always-hidden section is holding items — so this is
-    /// usually a move of nothing at all. Given time to do it in, whatever is left glides
-    /// rather than jumping. Not awaited: nothing is waiting on it.
+    /// On the way in that is a move of nothing at all: where the section would land was worked
+    /// out while the cover was still parked, and the answer is exact to the point unless an
+    /// always-hidden section is holding items. After a rearrangement it is a real change of
+    /// width — the section is one item wider or narrower than it was. Given time to do it in,
+    /// either glides rather than jumping. Not awaited: nothing is waiting on it.
     func settle(onto rect: CGRect, over duration: TimeInterval?) {
         guard let window, let duration else { show(over: rect); return }
+        // Resized at once rather than with the window. The surface is what is actually painted,
+        // and a window that grows around a surface that did not shows the real items through the
+        // stretch it has just gained; being briefly wider than the window costs nothing, because
+        // it is clipped to it.
+        surface.setFrameSize(rect.size)
         NSAnimationContext.runAnimationGroup { context in
             context.duration = duration
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)

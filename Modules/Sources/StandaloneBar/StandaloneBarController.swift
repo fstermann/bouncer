@@ -136,7 +136,7 @@ public final class StandaloneBarController {
         cover.show(over: landing.insetBy(dx: -Self.coverBleed, dy: 0))
         bar.update(images: itemCapture.images)
         bar.show(MenuBarItemGeometry.packed(parked, into: landing, like: orderLastTime), below: landing)
-        await runThePanelOut()
+        if let slide { await Slide.panelOut(bar, cover, over: slide) }
 
         let revealed = await reveal(hidden)
         guard let strip = MenuBarItemGeometry.coverRect(for: revealed) else {
@@ -157,39 +157,6 @@ public final class StandaloneBarController {
         shield.show(over: strip)
 
         finishOpening(of: hidden, from: PlacementWait.frames(of: hidden), over: strip)
-    }
-
-    /// Runs the panel down out of the menu bar: replicas first, cover behind them.
-    ///
-    /// Both halves travel the height of the shelf's window — its own height plus the band it comes
-    /// through — in one animation group, which is what keeps them a single panel. Awaited, because
-    /// the cover being over the section is what makes it safe to reveal, and eased out so the
-    /// panel settles rather than stopping dead.
-    private func runThePanelOut() async {
-        guard let slide, let shelf = bar.panel else { return }
-        let travel = bar.travel
-        cover.park(by: travel)
-        bar.park(by: travel)
-        await Slide.run([shelf, cover.panel], to: .zero, over: slide, easing: .easeOut)
-    }
-
-    /// Takes the panel back into the menu bar, and returns once it has gone.
-    ///
-    /// Only ever called with the section already put away: the cover leaves with the panel, so
-    /// anything it was hiding has to have stopped being there first.
-    ///
-    /// Eased at both ends rather than mirroring the way in. The reverse of an ease out is an
-    /// ease in, which spends its slow half creeping and then throws the panel out of sight in
-    /// the last few frames — the leaving is the part being watched, and it read as the bar
-    /// vanishing rather than going.
-    private func runThePanelIn() async {
-        guard let slide, let shelf = bar.panel else { return }
-        await Slide.run(
-            [shelf, cover.panel],
-            to: CGPoint(x: 0, y: bar.travel),
-            over: slide,
-            easing: .easeInEaseOut
-        )
     }
 
     /// Reveals the section into the menu bar and reads back where its items landed.
@@ -273,6 +240,8 @@ public final class StandaloneBarController {
 
         if let pointerObservation { NSEvent.removeMonitor(pointerObservation) }
         pointerObservation = nil
+        // First, so nothing the handover has running draws into a bar that is being taken down.
+        handover.stop()
         closing?.cancel()
         closing = nil
         settling?.cancel()
@@ -296,7 +265,7 @@ public final class StandaloneBarController {
         // width, and every item to the left of it shifts to make room. Cheaper to do that
         // while something is still over it than to find out it shows.
         menuBar.setBoundaryMarkersVisible(true)
-        await runThePanelIn()
+        if let slide { await Slide.panelIn(bar, cover, over: slide) }
         bar.hide()
         cover.hide()
         shield.hide()
@@ -305,10 +274,13 @@ public final class StandaloneBarController {
         menuBar.isRevealHeld = false
     }
 
-    /// Takes the bar back over the section once the user has finished rearranging it.
+    /// Takes the bar back over the rearranged section — or away, once the last item has left it.
     private func finishHandingOver() async {
-        guard handover.isUnderway else { return }
-        handover.settleBack(onto: await handover.end(), over: slide, from: items)
+        guard let settled = await handover.end() else { return }
+        if !handover.settleBack(onto: settled, over: slide, from: items) {
+            Log.menuBar.info("Standalone bar: the section is empty — closing")
+            await close()
+        }
     }
 
     /// Closes the bar once the pointer moves below it.
@@ -323,16 +295,32 @@ public final class StandaloneBarController {
     /// leaves the bar up.
     ///
     /// Driven by the pointer moving rather than by a clock, and installed only while the bar
-    /// is open.
+    /// is open. It is also the only watch on the pointer there is, so the two signals a
+    /// rearrangement gives off are read here as well: a Cmd-drag up in the bar, and a Cmd-release.
     private func watchForThePointerLeaving() {
-        pointerObservation = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseUp]) { event in
+        let watched: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged, .leftMouseUp]
+        pointerObservation = NSEvent.addGlobalMonitorForEvents(matching: watched) { event in
             MainActor.assumeIsolated {
-                guard event.type != .mouseMoved else { return self.closeIfThePointerHasLeft() }
+                switch event.type {
+                case .mouseMoved: self.closeIfThePointerHasLeft()
+                // A Cmd-drag up in the bar is the user rearranging it, whether or not it began on
+                // a replica. The panel follows either way, or it stands still through the drag and
+                // jumps once at the end of it.
+                case .leftMouseDragged where self.isRearranging(event): self.handover.followAlong()
                 // A Cmd-release anywhere may have moved an item into or out of the section.
-                guard event.modifierFlags.contains(.command) else { return }
-                Task { await self.handover.lookAgain(around: self.items, over: self.slide) }
+                case .leftMouseUp where event.modifierFlags.contains(.command):
+                    self.handover.lookAgain(around: self.items, over: self.slide)
+                default: break
+                }
             }
         }
+    }
+
+    /// Whether a drag in flight could be moving a status item: Cmd held, and the pointer still up
+    /// in the bar. Anything else — a window dragged across the desktop — is none of Bouncer's
+    /// business, and following it would be a poll running for nothing.
+    private func isRearranging(_ event: NSEvent) -> Bool {
+        event.modifierFlags.contains(.command) && NSEvent.mouseLocation.y >= bar.bottomEdge
     }
 
     /// A menu opened from the bar hangs below it, so reaching into one must not dismiss the

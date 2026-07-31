@@ -13,8 +13,12 @@ import Foundation
 /// orders our items against every other app's however it likes, so no value here can
 /// guarantee what ends up next to what. Nothing depends on that: the only glyph that has
 /// to be exactly on a boundary is drawn on the divider that *is* the boundary.
-enum StatusItemPosition {
-    static let hiddenDividerName = "bouncer.divider.hidden"
+public enum StatusItemPosition {
+    /// Public because it is what says where the hidden section ends: the section is the run of
+    /// items packed against this divider's left edge, and `StandaloneBar` has to be able to pick
+    /// it out of the bar by name. Nothing else identifies it — collapsed it is a hairline the
+    /// size of a real item.
+    public static let hiddenDividerName = "bouncer.divider.hidden"
     static let alwaysHiddenDividerName = "bouncer.divider.alwaysHidden"
     static let iconName = "bouncer.icon"
 

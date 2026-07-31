@@ -55,7 +55,11 @@ public struct Preferences: Codable, Hashable, Sendable {
         showBouncerIcon = try container.decode(Bool.self, forKey: .showBouncerIcon)
         showItemsInBar = try container.decodeIfPresent(Bool.self, forKey: .showItemsInBar) ?? false
         animateBar = try container.decodeIfPresent(Bool.self, forKey: .animateBar) ?? true
-        barAnimationDuration =
-            try container.decodeIfPresent(TimeInterval.self, forKey: .barAnimationDuration) ?? 0.18
+        // Clamped to what the slider can ask for: a stored value from anywhere else drives an
+        // animation the bar cannot be used during.
+        barAnimationDuration = min(
+            max(try container.decodeIfPresent(TimeInterval.self, forKey: .barAnimationDuration) ?? 0.18, 0.06),
+            0.5
+        )
     }
 }

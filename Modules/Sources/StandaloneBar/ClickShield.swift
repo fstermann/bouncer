@@ -39,13 +39,13 @@ final class ClickShield {
     /// work.
     func stopSwallowing() async {
         window?.ignoresMouseEvents = true
-        try? await Task.sleep(for: .milliseconds(beatBeforeItTakesEffect))
+        try? await Task.sleep(for: .milliseconds(Self.beatBeforeItTakesEffect))
     }
 
     /// Well past the 30 ms the change was measured taking, and paid once per gesture. Generous on
     /// purpose: a beat that is too short costs the whole gesture, and the margin costs nothing
     /// anybody can feel.
-    private let beatBeforeItTakesEffect = 120
+    private static let beatBeforeItTakesEffect = 120
 
     func hide() {
         window?.orderOut(nil)

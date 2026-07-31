@@ -45,10 +45,14 @@ public final class ReplicaBar {
         let (positions, size) = MenuBarItemGeometry.layout(items)
         guard size.width > 0 else { takeDown(); return }
 
+        // As wide as the stretch of bar it hangs under, not as wide as the replicas on it. The two
+        // are the same at rest. Mid-drag they are not: the strip reaches to the divider, over the
+        // hole macOS has opened for the item in hand, and the shelf has to reach with it or it
+        // keeps its old width for the whole drag and jumps on the drop.
         let frame = CGRect(
             x: menuBarFrame.minX - Self.padding,
             y: menuBarFrame.minY,
-            width: size.width + Self.padding * 2,
+            width: menuBarFrame.width + Self.padding * 2,
             height: menuBarFrame.height + size.height
         )
         let bar = window ?? make(frame, shelfHeight: size.height)

@@ -44,28 +44,13 @@ enum ItemHandoff {
         let hand = CGEvent(source: nil)?.location ?? .zero
         row = frame.midY
 
-        CGWarpMouseCursorPosition(gripPoint(in: frame))
+        let grip = MenuBarItemGeometry.gripPoint(in: frame, clearOf: notch(under: frame))
+        CGWarpMouseCursorPosition(grip)
         try? await Task.sleep(for: .milliseconds(beatAfterWarping))
-        post(.leftMouseDown, at: gripPoint(in: frame))
+        post(.leftMouseDown, at: grip)
         try? await Task.sleep(for: .milliseconds(beatBeforeReturning))
         CGWarpMouseCursorPosition(hand)
         return true
-    }
-
-    /// Where in the item to take hold of it.
-    ///
-    /// Its middle, unless its middle is behind the notch — there is no bar drawn there and
-    /// nothing to press, so an item spanning it has to be taken by whichever side has more of it.
-    private static func gripPoint(in frame: CGRect) -> CGPoint {
-        guard let notch = notch(under: frame), notch.contains(frame.midX) else {
-            return CGPoint(x: frame.midX, y: frame.midY)
-        }
-        let toTheLeft = notch.lowerBound - frame.minX
-        let toTheRight = frame.maxX - notch.upperBound
-        let grip = toTheLeft >= toTheRight
-            ? frame.minX + toTheLeft / 2
-            : frame.maxX - toTheRight / 2
-        return CGPoint(x: grip, y: frame.midY)
     }
 
     /// The stretch of the menu bar the notch takes up on the display `frame` is on, if it has

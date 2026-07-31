@@ -124,43 +124,111 @@ struct PackingTests {
 }
 
 @Suite("What the section contains after a drag")
-struct PackedRunTests {
-    /// A revealed section of three, the divider's gap, then the visible run. Bouncer's own items
-    /// are named out by the scanner before this is asked, so the divider is a gap, not an item.
-    private let section: Set<UInt32> = [1, 2, 3]
+struct SectionTests {
+    /// The hidden divider's left edge. Bouncer's own items are named out by the scanner before
+    /// this is asked, so the divider is a gap rather than an item, 17 pt wide.
+    private let divider: CGFloat = 1120
+    /// A revealed section of three ending flush against the divider, then the visible run.
+    private let section = [item(1000, 40, id: 1), item(1040, 30, id: 2), item(1070, 50, id: 3)]
+    private let visible = [item(1137, 40, id: 8), item(1177, 65, id: 9)]
 
-    @Test("The section is the run its items are packed into")
-    func findsTheRun() {
-        let bar = [item(1000, 40, id: 1), item(1040, 30, id: 2), item(1070, 50, id: 3),
-                   item(1137, 40, id: 8), item(1177, 65, id: 9)]
-        #expect(MenuBarItemGeometry.packedRun(bar, around: section).map(\.windowID) == [1, 2, 3])
+    @Test("The section is everything left of the divider")
+    func findsTheSection() {
+        let run = MenuBarItemGeometry.section(section + visible, leftOf: divider)
+        #expect(run.map(\.windowID) == [1, 2, 3])
     }
 
-    @Test("An item dragged out of the section is not in it any more")
+    @Test("An item dragged out across the divider is not in it any more")
     func followsAnItemOut() {
-        // Item 3 crossed the divider and is now packed against the visible run instead.
-        let bar = [item(1000, 40, id: 1), item(1040, 30, id: 2),
-                   item(1087, 50, id: 3), item(1137, 40, id: 8)]
-        #expect(MenuBarItemGeometry.packedRun(bar, around: section).map(\.windowID) == [1, 2])
+        // Item 3 crossed the divider; the two left behind slid right to close the gap.
+        let bar = [item(1030, 40, id: 1), item(1070, 30, id: 2), item(1137, 50, id: 3)] + visible
+        #expect(MenuBarItemGeometry.section(bar, leftOf: divider).map(\.windowID) == [1, 2])
     }
 
     @Test("An item dragged in from the visible side is in it")
     func followsAnItemIn() {
-        let bar = [item(1000, 40, id: 1), item(1040, 30, id: 2), item(1070, 50, id: 3),
-                   item(1120, 40, id: 8), item(1177, 65, id: 9)]
-        #expect(MenuBarItemGeometry.packedRun(bar, around: section).map(\.windowID) == [1, 2, 3, 8])
+        let bar = [item(960, 40, id: 8)] + section + visible
+        #expect(MenuBarItemGeometry.section(bar, leftOf: divider).map(\.windowID) == [8, 1, 2, 3])
     }
 
-    @Test("The section does not follow one item that has wandered off")
-    func staysWithTheMajority() {
-        // Item 1 left; two of the three are still together, so they are the section.
-        let bar = [item(400, 40, id: 1), item(1000, 30, id: 2), item(1030, 50, id: 3)]
-        #expect(MenuBarItemGeometry.packedRun(bar, around: section).map(\.windowID) == [2, 3])
+    @Test("A hole opened for an item in flight does not cut the section short")
+    func survivesTheHole() {
+        // Mid-drag: the item being pulled in has left the status item layer, and macOS has opened
+        // a 40 pt hole against the divider for it. Every rule that read gaps stopped here.
+        let bar = [item(960, 40, id: 1), item(1000, 30, id: 2), item(1030, 50, id: 3)] + visible
+        #expect(MenuBarItemGeometry.section(bar, leftOf: divider).map(\.windowID) == [1, 2, 3])
+    }
+
+    @Test("The icon sorting between the divider and the visible run changes nothing")
+    func ignoresTheIcon() {
+        // Bouncer's icon is seeded at the right end, so the gap it leaves when it is named out
+        // falls inside the visible run — on the far side of the divider, where nothing is read.
+        let bar = section + [item(1137, 40, id: 8)] + [item(1230, 65, id: 9)]
+        #expect(MenuBarItemGeometry.section(bar, leftOf: divider).map(\.windowID) == [1, 2, 3])
+    }
+
+    @Test("Everything dragged out is an empty section")
+    func nothingLeft() {
+        #expect(MenuBarItemGeometry.section(visible, leftOf: divider).isEmpty)
     }
 
     @Test("An empty bar is an empty section")
     func nothingAtAll() {
-        #expect(MenuBarItemGeometry.packedRun([], around: section).isEmpty)
+        #expect(MenuBarItemGeometry.section([], leftOf: divider).isEmpty)
+    }
+}
+
+@Suite("The stretch of bar the panel covers")
+struct CoverToDividerTests {
+    private let divider: CGFloat = 1120
+
+    @Test("At rest it is the items, which are flush against the divider")
+    func matchesTheUnionAtRest() {
+        let section = [item(1000, 40, id: 1), item(1040, 80, id: 2)]
+        let strip = MenuBarItemGeometry.coverRect(for: section, upTo: divider)
+        #expect(strip == MenuBarItemGeometry.coverRect(for: section))
+        #expect(strip?.width == 120)
+    }
+
+    @Test("Mid-drag it reaches over the hole to the divider")
+    func reachesTheDivider() {
+        // The item in hand has left the layer and its 40 pt hole is against the divider, so the
+        // items alone stop 40 pt short of it.
+        let section = [item(960, 40, id: 1), item(1000, 80, id: 2)]
+        #expect(MenuBarItemGeometry.coverRect(for: section, upTo: divider)?.width == 160)
+    }
+
+    @Test("Nothing in the section is nothing to cover")
+    func nothingToCover() {
+        #expect(MenuBarItemGeometry.coverRect(for: [], upTo: divider) == nil)
+    }
+}
+
+@Suite("Where an item is taken hold of")
+struct GripPointTests {
+    /// Measured off a 14-inch display: the notch, and the bar either side of it.
+    private let notch: ClosedRange<CGFloat> = 620...892
+
+    @Test("An item clear of the notch is taken by its middle")
+    func middleOfTheItem() {
+        let grip = MenuBarItemGeometry.gripPoint(in: item(1000, 40).frame, clearOf: notch)
+        #expect(grip == CGPoint(x: 1020, y: 16.5))
+    }
+
+    @Test("With no notch, always the middle")
+    func noNotch() {
+        let grip = MenuBarItemGeometry.gripPoint(in: item(600, 400).frame, clearOf: nil)
+        #expect(grip.x == 800)
+    }
+
+    @Test("An item spanning the notch is taken by whichever side has more of it")
+    func theWiderSide() {
+        // 320 pt to the left of the notch, 108 pt to the right: taken on the left.
+        let wideLeft = MenuBarItemGeometry.gripPoint(in: item(300, 700).frame, clearOf: notch)
+        #expect(wideLeft.x == 460)
+        // 20 pt to the left, 208 pt to the right: taken on the right.
+        let wideRight = MenuBarItemGeometry.gripPoint(in: item(600, 500).frame, clearOf: notch)
+        #expect(wideRight.x == 996)
     }
 }
 

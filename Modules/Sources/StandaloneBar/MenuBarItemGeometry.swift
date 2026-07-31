@@ -57,6 +57,23 @@ public enum MenuBarItemGeometry {
         return items.dropFirst().reduce(first.frame) { $0.union($1.frame) }
     }
 
+    /// The same, but reaching as far as the divider rather than stopping at the last item.
+    ///
+    /// Mid-drag those are different rects. macOS opens a hole where the item in hand is going to
+    /// land, and an item pulled in from the visible side lands against the divider first — so the
+    /// hole is at the right-hand end, past every item there is, and a panel measured off the items
+    /// alone keeps the width it had and snaps wider on the drop. Measured to the divider it is
+    /// already the width the section is about to be.
+    ///
+    /// At rest the two agree exactly: the section is packed flush against the divider.
+    public static func coverRect(for items: [MenuBarItem], upTo dividerEdge: CGFloat) -> CGRect? {
+        guard let union = coverRect(for: items) else { return nil }
+        return CGRect(
+            origin: union.origin,
+            size: CGSize(width: max(union.width, dividerEdge - union.minX), height: union.height)
+        )
+    }
+
     /// Where the section will land when it is revealed, before it has.
     ///
     /// The cover has to be over that stretch before the reveal — that is what keeps the items
@@ -144,38 +161,47 @@ public enum MenuBarItemGeometry {
             .map(\.element)
     }
 
-    /// The run of items packed together with the ones already known to be the section.
+    /// The section: every item on screen to the left of the hidden divider.
     ///
-    /// This is what says whether an item is *in* the section, once the user has been allowed to
-    /// drag things across its boundary. macOS packs status items edge to edge, and the divider
-    /// stands between the section and the visible run — so an item dragged out of the section is
-    /// separated from it by the divider's width, and one dragged in is packed against it. Which
-    /// makes membership a question about gaps.
+    /// Not a heuristic but the divider mechanism's own definition. Bouncer hides a section by
+    /// expanding that divider until everything to its left is pushed off the display, so what is
+    /// to its left *is* the section — including whatever the user has just dragged into or out of
+    /// it. Nothing to the left of it is visible when the bar is collapsed, so there is no third
+    /// thing over there for this to mistake for a member.
     ///
-    /// Bouncer's own items have to be out of `items` before this is asked, or the divider bridges
-    /// the section to the run beside it and the answer is the whole bar. `StatusItemScanner`
-    /// names them.
+    /// Two rules were tried before this one, and both read the gaps between items: the run holding
+    /// most of the section's last known members, and then the unbroken run packed against the
+    /// divider. Neither could be asked mid-drag, because mid-drag there *is* a gap — macOS opens a
+    /// hole where the item in hand is going to land — so both cut the section short at exactly the
+    /// moment it needed to be growing. Counting from the boundary asks nothing about gaps and so
+    /// holds all the way through a drag.
     ///
-    /// The run holding most of the known items wins, so a section does not follow a single item
-    /// that has wandered off to join a larger group elsewhere.
-    public static func packedRun(_ items: [MenuBarItem], around known: Set<UInt32>) -> [MenuBarItem] {
-        var runs: [[MenuBarItem]] = []
-        for item in items.sorted(by: { $0.frame.minX < $1.frame.minX }) {
-            if let previous = runs.last?.last, item.frame.minX - previous.frame.maxX <= packedGap {
-                runs[runs.count - 1].append(item)
-            } else {
-                runs.append([item])
-            }
-        }
-        return runs.max { left, right in
-            left.count(where: { known.contains($0.windowID) })
-                < right.count(where: { known.contains($0.windowID) })
-        } ?? []
+    /// Bouncer's own items have to be out of `items` first, and the always-hidden divider is what
+    /// bounds this on the left: expanded, it holds its own section off the display, and off the
+    /// display is already excluded.
+    ///
+    /// - Parameter dividerEdge: the hidden divider's left edge.
+    public static func section(_ items: [MenuBarItem], leftOf dividerEdge: CGFloat) -> [MenuBarItem] {
+        items.filter { $0.frame.maxX <= dividerEdge }.sorted { $0.frame.minX < $1.frame.minX }
     }
 
-    /// What counts as packed. Neighbours in a run sit flush, so this only has to be under the
-    /// width of the collapsed divider that separates one run from the next.
-    private static let packedGap: CGFloat = 4
+    /// Where in an item to take hold of it, to hand a drag over to it.
+    ///
+    /// Its middle, unless its middle is behind the notch — there is no bar drawn there and
+    /// nothing to press, so an item spanning it has to be taken by whichever side has more of it.
+    ///
+    /// - Parameter notch: the stretch of bar the notch takes up, or `nil` on a display without one.
+    public static func gripPoint(in frame: CGRect, clearOf notch: ClosedRange<CGFloat>?) -> CGPoint {
+        guard let notch, notch.contains(frame.midX) else {
+            return CGPoint(x: frame.midX, y: frame.midY)
+        }
+        let toTheLeft = notch.lowerBound - frame.minX
+        let toTheRight = frame.maxX - notch.upperBound
+        let grip = toTheLeft >= toTheRight
+            ? frame.minX + toTheLeft / 2
+            : frame.maxX - toTheRight / 2
+        return CGPoint(x: grip, y: frame.midY)
+    }
 
     /// Where each item's replica sits in the standalone bar.
     ///

@@ -94,12 +94,11 @@ item left parked off the display opens its menu off the display too — measured
 -4237. That is the one thing the pictures cannot stand in for.
 
 It inverts the divider mechanism rather than reusing it. **An item pushed off the display
-stops being drawn, and an item that is not drawn has no pixels to copy** — so a section
-hidden the usual way cannot be replicated at all. Covering one costs nothing by comparison,
-because a window capture ignores whatever is on top of it. So the section is revealed into
-its ordinary place, that stretch of bar is covered with a picture of itself taken *before*
-the reveal — which is therefore already a picture without the items — and the items are
-drawn again a row lower. Hidden from the eye, fully alive to the capture.
+still takes clicks and still opens a menu, but it opens it out there** — so a section hidden
+the usual way cannot be operated at all. Covering one costs nothing by comparison, because
+the items underneath a cover stay exactly as clickable as they were. So the section is
+revealed into its ordinary place, that stretch of bar is covered, and the items are drawn
+again a row lower. Hidden from the eye, fully alive to a click.
 
 The cover and the shelf are two windows and one panel: it slides out of the menu bar with the
 replicas leading and the cover behind them, and slides back in the same way. That is why the
@@ -149,6 +148,10 @@ Four things were measured to get there, and each one is load-bearing:
 - **`ClickShield` must stand down, not go away.** It is the one window above the items that takes
   mouse events, so it swallows the press — and `orderOut` was measured taking 150 to 300 ms to
   stop a window hit-testing. `ignoresMouseEvents` lands within 30 ms.
+- **A drop delivers more than one release.** Measured at two `leftMouseUp`s, 1 ms apart. The watch
+  takes itself down on the first, before passing it on, because one gesture has to end the
+  handover exactly once — and `end` reports *no handover of mine to end* as `nil` rather than as an
+  empty section, which is a thing the bar closes itself over.
 
 While the drag is on, nothing is decided and everything is drawn: `Handover` follows the real
 items into the shelf and the cover every 16 ms, so the panel shows what the bar is doing rather
@@ -156,22 +159,43 @@ than what it ought to be doing. The replica of the item in hand is not drawn at 
 frame to be drawn at, because a dragged item leaves the status item layer entirely, and the user
 is holding the real one anyway.
 
-**What the section holds is decided only at rest.** The rule is packing: macOS lays status items
-edge to edge and the divider stands between the section and the visible run, so an item dragged
-out is separated from the section by the divider's width and one dragged in is packed against it.
-Bouncer's own items have to be out of the way first or the divider bridges the two into one — and
-they are found by *name*, via `StatusItemScanner.bouncersOwn()`, because nothing else identifies
-them: a divider is a 17 pt hairline the size of a real item while its section is revealed, and a
-wide window pinned to the left of the display when it is not.
+**What the section holds is counted from the divider: everything on screen to its left.** That is
+not a heuristic but the divider mechanism's own definition — hiding a section *is* expanding the
+divider until what is left of it goes off the display — so an item the user drags across that
+boundary changes sides by the same rule that put it where it was.
 
-That rule may not be applied mid-drag. The bar is halfway through rearranging itself, items are
-momentarily further apart than they will end up, and a reading taken then loses them one by one as
-the user drags past — with nothing to bring them back, because the next reading is taken around
-what is left.
+Two rules were tried before it, and both read the gaps between items: the run holding most of the
+section's last known members, and then the unbroken run packed against the divider. Each failed
+differently and both failed for the same reason. The first followed the items rather than the
+boundary, so dragging a majority out moved the whole section to the wrong side of the bar with
+nothing to bring it back. The second could not be asked mid-drag, because mid-drag there *is* a
+gap: macOS opens a hole where the item in hand is going to land, and a rule that stops at the
+first gap stops at that hole. Counting from the boundary asks nothing about gaps, so the same
+reading serves a bar at rest and a bar being rearranged.
+
+For the same reason the panel is measured **to the divider** rather than to its last item. An item
+pulled in from the visible side lands against the divider first, so its hole is past every item
+there is — a panel measured off the items alone would keep its width for the whole drag and snap
+wider on the drop. At rest the two agree exactly, because the section is packed flush.
+
+Bouncer's own items have to be out of the way first, and they are found by *name*, via
+`StatusItemScanner.bouncersOwn()`, because nothing else identifies them: a divider is a 17 pt
+hairline the size of a real item while its section is revealed, and a wide window pinned to the
+left of the display when it is not. The names are needed as well as the IDs, because **the icon is
+not beside the divider**: it is seeded at the right end of the bar (`StatusItemPosition.icon`) and
+the user's visible items sort between the two. Naming is one enumeration of every window on the
+system, so it is done once per drag rather than once per frame.
 
 An item can also be dragged *into* the section without touching the shelf at all, in the real menu
-bar. The only signal for that is a release with Cmd held while the bar is open, after which the
-section is read again and anything new is photographed and resolved like any other item.
+bar. Bouncer is no part of that gesture, so it reads it off the pointer: a Cmd-drag with the
+pointer still up in the bar starts the same follow a handover does, and a release with Cmd held
+reads the section again and photographs anything new. Without the follow the panel stands still
+through the whole drag and jumps once at the end of it. The look stands down for the whole of a
+handover, at both ends of its wait: the release it watches for is the same one that ends a drag,
+and both would otherwise settle the bar at once.
+
+Dragging the *last* item out closes the bar. A shelf of nothing over a cover hiding nothing is not
+a bar; it is a stretch of menu bar that swallows clicks for no reason.
 
 Known gap: a notched display. The section can reach across the notch, and both the shelf's width
 and the packing rule read that as a gap in the bar rather than a piece of display with no bar
