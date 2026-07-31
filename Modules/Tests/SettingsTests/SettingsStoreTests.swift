@@ -62,6 +62,17 @@ private final class MemoryPersistence: PreferencesPersistence, @unchecked Sendab
         #expect(store.preferences.revealOnHover)
         #expect(!store.preferences.showBouncerIcon)
         #expect(!store.preferences.showItemsInBar)
+        #expect(store.preferences.animateBar)
+        #expect(store.preferences.barAnimationDuration == 0.18)
+    }
+
+    @Test func storedAnimationDurationIsClampedToTheSlidersRange() {
+        let stored = Data("""
+        {"autoRehide":{"onFocusedAppChange":{}},"enableAlwaysHiddenSection":false,\
+        "revealOnHover":false,"showBouncerIcon":true,"barAnimationDuration":30}
+        """.utf8)
+        let store = SettingsStore(persistence: MemoryPersistence(data: stored))
+        #expect(store.preferences.barAnimationDuration == 0.5)
     }
 
     @Test func corruptStoredDataFallsBackToDefaults() {

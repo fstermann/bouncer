@@ -17,7 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         outerDividerImage: Self.templateImage(named: "SectionStartIcon")
     )
     private lazy var reveal = RevealController(manager: menuBar, settings: settings)
-    private lazy var standaloneBar = StandaloneBarController(menuBar: menuBar)
+    private lazy var standaloneBar = StandaloneBarController(menuBar: menuBar, settings: settings)
     private var settingsWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {

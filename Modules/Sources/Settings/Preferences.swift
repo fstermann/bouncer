@@ -21,19 +21,28 @@ public struct Preferences: Codable, Hashable, Sendable {
     /// Off by default and the only feature that asks for permissions: it needs Screen
     /// Recording to read the items, and Accessibility to pass clicks back to them.
     public var showItemsInBar: Bool
+    /// Slide that bar out of the menu bar and back into it, rather than having it appear at
+    /// once.
+    public var animateBar: Bool
+    /// How long that slide takes, in seconds.
+    public var barAnimationDuration: TimeInterval
 
     public init(
         autoRehide: AutoRehide = .afterDelay(seconds: 10),
         enableAlwaysHiddenSection: Bool = false,
         revealOnHover: Bool = false,
         showBouncerIcon: Bool = true,
-        showItemsInBar: Bool = false
+        showItemsInBar: Bool = false,
+        animateBar: Bool = true,
+        barAnimationDuration: TimeInterval = 0.18
     ) {
         self.autoRehide = autoRehide
         self.enableAlwaysHiddenSection = enableAlwaysHiddenSection
         self.revealOnHover = revealOnHover
         self.showBouncerIcon = showBouncerIcon
         self.showItemsInBar = showItemsInBar
+        self.animateBar = animateBar
+        self.barAnimationDuration = barAnimationDuration
     }
 
     /// A blob stored before a key existed must keep the user's other settings, not throw
@@ -45,5 +54,12 @@ public struct Preferences: Codable, Hashable, Sendable {
         revealOnHover = try container.decode(Bool.self, forKey: .revealOnHover)
         showBouncerIcon = try container.decode(Bool.self, forKey: .showBouncerIcon)
         showItemsInBar = try container.decodeIfPresent(Bool.self, forKey: .showItemsInBar) ?? false
+        animateBar = try container.decodeIfPresent(Bool.self, forKey: .animateBar) ?? true
+        // Clamped to what the slider can ask for: a stored value from anywhere else drives an
+        // animation the bar cannot be used during.
+        barAnimationDuration = min(
+            max(try container.decodeIfPresent(TimeInterval.self, forKey: .barAnimationDuration) ?? 0.18, 0.06),
+            0.5
+        )
     }
 }

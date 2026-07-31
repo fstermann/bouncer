@@ -22,9 +22,46 @@ final class ClickShield {
     func show(over rect: CGRect) {
         let shield = window ?? make(rect)
         window = shield
+        shield.ignoresMouseEvents = false
+        stoodDown = nil
         shield.setFrame(cgFrame: rect)
         shield.orderFrontRegardless()
     }
+
+    /// Stops swallowing clicks, without going away.
+    ///
+    /// For a handoff: the synthesised press that puts a real item in the user's hand has to reach
+    /// that item, and this is the one window above it that would otherwise eat the press. Told to
+    /// ignore events rather than ordered out because it is very much quicker — `orderOut` was
+    /// measured taking between 150 and 300 ms to stop a window hit-testing, and a press posted
+    /// inside that window is swallowed with nothing to show for it. This lands within 30 ms.
+    ///
+    /// It stays up and stays invisible while it is not swallowing. `show(over:)` puts it back to
+    /// work.
+    func standDown() {
+        guard let window else { return }
+        window.ignoresMouseEvents = true
+        stoodDown = .now
+    }
+
+    /// Waits out whatever is left of that beat, having spent the rest of it doing something else.
+    ///
+    /// Only the *press* has to find the shield already ignoring events, and reading the item's
+    /// frame and taking the pointer up to it both happen first. Waited out serially — which it was
+    /// — the beat is 120 ms nobody is doing anything with; overlapped, most gestures have used it
+    /// up by the time this is called.
+    func settled() async {
+        guard let stoodDown else { return }
+        let left = Self.beatBeforeItTakesEffect - stoodDown.duration(to: .now)
+        if left > .zero { try? await Task.sleep(for: left) }
+    }
+
+    private var stoodDown: ContinuousClock.Instant?
+
+    /// Well past the 30 ms the change was measured taking, and paid once per gesture. Generous on
+    /// purpose: a beat that is too short costs the whole gesture, and the margin costs nothing
+    /// anybody can feel.
+    private static let beatBeforeItTakesEffect: Duration = .milliseconds(120)
 
     func hide() {
         window?.orderOut(nil)
