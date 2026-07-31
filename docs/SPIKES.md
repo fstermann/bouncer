@@ -43,6 +43,13 @@ design with it.
 | What it needs | Cmd held throughout — the bar reads the modifier on every move, not only at the press |
 | Warping vs posting | A warp tells a drag in flight nothing. Position is carried by *events*, so a move back into the bar has to be posted as one |
 | Where a release lands | Below the bar the move is abandoned. It has to be brought back into the bar before letting go |
+| What a dragged item grows into | Two Control Center windows at layer 500, 152 × 76 and 71 × 38, a fixed 36 pt apart. **Neither ever changes size** — the pill is a content swap animated inside a window that was always that big |
+| Where it swaps | Pointer y 13–15: the item's **own centre line**, not the bar's lower edge. It is already a pill while the pointer is inside the menu bar band |
+| Hiding another connection's window | Not possible. SkyLight's alpha and level calls need the owning connection, and cross-connection control is the Dock's and the window server's |
+| Covering the pill instead | 76 pt of it against a 30 pt shelf, so a cover paints an opaque patch over bar it is hiding nothing in |
+| A flag for it | None in Control Center's strings or its prefs, and its log says nothing about the drag at any level |
+| Whose logic it is | Not Control Center's own binary: stripped, and it imports `WindowManagerDraggableOverlaySession`. The naming around it is the macOS 26 menu bar customization system |
+| Mocking a drag's position | **Impossible.** A posted mouse event moves the physical cursor to it, so a drag's position and the user's pointer are one thing rather than two that can disagree |
 
 ## What was asked
 
@@ -57,9 +64,12 @@ they are; and whether a synthesised Cmd+drag reorders an item, what it needs to,
 cover blocks it, what it costs, and how long the bar takes to settle afterwards; and, once the
 cost of that turned out to be the pointer, whether anything at all can move another app's item
 without a gesture; and, once it turned out the whole gesture did not have to be synthesised at
-all, whether a real hand can finish one that a synthesised press began.
+all, whether a real hand can finish one that a synthesised press began; and, last, what draws
+the pill a dragged item turns into once it is out of the bar, where that swap is triggered,
+and whether it can be hidden, covered, placed around, switched off or lied to.
 
-The reorder spike is the one written after the fact, against a bar that was already built. It
+The reorder spike and the three pill spikes were written after the fact, against a bar that was
+already built. The reorder one is the one worth explaining. It
 was worth writing anyway: the obvious inference from the click findings — that a synthesised
 event cannot move another app's item — is wrong, because rearranging the bar is not delivered
 to the item's app at all.
