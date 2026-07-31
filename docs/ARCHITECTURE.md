@@ -120,6 +120,63 @@ Three consequences worth knowing before changing any of it:
   only the items Control Center genuinely owns. Each app still publishes its own items
   under its extras menu bar, where pressing one opens the same menu a real click would.
 
+### Rearranging from the standalone bar
+
+Cmd-dragging a replica rearranges the real menu bar — including dragging an item clear of the
+hidden section, or into it from the visible one, which a bar of pictures could not otherwise
+offer.
+
+**Only the press is synthesised.** A Cmd+mouse-down posted at the real item starts a drag that
+then tracks the user's own pointer, and their own release finishes it. The pointer is put on the
+item, one event goes out, the pointer is handed straight back — and from there the menu bar is
+doing what it does for anybody, a row above where the user's hand actually is. That is the whole
+of `ItemHandoff`, and it is why there is no packing rule here, no predicted order and no drop
+point: the window server decides all of it.
+
+Four things were measured to get there, and each one is load-bearing:
+
+- **The press has to be posted where the pointer is.** A warp is a request like any other, so a
+  press posted in the same breath is judged against where the pointer still was. There is a beat
+  between them, and the same beat on the way back.
+- **The release has to be carried back into the bar** by a `leftMouseDragged` before it is posted,
+  not by warping. A warp moves the cursor and tells nobody; a drag in flight is following the
+  events it is sent, which is why the user's own movement carries the item and a warp does not.
+  A status item released *below* the bar has its move abandoned.
+- **The release cannot be waited for on the shelf.** The pointer is warped out of that window as
+  the gesture begins and the window server takes the drag over, so a mouse-up finding its way back
+  to the view that started it is something to hope for, not to depend on. It is watched for with a
+  global monitor instead. Every fix aimed at the ending was dead code until this was found.
+- **`ClickShield` must stand down, not go away.** It is the one window above the items that takes
+  mouse events, so it swallows the press — and `orderOut` was measured taking 150 to 300 ms to
+  stop a window hit-testing. `ignoresMouseEvents` lands within 30 ms.
+
+While the drag is on, nothing is decided and everything is drawn: `Handover` follows the real
+items into the shelf and the cover every 16 ms, so the panel shows what the bar is doing rather
+than what it ought to be doing. The replica of the item in hand is not drawn at all — it has no
+frame to be drawn at, because a dragged item leaves the status item layer entirely, and the user
+is holding the real one anyway.
+
+**What the section holds is decided only at rest.** The rule is packing: macOS lays status items
+edge to edge and the divider stands between the section and the visible run, so an item dragged
+out is separated from the section by the divider's width and one dragged in is packed against it.
+Bouncer's own items have to be out of the way first or the divider bridges the two into one — and
+they are found by *name*, via `StatusItemScanner.bouncersOwn()`, because nothing else identifies
+them: a divider is a 17 pt hairline the size of a real item while its section is revealed, and a
+wide window pinned to the left of the display when it is not.
+
+That rule may not be applied mid-drag. The bar is halfway through rearranging itself, items are
+momentarily further apart than they will end up, and a reading taken then loses them one by one as
+the user drags past — with nothing to bring them back, because the next reading is taken around
+what is left.
+
+An item can also be dragged *into* the section without touching the shelf at all, in the real menu
+bar. The only signal for that is a release with Cmd held while the bar is open, after which the
+section is read again and anything new is photographed and resolved like any other item.
+
+Known gap: a notched display. The section can reach across the notch, and both the shelf's width
+and the packing rule read that as a gap in the bar rather than a piece of display with no bar
+under it.
+
 The items stay revealed and live underneath the cover for as long as the bar is open, which
 is why two things exist that otherwise look redundant: `MenuBarManager.isRevealHeld`, so
 auto-rehide does not put the section away underneath an open bar, and `ClickShield`, so the
@@ -170,8 +227,13 @@ needs no Xcode project and finishes in under a second.
   the whole feature turns on: photograph, draw the panel where the section is about to land,
   run it out of the menu bar, reveal underneath it — and the reverse on the way out, where
   the section is put away *before* the panel goes, because the cover leaves with it.
+- **`ItemHandoff`** — the two synthesised events a rearrangement needs: a press to put the real
+  item in the user's hand, and a release to land it.
+- **`Handover`** — the mode the bar is in while they rearrange. Follows the real items into the
+  shelf, and works out what the section holds once they let go.
 - **`MenuBarItemGeometry`** — the standalone bar's decisions as pure functions over frames:
-  what is off screen, what is a divider, where the cover goes, where each replica sits.
+  what is off screen, what is a divider, where the cover goes, where each replica sits, and which
+  items are packed together into a section.
   Tested against recorded window lists with no running app, the same way `MenuBarVisibility`
   is.
 

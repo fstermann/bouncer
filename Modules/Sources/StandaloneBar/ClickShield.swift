@@ -22,9 +22,30 @@ final class ClickShield {
     func show(over rect: CGRect) {
         let shield = window ?? make(rect)
         window = shield
+        shield.ignoresMouseEvents = false
         shield.setFrame(cgFrame: rect)
         shield.orderFrontRegardless()
     }
+
+    /// Stops swallowing clicks, without going away, and waits for that to take effect.
+    ///
+    /// For a handoff: the synthesised press that puts a real item in the user's hand has to reach
+    /// that item, and this is the one window above it that would otherwise eat the press. Told to
+    /// ignore events rather than ordered out because it is very much quicker — `orderOut` was
+    /// measured taking between 150 and 300 ms to stop a window hit-testing, and a press posted
+    /// inside that window is swallowed with nothing to show for it. This lands within 30 ms.
+    ///
+    /// It stays up and stays invisible while it is not swallowing. `show(over:)` puts it back to
+    /// work.
+    func stopSwallowing() async {
+        window?.ignoresMouseEvents = true
+        try? await Task.sleep(for: .milliseconds(beatBeforeItTakesEffect))
+    }
+
+    /// Well past the 30 ms the change was measured taking, and paid once per gesture. Generous on
+    /// purpose: a beat that is too short costs the whole gesture, and the margin costs nothing
+    /// anybody can feel.
+    private let beatBeforeItTakesEffect = 120
 
     func hide() {
         window?.orderOut(nil)

@@ -10,6 +10,9 @@ import AppKit
 public final class ReplicaBar {
     /// Called when a replica is clicked, with the item it replicates.
     public var onClick: (@MainActor (MenuBarItem) -> Void)?
+    /// Called when a replica is Cmd-pressed, with the item it stands for: the drag is to be
+    /// handed over to that item in the real menu bar.
+    public var onHandoff: (@MainActor (MenuBarItem) -> Void)?
 
     /// The shelf is wider than the replicas it holds, so the outermost icons are not flush
     /// against a rounded corner. The cover over the real section uses the same figure, so the
@@ -27,6 +30,7 @@ public final class ReplicaBar {
         view.onClick = { [weak self] item in
             self?.onClick?(item)
         }
+        view.onHandoff = { [weak self] item in self?.onHandoff?(item) }
     }
 
     /// Shows the bar for `items`, directly below the menu bar band they came from.
@@ -72,7 +76,12 @@ public final class ReplicaBar {
     public var windowID: UInt32? { window.map { UInt32($0.windowNumber) } }
 
     /// The bar's lower edge, in AppKit screen coordinates: below it, the pointer has left.
-    var bottomEdge: CGFloat { window?.frame.minY ?? 0 }
+    ///
+    /// No shelf reads as *everywhere* is below it, because a pointer cannot be inside a bar that
+    /// is not there. Zero would read as nowhere: the watch asks whether the pointer is below this
+    /// edge, and nothing is below zero — so a shelf that took itself down over an emptied section
+    /// left a bar nothing could ever close.
+    var bottomEdge: CGFloat { window?.frame.minY ?? .infinity }
 
     /// Fades the bar while a menu is open over it.
     ///
@@ -81,6 +90,11 @@ public final class ReplicaBar {
     /// underneath.
     public func setDimmed(_ dimmed: Bool) {
         window?.alphaValue = dimmed ? 0.4 : 1
+    }
+
+    /// The item the user has picked up, whose replica is not drawn while they hold it.
+    public func setInHand(_ windowID: UInt32?) {
+        view.inHand = windowID
     }
 
     /// Hands over the latest captured frames, keyed by window ID.
@@ -138,45 +152,89 @@ public final class ReplicaBar {
     }
 }
 
-/// Holds the replicas and turns clicks on them back into points on the real items.
+/// Holds the replicas and turns a press on one into either a click or a handoff.
 ///
 /// A replica is a layer with a picture in it rather than something drawn in `draw(_:)`. The
 /// shelf slides, and AppKit stops re-rendering a view's drawn content once its layer is being
-/// animated — the replicas emptied out of a shelf that kept its own background, which is a
-/// layer property, all the way up. A picture that is also a layer property cannot come apart
-/// from the shelf it is on.
+/// animated — the replicas emptied out of a shelf that kept its own background, which is a layer
+/// property, all the way up. A picture that is also a layer property cannot come apart from the
+/// shelf it is on.
+///
+/// Nothing here draws a drag, and nothing here ends one. A Cmd-press hands the gesture to the
+/// real item a row above, and what the user then sees is the menu bar rearranging itself — the
+/// genuine article rather than an imitation drawn on a shelf. The release is watched for globally
+/// instead of waited for here: the pointer is warped out of this window as the gesture begins and
+/// the window server takes the drag over, so a mouse-up finding its way back to the view that
+/// started it is something to hope for, not to depend on.
 @MainActor
 final class ReplicaBarView: NSView {
     var images: [UInt32: CGImage] = [:] { didSet { rebuild() } }
     var positions: [MenuBarItem: CGRect] = [:] { didSet { rebuild() } }
+    /// Drawn nowhere while the user is holding the real thing.
+    var inHand: UInt32? { didSet { rebuild() } }
     var onClick: (@MainActor (MenuBarItem) -> Void)?
+    var onHandoff: (@MainActor (MenuBarItem) -> Void)?
 
     /// Positions come from the window server, which measures downwards.
     override var isFlipped: Bool { true }
+
+    /// The layers, kept between rebuilds rather than replaced.
+    ///
+    /// While the user is rearranging the bar this runs on every frame, and a replica torn down
+    /// and built again each time flickers. Kept, it is a frame assignment — and one made with
+    /// animation switched off, because the shelf is following something that has already moved
+    /// rather than deciding to move itself.
+    private var replicas: [UInt32: CALayer] = [:]
 
     private func rebuild() {
         wantsLayer = true
         // Flipped to match the view, so a replica's layer sits where the item's frame says and
         // its picture is the right way up.
         layer?.isGeometryFlipped = true
-        layer?.sublayers?.forEach { $0.removeFromSuperlayer() }
-        for (item, rect) in positions {
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        var drawn: Set<UInt32> = []
+        for (item, rect) in positions where item.windowID != inHand {
             guard let image = images[item.windowID] else { continue }
-            let replica = CALayer()
-            replica.frame = rect
+            drawn.insert(item.windowID)
+            let replica = replicas[item.windowID] ?? CALayer()
+            if replica.superlayer == nil {
+                replica.contentsGravity = .resizeAspect
+                layer?.addSublayer(replica)
+                replicas[item.windowID] = replica
+            }
             replica.contents = image
-            replica.contentsGravity = .resizeAspect
-            layer?.addSublayer(replica)
+            replica.frame = rect
         }
+        for (id, replica) in replicas where !drawn.contains(id) {
+            replica.removeFromSuperlayer()
+            replicas[id] = nil
+        }
+        CATransaction.commit()
     }
 
-    // Both buttons open the item, because pressing it through accessibility is all the
-    // gesture there is: the tree exposes one action, and no way to say which button asked.
-    override func mouseDown(with event: NSEvent) { forward(event) }
-    override func rightMouseDown(with event: NSEvent) { forward(event) }
-
-    private func forward(_ event: NSEvent) {
+    // Both buttons open the item, because pressing it through accessibility is all the gesture
+    // there is: the tree exposes one action, and no way to say which button asked.
+    //
+    // Cmd is what tells a rearrangement from a click, exactly as it does in the menu bar, and for
+    // the same reason: without it every drag would also open a menu.
+    override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
+        guard event.modifierFlags.contains(.command) else { forward(point); return }
+        guard let item = MenuBarItemGeometry.item(at: point, positions: positions) else { return }
+        onHandoff?(item)
+    }
+
+    /// Deliberately empty. The window server has the drag now and is following the pointer for
+    /// itself; anything drawn here would be a second, disagreeing answer to where the item is.
+    override func mouseDragged(with event: NSEvent) {}
+
+    override func rightMouseDown(with event: NSEvent) {
+        forward(convert(event.locationInWindow, from: nil))
+    }
+
+    private func forward(_ point: CGPoint) {
         // A click in a gap belongs to nobody. Guessing at the nearest replica would open
         // the wrong item's menu, which is worse than doing nothing.
         guard let item = MenuBarItemGeometry.item(at: point, positions: positions) else { return }

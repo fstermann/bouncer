@@ -46,6 +46,8 @@ public final class CoverWindow {
         cover.orderFrontRegardless()
     }
 
+    private static let aboveItems = NSWindow.Level(rawValue: BarWindow.statusLevel.rawValue + 1)
+
     /// Lifts the cover clear of its window, ready to be run back down into it.
     func park(by travel: CGFloat) {
         surface.setFrameOrigin(CGPoint(x: 0, y: travel))
@@ -72,10 +74,7 @@ public final class CoverWindow {
     }
 
     private func make(_ rect: CGRect) -> BarWindow {
-        let cover = BarWindow(
-            frame: rect,
-            level: NSWindow.Level(rawValue: BarWindow.statusLevel.rawValue + 1)
-        )
+        let cover = BarWindow(frame: rect, level: Self.aboveItems)
         // Clicks belong to the items underneath, which are painted over rather than moved.
         // `ClickShield` is what stops one reaching an icon nobody can see.
         cover.ignoresMouseEvents = true

@@ -144,6 +144,39 @@ public enum MenuBarItemGeometry {
             .map(\.element)
     }
 
+    /// The run of items packed together with the ones already known to be the section.
+    ///
+    /// This is what says whether an item is *in* the section, once the user has been allowed to
+    /// drag things across its boundary. macOS packs status items edge to edge, and the divider
+    /// stands between the section and the visible run — so an item dragged out of the section is
+    /// separated from it by the divider's width, and one dragged in is packed against it. Which
+    /// makes membership a question about gaps.
+    ///
+    /// Bouncer's own items have to be out of `items` before this is asked, or the divider bridges
+    /// the section to the run beside it and the answer is the whole bar. `StatusItemScanner`
+    /// names them.
+    ///
+    /// The run holding most of the known items wins, so a section does not follow a single item
+    /// that has wandered off to join a larger group elsewhere.
+    public static func packedRun(_ items: [MenuBarItem], around known: Set<UInt32>) -> [MenuBarItem] {
+        var runs: [[MenuBarItem]] = []
+        for item in items.sorted(by: { $0.frame.minX < $1.frame.minX }) {
+            if let previous = runs.last?.last, item.frame.minX - previous.frame.maxX <= packedGap {
+                runs[runs.count - 1].append(item)
+            } else {
+                runs.append([item])
+            }
+        }
+        return runs.max { left, right in
+            left.count(where: { known.contains($0.windowID) })
+                < right.count(where: { known.contains($0.windowID) })
+        } ?? []
+    }
+
+    /// What counts as packed. Neighbours in a run sit flush, so this only has to be under the
+    /// width of the collapsed divider that separates one run from the next.
+    private static let packedGap: CGFloat = 4
+
     /// Where each item's replica sits in the standalone bar.
     ///
     /// Replicas mirror their real horizontal positions rather than being packed together,

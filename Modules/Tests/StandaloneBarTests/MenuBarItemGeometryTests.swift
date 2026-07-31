@@ -123,6 +123,47 @@ struct PackingTests {
     }
 }
 
+@Suite("What the section contains after a drag")
+struct PackedRunTests {
+    /// A revealed section of three, the divider's gap, then the visible run. Bouncer's own items
+    /// are named out by the scanner before this is asked, so the divider is a gap, not an item.
+    private let section: Set<UInt32> = [1, 2, 3]
+
+    @Test("The section is the run its items are packed into")
+    func findsTheRun() {
+        let bar = [item(1000, 40, id: 1), item(1040, 30, id: 2), item(1070, 50, id: 3),
+                   item(1137, 40, id: 8), item(1177, 65, id: 9)]
+        #expect(MenuBarItemGeometry.packedRun(bar, around: section).map(\.windowID) == [1, 2, 3])
+    }
+
+    @Test("An item dragged out of the section is not in it any more")
+    func followsAnItemOut() {
+        // Item 3 crossed the divider and is now packed against the visible run instead.
+        let bar = [item(1000, 40, id: 1), item(1040, 30, id: 2),
+                   item(1087, 50, id: 3), item(1137, 40, id: 8)]
+        #expect(MenuBarItemGeometry.packedRun(bar, around: section).map(\.windowID) == [1, 2])
+    }
+
+    @Test("An item dragged in from the visible side is in it")
+    func followsAnItemIn() {
+        let bar = [item(1000, 40, id: 1), item(1040, 30, id: 2), item(1070, 50, id: 3),
+                   item(1120, 40, id: 8), item(1177, 65, id: 9)]
+        #expect(MenuBarItemGeometry.packedRun(bar, around: section).map(\.windowID) == [1, 2, 3, 8])
+    }
+
+    @Test("The section does not follow one item that has wandered off")
+    func staysWithTheMajority() {
+        // Item 1 left; two of the three are still together, so they are the section.
+        let bar = [item(400, 40, id: 1), item(1000, 30, id: 2), item(1030, 50, id: 3)]
+        #expect(MenuBarItemGeometry.packedRun(bar, around: section).map(\.windowID) == [2, 3])
+    }
+
+    @Test("An empty bar is an empty section")
+    func nothingAtAll() {
+        #expect(MenuBarItemGeometry.packedRun([], around: section).isEmpty)
+    }
+}
+
 @Suite("Replica layout")
 struct LayoutTests {
     @Test("Replicas mirror the real horizontal positions, so menus open under them")

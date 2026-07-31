@@ -34,6 +34,30 @@ public enum StatusItemScanner {
         .sorted { $0.frame.minX < $1.frame.minX }
     }
 
+    /// Bouncer's own items — the dividers and the icon — by window ID.
+    ///
+    /// By name, which is exact, rather than by width or position, which are not: a divider is a
+    /// 17 pt hairline while its section is revealed, the size of a real item, and expanded it is a
+    /// wide window pinned to the left of the display where a real item could also sit.
+    ///
+    /// The name costs Screen Recording, which is why nothing else here uses it — but the
+    /// standalone bar already holds that permission, and this is only ever called on its behalf.
+    /// Without it the set comes back empty, and a caller gets a section with a divider in it
+    /// rather than a wrong answer about which items are Bouncer's.
+    public static func bouncersOwn() -> Set<UInt32> {
+        let options = CGWindowListOption(arrayLiteral: .optionAll, .excludeDesktopElements)
+        guard let windows = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]]
+        else { return [] }
+        return Set(windows.compactMap { window in
+            guard window[kCGWindowLayer as String] as? Int == statusWindowLayer,
+                  let number = window[kCGWindowNumber as String] as? Int,
+                  let name = window[kCGWindowName as String] as? String,
+                  name.hasPrefix("bouncer.") || name == Bundle.main.bundleIdentifier
+            else { return nil }
+            return UInt32(number)
+        })
+    }
+
     /// Every status item currently in the bar, ordered left to right, dividers included.
     ///
     /// `.optionAll` rather than `.optionOnScreenOnly` on purpose: a hidden section is

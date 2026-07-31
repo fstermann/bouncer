@@ -12,9 +12,9 @@ import Settings
 /// its ordinary place, covers that stretch of bar, and draws the items again a row lower. The
 /// section is hidden from the eye and fully alive to a click at the same time.
 ///
-/// The items are photographed before any of that, while they are still parked, so the
-/// pictures owe nothing to the reveal. The reveal is for the menus alone: one opens out of
-/// the real item, and an item off the display opens its menu off the display with it.
+/// The items are photographed before any of that, while they are still parked, so the pictures
+/// owe nothing to the reveal. The reveal is for the menus alone: one opens out of the real item,
+/// and an item off the display opens its menu off the display with it.
 ///
 /// Nothing runs while the bar is closed. The cover and the bar window go away on `close`, and
 /// the divider goes back to doing the hiding.
@@ -25,7 +25,6 @@ public final class StandaloneBarController {
 
     /// How long the pointer may be away before the bar gives up on it coming back.
     private static let graceBeforeClosing = Duration.milliseconds(700)
-
     private let menuBar: MenuBarManager
     private let settings: SettingsStore
     private let itemCapture = ItemCapture()
@@ -33,6 +32,7 @@ public final class StandaloneBarController {
     private let shield = ClickShield()
     private let bar = ReplicaBar()
     private let menus = MenuWatcher()
+    private let handover: Handover
 
     /// Watches for the pointer leaving the bar.
     private var pointerObservation: Any?
@@ -61,16 +61,25 @@ public final class StandaloneBarController {
     public init(menuBar: MenuBarManager, settings: SettingsStore) {
         self.menuBar = menuBar
         self.settings = settings
-        bar.onClick = { [weak self] item in
-            self?.forward(to: item)
+        handover = Handover(bar: bar, cover: cover, shield: shield, capture: itemCapture)
+        bar.onClick = { [weak self] item in self?.forward(to: item) }
+        bar.onHandoff = { [weak self] item in
+            guard let self else { return }
+            Task { await handover.begin(on: item, from: items) }
+        }
+        handover.onRelease = { [weak self] in Task { await self?.finishHandingOver() } }
+        handover.onSectionChanged = { [weak self] settled, joined in
+            self?.items = settled
+            self?.orderLastTime = settled.map(\.windowID)
+            if !joined.isEmpty { self?.resolveElements(for: Set(settled.map(\.windowID))) }
         }
     }
 
     /// Whether an `open` is underway, so a second click mid-open starts nothing.
     private var isOpening = false
-    /// The same for `close`, which is not simply the absence of `isOpen`: closing clears that
-    /// flag first and then waits for the section to go off screen, and an open started in
-    /// that gap has its cover pulled down by the close that is still finishing.
+    /// The same for `close`, which is not simply the absence of `isOpen`: closing clears that flag
+    /// and then waits for the section to go off screen, and an open started in that gap has its
+    /// cover pulled down by the close still finishing.
     private var isClosing = false
 
     public func toggle() async {
@@ -91,8 +100,7 @@ public final class StandaloneBarController {
             return
         }
         Log.menuBar.info("Standalone bar: opening")
-        // Read once per open, so the bar leaves the way it arrived even if the preference
-        // changes while it is up.
+        // Read once per open, so the bar leaves the way it arrived even if the preference changes.
         slide = settings.preferences.animateBar ? settings.preferences.barAnimationDuration : nil
 
         // Which items are hidden has to be settled *before* revealing them, because once
@@ -111,16 +119,9 @@ public final class StandaloneBarController {
         // untouched — and it is what keeps the replicas out of the reveal's way entirely.
         itemCapture.capture(parked)
 
-        // Resolved before anything moves, and left to run across the reveal. The
-        // accessibility tree lags the window server by a moment after a layout change, so an
-        // item looked up just after being revealed is matched against where it no longer is;
-        // asked for now, while the bar has been still, every item is found. The elements
-        // stay valid once the items move — it is only their positions that go stale.
-        //
-        // Never awaited here. The sweep spends a second on any app that has stopped
-        // answering — a fixed timeout that was being paid on every open — and a replica needs
-        // its element only once one is clicked.
-        resolvingElements = Task.detached { await ClickForwarder.elements(for: Array(hidden)) }
+        // Before anything moves: the accessibility tree lags the window server after a layout
+        // change, so an item looked up just after being revealed is matched against where it isn't.
+        resolveElements(for: hidden)
 
         // The panel is built where the section is about to land — the shelf over that stretch
         // of bar, the cover over it — and run out of the menu bar as one piece. It can be
@@ -160,10 +161,10 @@ public final class StandaloneBarController {
 
     /// Runs the panel down out of the menu bar: replicas first, cover behind them.
     ///
-    /// Both halves travel the height of the shelf's window — the shelf's own height plus the
-    /// band it comes through — in one animation group, which is what keeps them a single
-    /// panel. Awaited, because the cover being over the section is what makes it safe to
-    /// reveal, and eased out so the panel settles rather than stopping dead.
+    /// Both halves travel the height of the shelf's window — its own height plus the band it comes
+    /// through — in one animation group, which is what keeps them a single panel. Awaited, because
+    /// the cover being over the section is what makes it safe to reveal, and eased out so the
+    /// panel settles rather than stopping dead.
     private func runThePanelOut() async {
         guard let slide, let shelf = bar.panel else { return }
         let travel = bar.travel
@@ -211,6 +212,13 @@ public final class StandaloneBarController {
     /// it, so the two are exactly as wide as each other.
     private static let coverBleed = ReplicaBar.padding
 
+    /// Resolves what each replica's click goes to, in the background: the sweep spends a second
+    /// on any app that has stopped answering, so it is awaited only once one is clicked.
+    private func resolveElements(for ids: Set<UInt32>) {
+        resolvingElements?.cancel()
+        resolvingElements = Task.detached { await ClickForwarder.elements(for: Array(ids)) }
+    }
+
     /// Marks the bar open and installs the two things that outlive `open`: the watch for the
     /// pointer leaving, and the one bounded wait for the recording indicator to shift the
     /// items out from under the replicas.
@@ -243,23 +251,17 @@ public final class StandaloneBarController {
 
     /// Moves the bar to wherever the recording indicator pushed the items.
     ///
-    /// A replica has to sit under the item it stands for: the menu comes out of the real
-    /// item, not its picture, so a bar left where the items *were* sends the user to click an
-    /// icon whose menu opens somewhere else. This is the one shift there is to follow — it
-    /// ends when the indicator has landed, and nothing is left running after it.
+    /// A replica has to sit under the item it stands for: the menu comes out of the real item, not
+    /// its picture, so a bar left where the items *were* sends the user to click an icon whose
+    /// menu opens elsewhere. The one shift there is to follow, and nothing is left running after.
     private func followTheShift(of ids: Set<UInt32>, from before: [UInt32: CGRect]) async {
         await PlacementWait.stillness(of: ids, movedFrom: before)
         guard !Task.isCancelled, isOpen else { return }
 
         let settled = MenuBarItemGeometry.excludingDividers(StatusItemScanner.scan())
             .filter { ids.contains($0.windowID) && $0.frame.minX >= 0 }
-        guard let strip = MenuBarItemGeometry.coverRect(for: settled),
-              settled.map(\.frame) != items.map(\.frame)
-        else { return }
-
-        items = settled
-        bar.show(settled, below: strip)
-        shield.show(over: strip)
+        guard settled.map(\.frame) != items.map(\.frame) else { return }
+        handover.settleBack(onto: settled, over: nil, from: items)
     }
 
     /// Puts everything away and hands hiding back to the divider.
@@ -303,6 +305,12 @@ public final class StandaloneBarController {
         menuBar.isRevealHeld = false
     }
 
+    /// Takes the bar back over the section once the user has finished rearranging it.
+    private func finishHandingOver() async {
+        guard handover.isUnderway else { return }
+        handover.settleBack(onto: await handover.end(), over: slide, from: items)
+    }
+
     /// Closes the bar once the pointer moves below it.
     ///
     /// In a full screen space the menu bar slides away the moment the pointer leaves the
@@ -317,8 +325,13 @@ public final class StandaloneBarController {
     /// Driven by the pointer moving rather than by a clock, and installed only while the bar
     /// is open.
     private func watchForThePointerLeaving() {
-        pointerObservation = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved]) { _ in
-            MainActor.assumeIsolated { self.closeIfThePointerHasLeft() }
+        pointerObservation = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseUp]) { event in
+            MainActor.assumeIsolated {
+                guard event.type != .mouseMoved else { return self.closeIfThePointerHasLeft() }
+                // A Cmd-release anywhere may have moved an item into or out of the section.
+                guard event.modifierFlags.contains(.command) else { return }
+                Task { await self.handover.lookAgain(around: self.items, over: self.slide) }
+            }
         }
     }
 
@@ -329,7 +342,9 @@ public final class StandaloneBarController {
     /// dipping below it on the way across, should not put it away — and the pointer coming
     /// back cancels the close before it happens.
     private func closeIfThePointerHasLeft() {
-        let hasLeft = isOpen && !isMenuOpen && NSEvent.mouseLocation.y < bar.bottomEdge
+        // Not mid-handoff: the pointer is up in the menu bar, where the user has taken it.
+        let hasLeft = isOpen && !isMenuOpen && !handover.isUnderway
+            && NSEvent.mouseLocation.y < bar.bottomEdge
         guard hasLeft else {
             closing?.cancel()
             closing = nil
