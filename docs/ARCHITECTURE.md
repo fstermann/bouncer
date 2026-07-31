@@ -188,11 +188,12 @@ system, so it is done once per drag rather than once per frame.
 
 An item can also be dragged *into* the section without touching the shelf at all, in the real menu
 bar. Bouncer is no part of that gesture, so it reads it off the pointer: a Cmd-drag with the
-pointer still up in the bar starts the same follow a handover does, and a release with Cmd held
-reads the section again and photographs anything new. Without the follow the panel stands still
-through the whole drag and jumps once at the end of it. The look stands down for the whole of a
-handover, at both ends of its wait: the release it watches for is the same one that ends a drag,
-and both would otherwise settle the bar at once.
+pointer still up in the bar starts the same follow a handover does, and the release that ends it
+— with Cmd still held or not, since letting Cmd go first ends the drag just the same — reads the
+section again and photographs anything new. Without the follow the panel stands still through the
+whole drag and jumps once at the end of it. The look runs only while a follow is up, and stands
+down for the whole of a handover, at both ends of its wait: the release it watches for is the
+same one that ends a drag, and both would otherwise settle the bar at once.
 
 Dragging the *last* item out closes the bar. A shelf of nothing over a cover hiding nothing is not
 a bar; it is a stretch of menu bar that swallows clicks for no reason.

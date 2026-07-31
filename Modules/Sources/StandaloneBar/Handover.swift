@@ -50,6 +50,9 @@ final class Handover {
 
     /// Called when the user lets go.
     var onRelease: (@MainActor () -> Void)?
+    /// Called when a look finds the user has dragged the last item out of the section: there is
+    /// nothing left to be a bar of. `end` reports the same through its return value instead.
+    var onEmptied: (@MainActor () -> Void)?
 
     init(bar: ReplicaBar, cover: CoverWindow, shield: ClickShield, capture: ItemCapture) {
         self.bar = bar
@@ -111,7 +114,7 @@ final class Handover {
         // of it immediately before the press — which is the only part of this it has to be out of.
         shield.standDown()
         guard await ItemHandoff.begin(on: item.windowID, once: shield.settled) else {
-            Log.menuBar.error("Standalone bar: the item to hand over has gone")
+            Log.menuBar.error("Standalone bar: nothing to press — the item is gone, or the user already let go")
             isUnderway = false
             // Back to swallowing. Stood down for a press that never happened, it would otherwise
             // leave every real item under the cover taking clicks nobody can see them take.
@@ -123,17 +126,22 @@ final class Handover {
         // icon a row apart is one too many.
         bar.setInHand(item.windowID)
         following = Task { [weak self] in await self?.follow() }
-        // Taken down by the first release it sees, before that release is passed on. A drop
-        // delivers more than one `leftMouseUp` — measured at two, 1 ms apart — and one gesture
-        // has to end the handover exactly once.
         releaseWatch = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseUp]) { [weak self] _ in
-            MainActor.assumeIsolated {
-                guard let self, let watch = self.releaseWatch else { return }
-                NSEvent.removeMonitor(watch)
-                self.releaseWatch = nil
-                self.onRelease?()
-            }
+            MainActor.assumeIsolated { self?.sawTheRelease() }
         }
+        // The watch can lose the race: a release delivered while the press was still being lined
+        // up is one it never saw, and a drag nobody ends leaves the item riding the pointer.
+        if NSEvent.pressedMouseButtons & 1 == 0 { sawTheRelease() }
+    }
+
+    /// Ends the watch on the first release, before passing it on. A drop delivers more than one
+    /// `leftMouseUp` — measured at two, 1 ms apart — and one gesture has to end the handover
+    /// exactly once.
+    private func sawTheRelease() {
+        guard let watch = releaseWatch else { return }
+        NSEvent.removeMonitor(watch)
+        releaseWatch = nil
+        onRelease?()
     }
 
     /// Follows a drag the user began in the menu bar rather than on a replica.
@@ -233,26 +241,29 @@ final class Handover {
         dividerID = ours.first { $0.value == StatusItemPosition.hiddenDividerName }?.key
     }
 
-    /// Looks again at what the section holds, after a Cmd-drag that did not start on a replica.
+    /// Looks again at what the section holds, after a drag that did not start on a replica.
     ///
     /// Dragging an item *into* the section can only be done in the real menu bar — the shelf has
-    /// nothing to drag from — so the one signal there is is a release with Cmd held anywhere.
+    /// nothing to drag from — so the signal is any release while the follow is up. Any, not only
+    /// one with Cmd still held: letting Cmd go before the mouse still ends the drag, and a follow
+    /// nothing stopped would poll a bar that has finished moving for as long as the bar is open.
+    /// No follow running means no drag of this kind ended, and there is nothing to look at.
     ///
     /// Skipped whenever a handover is busy, at both ends of the wait: that release is the one
     /// ending it, and `end` is already settling the bar around it. The pending look is held so a
     /// drop's several releases coalesce into one, and so closing can call it off.
     func lookAgain(around known: [MenuBarItem], over slide: TimeInterval?) {
-        guard !isBusy else { return }
+        guard !isBusy, following != nil else { return }
         looking?.cancel()
         looking = Task { [weak self] in
             // Measured at 230 to 410 ms for the bar to stop moving after a drop.
             try? await Task.sleep(for: .milliseconds(450))
             guard !Task.isCancelled, let self, !isBusy else { return }
-            // The follow is left going across the settle, as it is in `end`: the bar is still
-            // moving, and the panel should keep up with it rather than wait out a timer.
+            // The follow has kept the panel up with the bar through the wait; from here the
+            // settle draws it, so the poll has nothing left to add.
             following?.cancel()
             following = nil
-            settleBack(onto: refresh(around: known), over: slide, from: known)
+            if !settleBack(onto: refresh(around: known), over: slide, from: known) { onEmptied?() }
         }
     }
 

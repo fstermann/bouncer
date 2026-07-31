@@ -58,6 +58,12 @@ enum ItemHandoff {
         let grip = MenuBarItemGeometry.gripPoint(in: frame, clearOf: notch(under: frame))
         CGWarpMouseCursorPosition(grip)
         await pointerArrives(at: grip)
+        // A Cmd-click short enough is over before the pointer gets here. Pressing anyway starts
+        // a drag with no release coming, and the item rides the pointer until the next click.
+        guard NSEvent.pressedMouseButtons & 1 == 1 else {
+            CGWarpMouseCursorPosition(hand)
+            return false
+        }
         post(.leftMouseDown, at: grip)
         // A duration, not a condition, because the obvious condition is a lie. An item in hand
         // stays on the status item layer and rides down out of the bar with the pointer, so the

@@ -39,7 +39,7 @@ enum Slide {
         await run([shelf, cover.panel], to: parked, over: duration, easing: .easeInEaseOut)
     }
 
-    static func run(
+    private static func run(
         _ views: [NSView],
         to origin: CGPoint,
         over duration: TimeInterval,

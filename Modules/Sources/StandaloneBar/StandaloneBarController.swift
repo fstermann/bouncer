@@ -68,6 +68,7 @@ public final class StandaloneBarController {
             Task { await handover.begin(on: item, from: items) }
         }
         handover.onRelease = { [weak self] in Task { await self?.finishHandingOver() } }
+        handover.onEmptied = { [weak self] in Task { await self?.closeOverNothing() } }
         handover.onSectionChanged = { [weak self] settled, joined in
             self?.items = settled
             self?.orderLastTime = settled.map(\.windowID)
@@ -278,9 +279,15 @@ public final class StandaloneBarController {
     private func finishHandingOver() async {
         guard let settled = await handover.end() else { return }
         if !handover.settleBack(onto: settled, over: slide, from: items) {
-            Log.menuBar.info("Standalone bar: the section is empty — closing")
-            await close()
+            await closeOverNothing()
         }
+    }
+
+    /// The last item has been dragged out. A shelf of nothing over a cover hiding nothing is not
+    /// a bar; it is a stretch of menu bar that swallows clicks for no reason.
+    private func closeOverNothing() async {
+        Log.menuBar.info("Standalone bar: the section is empty — closing")
+        await close()
     }
 
     /// Closes the bar once the pointer moves below it.
@@ -296,7 +303,8 @@ public final class StandaloneBarController {
     ///
     /// Driven by the pointer moving rather than by a clock, and installed only while the bar
     /// is open. It is also the only watch on the pointer there is, so the two signals a
-    /// rearrangement gives off are read here as well: a Cmd-drag up in the bar, and a Cmd-release.
+    /// rearrangement gives off are read here as well: a Cmd-drag up in the bar, and the release
+    /// that ends it.
     private func watchForThePointerLeaving() {
         let watched: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged, .leftMouseUp]
         pointerObservation = NSEvent.addGlobalMonitorForEvents(matching: watched) { event in
@@ -307,9 +315,10 @@ public final class StandaloneBarController {
                 // a replica. The panel follows either way, or it stands still through the drag and
                 // jumps once at the end of it.
                 case .leftMouseDragged where self.isRearranging(event): self.handover.followAlong()
-                // A Cmd-release anywhere may have moved an item into or out of the section.
-                case .leftMouseUp where event.modifierFlags.contains(.command):
-                    self.handover.lookAgain(around: self.items, over: self.slide)
+                // Any release ends whatever drag the follow was following — Cmd or not, since Cmd
+                // let go before the mouse ends it just the same. The look stands itself down when
+                // no follow is up.
+                case .leftMouseUp: self.handover.lookAgain(around: self.items, over: self.slide)
                 default: break
                 }
             }
