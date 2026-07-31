@@ -35,10 +35,21 @@ enum ItemHandoff {
     /// still was — which is a row below, in the shelf, where there is no item to pick up. This is
     /// also a hop out of AppKit's own mouse-down dispatch, which is what is running when the
     /// gesture starts.
-    static func begin(on item: UInt32) async -> Bool {
+    ///
+    /// The first beat is a condition rather than a duration, because the pointer is off the user's
+    /// hand for the whole of this and a beat generous enough to be safe is long enough to feel. It
+    /// waits for the thing it was standing in for and no longer, capped at the old fixed wait — so
+    /// the worst case is what it always was and the usual case is a fraction of it. The second is
+    /// still a duration, for want of a condition that is not a lie about it.
+    ///
+    /// - Parameter ready: anything that has to be out of the press's way, awaited before the
+    ///   pointer leaves the user's hand rather than while it is away. Whatever it waits for is a
+    ///   beat the user cannot see; a beat spent with the pointer up in the bar is one they can.
+    static func begin(on item: UInt32, once ready: @MainActor () async -> Void) async -> Bool {
         guard let frame = StatusItemScanner.scan().first(where: { $0.windowID == item })?.frame else {
             return false
         }
+        await ready()
         // Where the user has their pointer, to be given back to them the moment the item is in
         // hand. Read before the warp, or it is the item's own position.
         let hand = CGEvent(source: nil)?.location ?? .zero
@@ -46,11 +57,33 @@ enum ItemHandoff {
 
         let grip = MenuBarItemGeometry.gripPoint(in: frame, clearOf: notch(under: frame))
         CGWarpMouseCursorPosition(grip)
-        try? await Task.sleep(for: .milliseconds(beatAfterWarping))
+        await pointerArrives(at: grip)
         post(.leftMouseDown, at: grip)
-        try? await Task.sleep(for: .milliseconds(beatBeforeReturning))
+        // A duration, not a condition, because the obvious condition is a lie. An item in hand
+        // stays on the status item layer and rides down out of the bar with the pointer, so the
+        // scanner stops reporting it — it filters on `minY == 0`. "The scanner cannot see it" is
+        // the pointer having left the bar, which is this warp's own doing, not the press landing.
+        try? await Task.sleep(for: beatBeforeReturning)
         CGWarpMouseCursorPosition(hand)
         return true
+    }
+
+    /// Waits for the pointer to be where it was sent.
+    ///
+    /// The exact condition the beat after a warp was standing in for, and the window server will
+    /// answer it for the cost of reading an event's location. A warp lands in a few milliseconds;
+    /// waiting out a beat sized for the worst case spends the rest of it with the user's pointer
+    /// somewhere they did not put it.
+    /// Asked before it ever sleeps: the whole point is not to wait for something that has already
+    /// happened. A pointer that cannot be read counts as arrived, since there is nothing better to
+    /// wait for and the cap is what the fixed beat used to cost anyway.
+    private static func pointerArrives(at point: CGPoint) async {
+        let deadline = ContinuousClock.now + beatAfterWarping
+        while let here = CGEvent(source: nil)?.location,
+              abs(here.x - point.x) >= 1 || abs(here.y - point.y) >= 1 {
+            guard ContinuousClock.now < deadline else { return }
+            try? await Task.sleep(for: .milliseconds(4))
+        }
     }
 
     /// The stretch of the menu bar the notch takes up on the display `frame` is on, if it has
@@ -65,10 +98,12 @@ enum ItemHandoff {
     }
 
     /// Measured in the spike that established the handoff: it warped, waited this long, pressed,
-    /// and the item came away in the user's hand. The second beat is the same wait on the way
-    /// back — long enough for the press to have been taken, short enough to read as one movement.
-    private static let beatAfterWarping = 50
-    private static let beatBeforeReturning = 50
+    /// and the item came away in the user's hand. The first is now a cap rather than a wait, so a
+    /// condition that never comes true costs exactly what the fixed beat used to.
+    private static let beatAfterWarping: Duration = .milliseconds(50)
+    private static let beatBeforeReturning: Duration = .milliseconds(50)
+    /// One frame, so a drag is taken before the release that lands on it is posted.
+    private static let beatBeforeReleasing: Duration = .milliseconds(16)
 
     /// Takes the pointer back up to the bar, releases there, and hands it back.
     ///
@@ -83,7 +118,13 @@ enum ItemHandoff {
     ///
     /// Their own release has already been delivered by the time this runs, and landed nothing for
     /// exactly that reason. This is the one that lands it.
-    static func end() async {
+    ///
+    /// - Parameter carryingBack: whether the item belongs in the bar at all. False when the user
+    ///   has pulled it below the panel, which is the system's own gesture for taking an item off
+    ///   the menu bar — their release has already landed that, and there is nothing here to add.
+    ///   Bringing it home would be undoing what they asked for.
+    static func end(carryingBack: Bool) async {
+        guard carryingBack else { return }
         let hand = CGEvent(source: nil)?.location ?? .zero
         let drop = CGPoint(x: hand.x, y: row)
 
@@ -93,9 +134,13 @@ enum ItemHandoff {
         // still believes it is down in the shelf, and a release there is a move abandoned.
         CGWarpMouseCursorPosition(drop)
         post(.leftMouseDragged, at: drop)
-        try? await Task.sleep(for: .milliseconds(beatAfterWarping))
+        await pointerArrives(at: drop)
+        // The rest of the old beat here was waiting on the warp, which is asked about directly now.
+        try? await Task.sleep(for: beatBeforeReleasing)
         post(.leftMouseUp, at: drop)
-        try? await Task.sleep(for: .milliseconds(beatBeforeReturning))
+        // No condition to ask here: the item comes back to the bar over an animation, and the
+        // pointer is wanted back long before that. The user has already let go by now.
+        try? await Task.sleep(for: beatBeforeReturning)
         CGWarpMouseCursorPosition(hand)
     }
 

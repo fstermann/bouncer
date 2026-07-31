@@ -106,8 +106,11 @@ final class Handover {
         nameOurs()
         isUnderway = true
         Log.menuBar.info("Standalone bar: handing the drag to the real item")
-        await shield.stopSwallowing()
-        guard await ItemHandoff.begin(on: item.windowID) else {
+        // Stood down without waiting: the beat it takes to stop hit-testing is spent reading the
+        // item's frame and taking the pointer up to it, and `settled` waits out whatever is left
+        // of it immediately before the press — which is the only part of this it has to be out of.
+        shield.standDown()
+        guard await ItemHandoff.begin(on: item.windowID, once: shield.settled) else {
             Log.menuBar.error("Standalone bar: the item to hand over has gone")
             isUnderway = false
             // Back to swallowing. Stood down for a press that never happened, it would otherwise
@@ -166,6 +169,15 @@ final class Handover {
             drawTheSection()
         }
     }
+
+    /// Whether the user let go over the panel, rather than below it.
+    ///
+    /// Below the shelf is the system's own gesture for taking an item off the menu bar, and it is
+    /// left alone: their release has already landed that, and carrying the item home would be
+    /// Bouncer undoing a gesture that is none of its business. The item follows the pointer down
+    /// out of the bar for the whole drag either way — which is what makes pulling one out read as
+    /// pulling it out, and what has macOS draw its own preview for an item on its way off the bar.
+    private var isOverThePanel: Bool { NSEvent.mouseLocation.y >= bar.bottomEdge }
 
     /// Draws the section where it now stands, and moves the cover with it.
     ///
@@ -280,7 +292,7 @@ final class Handover {
         Log.menuBar.info("Standalone bar: the user let go — landing the item")
         if let releaseWatch { NSEvent.removeMonitor(releaseWatch) }
         releaseWatch = nil
-        await ItemHandoff.end()
+        await ItemHandoff.end(carryingBack: isOverThePanel)
         // Drawn again from the moment it exists again. The follow is left running across the
         // settle for exactly this: an item in hand has no frame to draw it at, so the shelf has a
         // hole in it until the item is back in the bar, and the hole should close the moment it
