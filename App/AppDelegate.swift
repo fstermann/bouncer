@@ -27,6 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // click reveals the menu bar or opens Bouncer's own bar is a preference, and
         // RevealController has no business knowing about the standalone bar.
         menuBar.onIconClick = { [weak self] in self?.handleIconClick() }
+        reveal.onHoverReveal = { [weak self] in self?.handleHoverReveal() }
         Log.app.info("Bouncer launched")
     }
 
@@ -66,6 +67,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         guard hasStandaloneBarPermissions() else { return }
         Task { await standaloneBar.toggle() }
+    }
+
+    /// The pointer reaching the menu bar shows the hidden section wherever the user has asked
+    /// for it — walking the bar open, or opening Bouncer's own.
+    ///
+    /// Permissions are preflighted rather than requested: a pointer in the menu bar is not a
+    /// request for the bar, and prompting on it would put a dialog up for simply moving the
+    /// mouse. The bar stays behind a click until both are granted.
+    private func handleHoverReveal() {
+        guard settings.preferences.showItemsInBar else {
+            menuBar.setVisibility(.revealed)
+            return
+        }
+        guard CGPreflightScreenCaptureAccess() else { return }
+        Task { await standaloneBar.open() }
     }
 
     /// Asks for the two permissions the standalone bar needs, at the moment the user asks

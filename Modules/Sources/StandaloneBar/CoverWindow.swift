@@ -1,4 +1,5 @@
 import AppKit
+import Settings
 
 /// Hides the replicated items by covering them, without moving them.
 ///
@@ -7,7 +8,7 @@ import AppKit
 /// capture ignores whatever is on top of it — so the section is revealed into its normal
 /// place and this is drawn over it.
 ///
-/// Painted in `BarSurface.colour`, the same as the shelf below, and only over the stretch the
+/// Dressed by `BarSurface`, the same as the shelf below, and only over the stretch the
 /// section occupies. It used to be a capture of the bar spanning the bar's whole width, which
 /// matched the real thing for exactly as long as the real thing held still: swapping the
 /// entire bar for a photograph and back was visible as the bar twitching, the still knew
@@ -21,11 +22,18 @@ import AppKit
 public final class CoverWindow {
     private var window: BarWindow?
     private let surface = NSView()
+    /// The dimming layer over the cover's glass, worn while the section underneath is
+    /// moving. Faded through `BarSurface.fade`, together with the shelf's, so the dim never
+    /// shows as a step at the seam between them.
+    private(set) var veil: NSView?
+
+    /// How the cover is painted. Set by the controller before each open, with the shelf's,
+    /// so the two halves of the panel cannot disagree.
+    var style: BarStyle = .automatic
 
     public init() {
         surface.autoresizingMask = [.width, .height]
         surface.wantsLayer = true
-        surface.layer?.backgroundColor = BarSurface.colour.cgColor
     }
 
     /// The part that moves. Parked and run by the controller, with the shelf's, so the two
@@ -85,6 +93,7 @@ public final class CoverWindow {
         // `ClickShield` is what stops one reaching an icon nobody can see.
         cover.ignoresMouseEvents = true
         surface.frame = CGRect(origin: .zero, size: rect.size)
+        veil = BarSurface.dress(surface, in: style, coveringIcons: true)
         // The surface arrives from above the window, so it is clipped to it: the part still up
         // in the menu bar must not be drawn over the bar it has not reached yet.
         let clip = NSView(frame: CGRect(origin: .zero, size: rect.size))

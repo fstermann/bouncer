@@ -12,20 +12,20 @@ concurrency:
 jobs:
   # Fast feedback: the logic modules build and test without an Xcode project.
   test:
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
       - run: swift test --package-path Modules
 
   lint:
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
       - run: brew install swiftlint
       - run: swiftlint lint --strict
 
   build:
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
       - run: brew install xcodegen

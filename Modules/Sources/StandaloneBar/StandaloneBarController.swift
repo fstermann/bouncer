@@ -23,8 +23,6 @@ import Settings
 public final class StandaloneBarController {
     public private(set) var isOpen = false
 
-    /// How long the pointer may be away before the bar gives up on it coming back.
-    private static let graceBeforeClosing = Duration.milliseconds(700)
     private let menuBar: MenuBarManager
     private let settings: SettingsStore
     private let itemCapture = ItemCapture()
@@ -40,8 +38,8 @@ public final class StandaloneBarController {
     private var items: [MenuBarItem] = []
     /// Whether a menu opened from a replica is showing.
     private var isMenuOpen = false
-    /// The pending close, while the pointer is away but could still come back.
-    private var closing: Task<Void, Never>?
+    /// When the bar puts itself away, and what it is waiting for.
+    private let closing = BarClosing()
     /// The bounded wait for the recording indicator to shift the bar, while it is opening.
     private var settling: Task<Void, Never>?
     /// What a replica's click is delivered to, resolved while the bar opens and awaited only
@@ -103,6 +101,8 @@ public final class StandaloneBarController {
         Log.menuBar.info("Standalone bar: opening")
         // Read once per open, so the bar leaves the way it arrived even if the preference changes.
         slide = settings.preferences.animateBar ? settings.preferences.barAnimationDuration : nil
+        cover.style = settings.preferences.barStyle
+        bar.style = settings.preferences.barStyle
 
         // Which items are hidden has to be settled *before* revealing them, because once
         // they are back on screen they are indistinguishable from the ones that were
@@ -156,6 +156,9 @@ public final class StandaloneBarController {
         bar.show(revealed, below: strip)
         // The items under the cover are painted over, not moved, and so still take clicks.
         shield.show(over: strip)
+        // Not awaited: the bar is usable while the smudges ease in behind the glass. Given
+        // twice the slide, so the reveal reads unhurried rather than snapping clear.
+        Task { await BarSurface.fade([cover.veil, bar.veil], toDimmed: false, over: slide.map { $0 * 2 }) }
 
         finishOpening(of: hidden, from: PlacementWait.frames(of: hidden), over: strip)
     }
@@ -193,6 +196,12 @@ public final class StandaloneBarController {
     private func finishOpening(of hidden: Set<UInt32>, from before: [UInt32: CGRect], over strip: CGRect) {
         isOpen = true
         watchForThePointerLeaving()
+        // A menu opened from a replica belongs to the app it came from, and activating that
+        // app must not pull the bar out from under the menu.
+        closing.start(for: settings.preferences.autoRehide) { [weak self] in
+            guard let self, isOpen, !isMenuOpen, !handover.isUnderway else { return }
+            Task { await self.close() }
+        }
         settling = Task { [weak self] in
             await self?.followTheShift(of: hidden, from: before)
         }
@@ -243,8 +252,7 @@ public final class StandaloneBarController {
         pointerObservation = nil
         // First, so nothing the handover has running draws into a bar that is being taken down.
         handover.stop()
-        closing?.cancel()
-        closing = nil
+        closing.stop()
         settling?.cancel()
         settling = nil
         menus.stop()
@@ -259,7 +267,8 @@ public final class StandaloneBarController {
         // The section goes away first, underneath the panel that is still over it — the open
         // run backwards. The cover leaves with the panel it is half of, so anything it was
         // hiding has to be gone by then, or the items sit in plain sight until the divider
-        // catches up.
+        // catches up. Awaited: dimmed first, or the glass shows the smudges vanishing in a frame.
+        await BarSurface.fade([cover.veil, bar.veil], toDimmed: true, over: slide)
         menuBar.setVisibility(.collapsed)
         await PlacementWait.removal(of: replicated)
         // Before the panel goes rather than after: showing a marker changes the divider's
@@ -343,15 +352,11 @@ public final class StandaloneBarController {
         let hasLeft = isOpen && !isMenuOpen && !handover.isUnderway
             && NSEvent.mouseLocation.y < bar.bottomEdge
         guard hasLeft else {
-            closing?.cancel()
-            closing = nil
+            closing.pointerReturned()
             return
         }
-        guard closing == nil else { return }
-        closing = Task { [weak self] in
-            try? await Task.sleep(for: Self.graceBeforeClosing)
-            guard !Task.isCancelled else { return }
-            await self?.close()
+        closing.pointerLeft(for: settings.preferences.autoRehide) { [weak self] in
+            Task { await self?.close() }
         }
     }
 

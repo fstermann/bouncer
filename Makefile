@@ -30,6 +30,7 @@ build: generate
 ## Build and launch
 run: build
 	@pkill -x Bouncer || true
+	@while pgrep -x Bouncer >/dev/null; do sleep 0.1; done
 	open $(BUILD_DIR)/Build/Products/$(CONFIG)/Bouncer.app
 
 ## Run the module tests (no Xcode project needed — fast)

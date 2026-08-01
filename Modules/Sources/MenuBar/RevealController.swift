@@ -8,6 +8,12 @@ import Settings
 /// user who does not use hover reveal pays nothing for it.
 @MainActor
 public final class RevealController {
+    /// What the pointer entering the menu bar reveals. Left alone it walks the menu bar open;
+    /// the app layer replaces it where a reveal means something else, the way `onIconClick`
+    /// is replaced — whether the hidden section shows in the bar or in one of Bouncer's own is
+    /// a preference this module has no business knowing about.
+    public var onHoverReveal: (@MainActor () -> Void)?
+
     private let manager: MenuBarManager
     private let settings: SettingsStore
 
@@ -62,7 +68,11 @@ public final class RevealController {
               let screen = NSScreen.main,
               screen.frame.maxY - NSEvent.mouseLocation.y <= screen.menuBarHeight
         else { return }
-        manager.setVisibility(.revealed)
+        guard let onHoverReveal else {
+            manager.setVisibility(.revealed)
+            return
+        }
+        onHoverReveal()
     }
 
     private func setActivationObserverEnabled(_ isEnabled: Bool) {
