@@ -19,6 +19,11 @@ public enum BarStyle: Codable, Hashable, Sendable {
     case glass
     /// A flat colour of the user's choosing, in sRGB.
     case custom(red: Double, green: Double, blue: Double)
+
+    /// The greys `automatic` resolves to, as white levels rather than colours so Settings
+    /// stays free of AppKit. Shared so the bar and the settings swatch cannot drift apart.
+    public static let automaticLight = 0.88
+    public static let automaticDark = 0.24
 }
 
 /// The complete user-facing configuration. One value type so it round-trips as a
@@ -67,7 +72,13 @@ public struct Preferences: Codable, Hashable, Sendable {
     /// them away — so every key added after 0.1.0 decodes as optional with its default.
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        autoRehide = try container.decode(AutoRehide.self, forKey: .autoRehide)
+        // Clamped to what the slider can ask for, the way the animation duration below is:
+        // a longer delay stored by an older build leaves the bar open past what any setting
+        // can now express.
+        autoRehide = switch try container.decode(AutoRehide.self, forKey: .autoRehide) {
+        case .afterDelay(let seconds): .afterDelay(seconds: min(max(seconds, 1), 10))
+        case let other: other
+        }
         enableAlwaysHiddenSection = try container.decode(Bool.self, forKey: .enableAlwaysHiddenSection)
         revealOnHover = try container.decode(Bool.self, forKey: .revealOnHover)
         showBouncerIcon = try container.decode(Bool.self, forKey: .showBouncerIcon)

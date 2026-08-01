@@ -86,6 +86,15 @@ private final class MemoryPersistence: PreferencesPersistence, @unchecked Sendab
         #expect(store.preferences.barAnimationDuration == 0.5)
     }
 
+    @Test func storedRehideDelayIsClampedToTheSlidersRange() {
+        let stored = Data("""
+        {"autoRehide":{"afterDelay":{"seconds":120}},"enableAlwaysHiddenSection":false,\
+        "revealOnHover":false,"showBouncerIcon":true}
+        """.utf8)
+        let store = SettingsStore(persistence: MemoryPersistence(data: stored))
+        #expect(store.preferences.autoRehide == .afterDelay(seconds: 10))
+    }
+
     @Test func corruptStoredDataFallsBackToDefaults() {
         let store = SettingsStore(persistence: MemoryPersistence(data: Data("not json".utf8)))
         #expect(store.preferences == Preferences())

@@ -17,8 +17,8 @@ enum BarSurface {
     /// short of opaque leaves them ghosting through.
     static let colour = NSColor(name: nil) { appearance in
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            ? NSColor(white: 0.24, alpha: 1)
-            : NSColor(white: 0.88, alpha: 1)
+            ? NSColor(white: BarStyle.automaticDark, alpha: 1)
+            : NSColor(white: BarStyle.automaticLight, alpha: 1)
     }
 
     /// Paints `view` in the user's chosen style, and returns the veil laid over glass —
