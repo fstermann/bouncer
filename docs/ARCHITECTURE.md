@@ -248,7 +248,9 @@ needs no Xcode project and finishes in under a second.
 - **`MenuBarManager`** — structure and visibility state. Deliberately does not know
   *why* visibility changes.
 - **`RevealController`** — the *why*: hover, auto-rehide. Separated so input
-  policy can grow without touching the bar itself.
+  policy can grow without touching the bar itself. What a hover reveals is the app layer's
+  to replace, the way an icon click is, because the standalone bar is not this module's
+  business.
 - **`SettingsStore`** — one JSON blob in `UserDefaults`. One read at launch, one
   coalesced write per burst of edits. Keys added after 0.1.0 decode as optional, so a blob
   written before one existed keeps the user's other settings.
@@ -256,6 +258,9 @@ needs no Xcode project and finishes in under a second.
   the whole feature turns on: photograph, draw the panel where the section is about to land,
   run it out of the menu bar, reveal underneath it — and the reverse on the way out, where
   the section is put away *before* the panel goes, because the cover leaves with it.
+- **`BarClosing`** — when that bar puts itself away. "Hide again" governs it as well as the
+  menu bar reveal: the same delay, the same close on an app change, the same never. Its
+  observer and its pending close exist only while the bar is open.
 - **`ItemHandoff`** — the two synthesised events a rearrangement needs: a press to put the real
   item in the user's hand, and a release to land it.
 - **`Handover`** — the mode the bar is in while they rearrange. Follows the real items into the

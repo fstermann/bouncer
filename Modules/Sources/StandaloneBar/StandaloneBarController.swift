@@ -23,8 +23,6 @@ import Settings
 public final class StandaloneBarController {
     public private(set) var isOpen = false
 
-    /// How long the pointer may be away before the bar gives up on it coming back.
-    private static let graceBeforeClosing = Duration.milliseconds(700)
     private let menuBar: MenuBarManager
     private let settings: SettingsStore
     private let itemCapture = ItemCapture()
@@ -40,8 +38,8 @@ public final class StandaloneBarController {
     private var items: [MenuBarItem] = []
     /// Whether a menu opened from a replica is showing.
     private var isMenuOpen = false
-    /// The pending close, while the pointer is away but could still come back.
-    private var closing: Task<Void, Never>?
+    /// When the bar puts itself away, and what it is waiting for.
+    private let closing = BarClosing()
     /// The bounded wait for the recording indicator to shift the bar, while it is opening.
     private var settling: Task<Void, Never>?
     /// What a replica's click is delivered to, resolved while the bar opens and awaited only
@@ -198,6 +196,12 @@ public final class StandaloneBarController {
     private func finishOpening(of hidden: Set<UInt32>, from before: [UInt32: CGRect], over strip: CGRect) {
         isOpen = true
         watchForThePointerLeaving()
+        // A menu opened from a replica belongs to the app it came from, and activating that
+        // app must not pull the bar out from under the menu.
+        closing.start(for: settings.preferences.autoRehide) { [weak self] in
+            guard let self, isOpen, !isMenuOpen, !handover.isUnderway else { return }
+            Task { await self.close() }
+        }
         settling = Task { [weak self] in
             await self?.followTheShift(of: hidden, from: before)
         }
@@ -248,8 +252,7 @@ public final class StandaloneBarController {
         pointerObservation = nil
         // First, so nothing the handover has running draws into a bar that is being taken down.
         handover.stop()
-        closing?.cancel()
-        closing = nil
+        closing.stop()
         settling?.cancel()
         settling = nil
         menus.stop()
@@ -349,15 +352,11 @@ public final class StandaloneBarController {
         let hasLeft = isOpen && !isMenuOpen && !handover.isUnderway
             && NSEvent.mouseLocation.y < bar.bottomEdge
         guard hasLeft else {
-            closing?.cancel()
-            closing = nil
+            closing.pointerReturned()
             return
         }
-        guard closing == nil else { return }
-        closing = Task { [weak self] in
-            try? await Task.sleep(for: Self.graceBeforeClosing)
-            guard !Task.isCancelled else { return }
-            await self?.close()
+        closing.pointerLeft(for: settings.preferences.autoRehide) { [weak self] in
+            Task { await self?.close() }
         }
     }
 
