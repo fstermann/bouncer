@@ -50,7 +50,7 @@ run: build
 # xcodebuild resolves one for the machine it is on and narrows ARCHS to that architecture, so
 # the release would quietly be Apple Silicon only.
 release: generate
-	@if [ -z "$(RELEASE_SIGN_IDENTITY)" ]; then \
+	@if [ -z "$(RELEASE_SIGN_IDENTITY)" ] || [ "$(RELEASE_SIGN_IDENTITY)" = "-" ]; then \
 		echo "release needs the release signing identity — set RELEASE_SIGN_IDENTITY in"; \
 		echo ".signing.mk. It must not be the ad-hoc \"-\" or the dev certificate: an ad-hoc"; \
 		echo "signature has no stable identity, so macOS forgets the permissions the standalone"; \
@@ -65,7 +65,7 @@ release: generate
 	@set -e; \
 	version=$$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" \
 		"$(RELEASE_APP)/Contents/Info.plist"); \
-	cp -R "$(RELEASE_APP)" $(RELEASE_DIR)/stage/; \
+	ditto "$(RELEASE_APP)" "$(RELEASE_DIR)/stage/Bouncer.app"; \
 	ln -s /Applications $(RELEASE_DIR)/stage/Applications; \
 	hdiutil create -volname Bouncer -srcfolder $(RELEASE_DIR)/stage -fs APFS -format ULFO \
 		-ov -quiet "$(RELEASE_DIR)/Bouncer-$$version.dmg"; \
