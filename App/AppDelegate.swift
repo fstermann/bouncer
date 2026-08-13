@@ -62,8 +62,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
             .target = self
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Quit Bouncer", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        menu.addItem(
+            withTitle: "Quit \(Self.appName)",
+            action: #selector(NSApplication.terminate(_:)),
+            keyEquivalent: "q"
+        )
         return menu
+    }
+
+    /// "Bouncer", or "Bouncer Dev" in a Debug build. A dev build sits in the menu bar beside an
+    /// installed Bouncer wearing the same glyph, so the words are the only way to tell whose
+    /// menu and whose window you have in front of you.
+    private static var appName: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "Bouncer"
     }
 
     /// A left click either walks the menu bar open, or opens Bouncer's own bar.
@@ -129,7 +140,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 defer: false
             )
             window.contentViewController = hosting
-            window.title = "Bouncer Settings"
+            window.title = "\(Self.appName) Settings"
             window.setContentSize(hosting.view.fittingSize)
             window.isReleasedWhenClosed = false
             settingsWindow = window
