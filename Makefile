@@ -24,6 +24,10 @@ SIGN_FLAGS := CODE_SIGN_IDENTITY="$(SIGN_IDENTITY)"
 # Name it in .signing.mk to build one locally; the release workflow passes it in instead.
 RELEASE_SIGN_IDENTITY ?=
 
+# Repository the feed is served from, baked into SUFeedURL. Empty here so a local build keeps
+# the default in project.yml; the release workflow passes the repository it is building.
+SU_FEED_URL ?=
+
 .PHONY: all generate build run release test lint format clean
 
 all: build
@@ -59,7 +63,8 @@ release: generate
 	fi
 	xcodebuild -project $(PROJECT) -scheme $(SCHEME) -configuration Release \
 		-destination 'generic/platform=macOS' \
-		-derivedDataPath $(BUILD_DIR) CODE_SIGN_IDENTITY="$(RELEASE_SIGN_IDENTITY)" build
+		-derivedDataPath $(BUILD_DIR) CODE_SIGN_IDENTITY="$(RELEASE_SIGN_IDENTITY)" \
+		$(if $(SU_FEED_URL),SU_FEED_URL="$(SU_FEED_URL)") build
 	rm -rf $(RELEASE_DIR)
 	mkdir -p $(RELEASE_DIR)/stage $(RELEASE_DIR)/sparkle
 	@set -e; \

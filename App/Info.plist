@@ -24,9 +24,11 @@
 	<key>LSUIElement</key>
 	<true/>
 	<!-- Sparkle. The feed is regenerated on every release and attached to it, so
-	     `latest/download` always resolves to the newest one. -->
+	     `latest/download` always resolves to the newest one. The repository is substituted
+	     at build time (SU_FEED_URL, defaulted in project.yml) so the feed and the release
+	     workflow's enclosure URLs cannot drift apart across a rename, transfer or fork. -->
 	<key>SUFeedURL</key>
-	<string>https://github.com/fstermann/bouncer/releases/latest/download/appcast.xml</string>
+	<string>$(SU_FEED_URL)</string>
 	<!-- Public half of the EdDSA key the release workflow signs updates with. Replace with
 	     the output of Sparkle's `generate_keys`; updates are refused until it matches. -->
 	<key>SUPublicEDKey</key>

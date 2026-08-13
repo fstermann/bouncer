@@ -77,6 +77,10 @@ targets:
         # Why the app needs one entitlement is in the file itself.
         CODE_SIGN_ENTITLEMENTS: App/Bouncer.entitlements
         COMBINE_HIDPI_IMAGES: YES
+        # Substituted into SUFeedURL in Info.plist. This default is the canonical repository;
+        # the release workflow overrides it with the repository it is actually building, so the
+        # feed always matches where that build's assets are uploaded.
+        SU_FEED_URL: https://github.com/fstermann/bouncer/releases/latest/download/appcast.xml
       configs:
         # A Debug build is a different app from the one people install: its own bundle
         # identifier, so it has its own preferences, its own permission grants and its own

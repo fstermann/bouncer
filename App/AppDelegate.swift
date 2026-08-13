@@ -128,11 +128,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func openSettings() {
+        // A fresh hosting controller on every open: the window is reused, but its SwiftUI
+        // content would otherwise keep the state it was first built with, so the view's mirrors
+        // of Sparkle's and the login item's state would go stale when those change out of band.
+        let hosting = NSHostingController(
+            rootView: SettingsView(settings: settings, updates: updates)
+        )
+        hosting.sizingOptions = [.preferredContentSize]
         if settingsWindow == nil {
-            let hosting = NSHostingController(
-                rootView: SettingsView(settings: settings, updates: updates)
-            )
-            hosting.sizingOptions = [.preferredContentSize]
             // The style mask has to be set at init; assigning it afterwards drops the
             // layout the hosting controller established and the first tab renders empty.
             let window = NSWindow(
@@ -141,12 +144,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 backing: .buffered,
                 defer: false
             )
-            window.contentViewController = hosting
             window.title = "\(Self.appName) Settings"
-            window.setContentSize(hosting.view.fittingSize)
             window.isReleasedWhenClosed = false
             settingsWindow = window
         }
+        settingsWindow?.contentViewController = hosting
+        settingsWindow?.setContentSize(hosting.view.fittingSize)
         NSApp.activate(ignoringOtherApps: true)
         settingsWindow?.center()
         settingsWindow?.makeKeyAndOrderFront(nil)

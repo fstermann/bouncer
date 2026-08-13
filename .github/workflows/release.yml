@@ -54,8 +54,9 @@ jobs:
         run: |
           set -euo pipefail
           pinned=$(grep -A2 '^  Sparkle:' project.yml | sed -n 's/.*exactVersion: *//p')
-          if [ "$pinned" != "$SPARKLE_VERSION" ]; then
-            echo "project.yml pins Sparkle $pinned, this workflow uses $SPARKLE_VERSION." >&2
+          module_pinned=$(sed -n 's/.*Sparkle", exact: "\([^"]*\)".*/\1/p' Modules/Package.swift)
+          if [ "$pinned" != "$SPARKLE_VERSION" ] || [ "$module_pinned" != "$SPARKLE_VERSION" ]; then
+            echo "Sparkle versions out of step: project.yml=$pinned, Package.swift=$module_pinned, workflow=$SPARKLE_VERSION." >&2
             exit 1
           fi
 
@@ -94,7 +95,9 @@ jobs:
           echo "RELEASE_SIGN_IDENTITY=$identity" >> "$GITHUB_ENV"
 
       - name: Build the disk image and the Sparkle archive
-        run: make release RELEASE_SIGN_IDENTITY="$RELEASE_SIGN_IDENTITY"
+        run: |
+          make release RELEASE_SIGN_IDENTITY="$RELEASE_SIGN_IDENTITY" \
+            SU_FEED_URL="https://github.com/${{ github.repository }}/releases/latest/download/appcast.xml"
 
       # A destination-less xcodebuild silently narrows to the runner's own architecture, which
       # would ship an Apple Silicon-only build to Intel users. Checked rather than trusted.
@@ -108,7 +111,11 @@ jobs:
             case " $archs " in *" $arch "*) ;; *) echo "missing $arch" >&2; exit 1 ;; esac
           done
           codesign --verify --deep --strict --verbose=2 "$app"
-          codesign -dv --verbose=2 "$app/Contents/Frameworks/Sparkle.framework" 2>&1 | grep -q Authority=
+          # Capture, then match: piping codesign into `grep -q` lets grep close the pipe on the
+          # first match and hit codesign with SIGPIPE (exit 141), which pipefail turns into a
+          # spurious failure of a verification that actually passed.
+          authority=$(codesign -dv --verbose=2 "$app/Contents/Frameworks/Sparkle.framework" 2>&1)
+          grep -q Authority= <<<"$authority"
 
       # Signs the archive with the EdDSA key and writes the feed Sparkle reads. Regenerated
       # per release from the one archive, so the feed carries only the newest item — which is
