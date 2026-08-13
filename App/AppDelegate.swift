@@ -58,8 +58,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func makeIconMenu() -> NSMenu {
         let menu = NSMenu()
         if updates.isRunning {
-            menu.addItem(withTitle: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
-                .target = self
+            let item = menu.addItem(
+                withTitle: "Check for Updates…",
+                action: #selector(checkForUpdates),
+                keyEquivalent: ""
+            )
+            item.target = self
+            item.image = NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: nil)
         }
         menu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
             .target = self
