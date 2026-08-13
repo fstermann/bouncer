@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Library validation requires an embedded framework to carry the same Team ID as the
+	     process loading it. A self-signed certificate has no Team ID, so dyld refuses to map
+	     Sparkle.framework — "mapping process and mapped file (non-platform) have different
+	     Team IDs" — and the app dies at launch. This is the one hardened runtime protection a
+	     build signed without a Developer ID cannot keep; everything else it gives stays on.
+	     Delete this file, and CODE_SIGN_ENTITLEMENTS in project.yml, if Bouncer is ever signed
+	     with a real Developer ID. -->
+	<key>com.apple.security.cs.disable-library-validation</key>
+	<true/>
+</dict>
+</plist>

@@ -23,6 +23,23 @@
 	<!-- Menu bar only: no Dock icon, no main menu. -->
 	<key>LSUIElement</key>
 	<true/>
+	<!-- Sparkle. The feed is regenerated on every release and attached to it, so
+	     `latest/download` always resolves to the newest one. -->
+	<key>SUFeedURL</key>
+	<string>https://github.com/fstermann/bouncer/releases/latest/download/appcast.xml</string>
+	<!-- Public half of the EdDSA key the release workflow signs updates with. Replace with
+	     the output of Sparkle's `generate_keys`; updates are refused until it matches. -->
+	<key>SUPublicEDKey</key>
+	<string>REPLACE_WITH_SPARKLE_PUBLIC_KEY</string>
+	<!-- Set explicitly so Sparkle never puts up its own second-launch permission dialog:
+	     Settings is the only place updates are configured. Both are defaults the user
+	     overrides there, after which Sparkle stores their choice itself. -->
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
+	<key>SUAutomaticallyUpdate</key>
+	<false/>
 	<key>NSHumanReadableCopyright</key>
 	<string>MIT Licensed</string>
 </dict>

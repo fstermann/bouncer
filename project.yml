@@ -12,13 +12,22 @@ options:
 packages:
   BouncerModules:
     path: Modules
+  # Also a dependency of the Updates module — keep this version and the one in
+  # Modules/Package.swift in step. Listed here as well so Xcode embeds and re-signs
+  # Sparkle.framework into the bundle rather than leaving it to a transitive resolution.
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    exactVersion: 2.9.5
 
 settings:
   base:
     SWIFT_VERSION: "6.0"
     SWIFT_STRICT_CONCURRENCY: complete
-    MARKETING_VERSION: "0.1.0"
-    CURRENT_PROJECT_VERSION: "1"
+    # Both bumped by release-please on the release PR; the annotation is what it looks for.
+    # The build number is the same semver string because Sparkle compares CFBundleVersion to
+    # decide whether an update is newer, so it has to rise on every release.
+    MARKETING_VERSION: "0.1.0" # x-release-please-version
+    CURRENT_PROJECT_VERSION: "0.1.0" # x-release-please-version
     DEAD_CODE_STRIPPING: YES
     # Xcode's debug dylib splits the app in two and requires both halves to carry the same
     # Team ID. A self-signed development certificate has none, so dyld refuses to load it
@@ -38,7 +47,7 @@ targets:
     platform: macOS
     sources:
       - path: App
-        excludes: ["Info.plist"]
+        excludes: ["Info.plist", "Bouncer.entitlements"]
       - path: App/Resources/Assets.xcassets
     dependencies:
       - package: BouncerModules
@@ -51,6 +60,9 @@ targets:
         product: BouncerUI
       - package: BouncerModules
         product: StandaloneBar
+      - package: BouncerModules
+        product: Updates
+      - package: Sparkle
     settings:
       base:
         INFOPLIST_FILE: App/Info.plist
@@ -62,4 +74,14 @@ targets:
         CODE_SIGN_IDENTITY: "-"
         CODE_SIGN_STYLE: Manual
         ENABLE_HARDENED_RUNTIME: YES
+        # Why the app needs one entitlement is in the file itself.
+        CODE_SIGN_ENTITLEMENTS: App/Bouncer.entitlements
         COMBINE_HIDPI_IMAGES: YES
+      configs:
+        # A Debug build is a different app from the one people install: its own bundle
+        # identifier, so it has its own preferences, its own permission grants and its own
+        # login item, and a name of its own so it is obvious which one is in the menu bar.
+        # Working on Bouncer therefore cannot disturb the copy you actually use.
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: com.bouncer.app.dev
+          PRODUCT_NAME: Bouncer Dev

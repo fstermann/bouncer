@@ -1,11 +1,23 @@
 import AppKit
 import Settings
 import SwiftUI
+import Updates
 
 struct GeneralSettingsView: View {
     @Bindable var settings: SettingsStore
+    let updates: UpdateController
     @Environment(\.colorScheme) private var colorScheme
     @State private var launchAtLogin = LaunchAtLogin.isEnabled
+    // Mirrors of Sparkle's own state, seeded once, the way `launchAtLogin` mirrors the system.
+    @State private var checkForUpdates: Bool
+    @State private var installUpdates: Bool
+
+    init(settings: SettingsStore, updates: UpdateController) {
+        _settings = Bindable(settings)
+        self.updates = updates
+        _checkForUpdates = State(initialValue: updates.automaticallyChecks)
+        _installUpdates = State(initialValue: updates.automaticallyDownloads)
+    }
 
     var body: some View {
         Form {
@@ -86,6 +98,29 @@ struct GeneralSettingsView: View {
                                 ColorPicker("Custom…", selection: barColour, supportsOpacity: false)
                                     .fixedSize()
                             }
+                        }
+                    }
+                }
+            }
+
+            Section("Updates") {
+                // A dev build does not update itself, so it does not offer the choice either.
+                if UpdateController.isSupported {
+                    Toggle("Check for updates automatically", isOn: $checkForUpdates)
+                        .onChange(of: checkForUpdates) { updates.automaticallyChecks = checkForUpdates }
+
+                    if checkForUpdates {
+                        Toggle("Download and install them automatically", isOn: $installUpdates)
+                            .onChange(of: installUpdates) { updates.automaticallyDownloads = installUpdates }
+                    }
+                }
+
+                LabeledContent("Version") {
+                    HStack(spacing: 8) {
+                        Text(UpdateController.version)
+                            .foregroundStyle(.secondary)
+                        if UpdateController.isSupported {
+                            Button("Check now", action: updates.checkForUpdates)
                         }
                     }
                 }

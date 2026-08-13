@@ -5,6 +5,7 @@ import MenuBar
 import Settings
 import StandaloneBar
 import SwiftUI
+import Updates
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -18,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     )
     private lazy var reveal = RevealController(manager: menuBar, settings: settings)
     private lazy var standaloneBar = StandaloneBarController(menuBar: menuBar, settings: settings)
+    private let updates = UpdateController()
     private var settingsWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -28,6 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // RevealController has no business knowing about the standalone bar.
         menuBar.onIconClick = { [weak self] in self?.handleIconClick() }
         reveal.onHoverReveal = { [weak self] in self?.handleHoverReveal() }
+        updates.start()
         Log.app.info("Bouncer launched")
     }
 
@@ -52,6 +55,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func makeIconMenu() -> NSMenu {
         let menu = NSMenu()
+        if UpdateController.isSupported {
+            menu.addItem(withTitle: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
+                .target = self
+        }
         menu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
             .target = self
         menu.addItem(.separator())
@@ -103,10 +110,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 
+    @objc private func checkForUpdates() {
+        updates.checkForUpdates()
+    }
+
     @objc private func openSettings() {
         if settingsWindow == nil {
             let hosting = NSHostingController(
-                rootView: SettingsView(settings: settings)
+                rootView: SettingsView(settings: settings, updates: updates)
             )
             hosting.sizingOptions = [.preferredContentSize]
             // The style mask has to be set at init; assigning it afterwards drops the

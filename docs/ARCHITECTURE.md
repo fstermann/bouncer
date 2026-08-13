@@ -220,20 +220,21 @@ Logic lives in `Modules/` (a SwiftPM package); `App/` is a thin shell.
 
 ```
 BouncerFoundation   Logging, signposts, observation helper. No dependencies.
-      ↑
-  Settings          Preferences value type, persistence, launch-at-login.
-      ↑
-   MenuBar          Dividers, visibility state, reveal/rehide policy.
       ↑         ↑
-  BouncerUI  StandaloneBar    The SwiftUI settings pane; the replica bar and all
-      ↑         ↑             it needs — capture, cover, click forwarding.
-      └── App ──┘             AppDelegate: constructs the graph, owns the menu
-                              and window.
+  Settings   Updates   Preferences value type, persistence, launch-at-login.
+      ↑         ↑      Sparkle, wrapped thin — the one third-party dependency.
+   MenuBar      │      Dividers, visibility state, reveal/rehide policy.
+      ↑    ↑    │
+  BouncerUI ────┘  StandaloneBar   The SwiftUI settings pane; the replica bar and all
+      ↑                  ↑         it needs — capture, cover, click forwarding.
+      └────── App ───────┘         AppDelegate: constructs the graph, owns the menu
+                                   and window.
 ```
 
 `StandaloneBar` is a module of its own because it is the one feature that asks for
 permissions. Keeping it off to the side means the permission surface is a directory, not a
-grep.
+grep. `Updates` is separate for the same reason in the other direction: it is where the only
+third-party code and the only outbound network request live.
 
 Dependencies point one way only. `MenuBar` is AppKit-facing but its decision logic
 (`MenuBarVisibility`) is pure and tested without a running app, which is why `make test`
@@ -265,6 +266,10 @@ needs no Xcode project and finishes in under a second.
   item in the user's hand, and a release to land it.
 - **`Handover`** — the mode the bar is in while they rearrange. Follows the real items into the
   shelf, and works out what the section holds once they let go.
+- **`UpdateController`** — Sparkle behind four members. Holds no state of its own: Sparkle
+  persists both preferences into the app's defaults, so the toggles read and write it directly
+  rather than keeping a copy in `Preferences` that could disagree. Same reasoning as
+  `LaunchAtLogin`, where the system is the source of truth.
 - **`MenuBarItemGeometry`** — the standalone bar's decisions as pure functions over frames:
   what is off screen, what is a divider, where the cover goes, where each replica sits, and which
   items are packed together into a section.
@@ -276,7 +281,11 @@ needs no Xcode project and finishes in under a second.
 These are enforced by review, not by tooling:
 
 1. **No work at rest.** No repeating timers, no run loop observers, no display links.
-   State changes come from user input or system notifications.
+   State changes come from user input or system notifications. One exception, and it is a
+   distribution problem rather than a feature: Sparkle schedules a check once a day, because an
+   app that is launched at login and never quit would otherwise never learn a fix exists. It is
+   one timer, it fires 86,400 seconds apart, and turning the check off in Settings leaves
+   nothing scheduled at all.
 2. **Pay only for what you enable.** The global mouse monitor is installed when
    `revealOnHover` is on and removed when it is off. Same for the app-activation
    observer. A user with both off has zero installed observers. The standalone bar goes
