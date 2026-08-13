@@ -66,7 +66,11 @@ jobs:
           security list-keychain -d user -s "$keychain" login.keychain-db
           rm "$RUNNER_TEMP/certificate.p12"
 
-          identity=$(security find-identity -v -p codesigning "$keychain" | awk 'NR == 1 { print $2 }')
+          # Not `-v`: that lists only identities whose chain evaluates as trusted, and a .p12
+          # carries no trust settings, so a self-signed root is always untrusted here. Signing
+          # does not need trust — only verification does, and these builds are not notarized
+          # anyway. The keychain holds one identity, so the first hash in the listing is it.
+          identity=$(security find-identity -p codesigning "$keychain" | grep -oE '[0-9A-F]{40}' | head -1)
           if [ -z "$identity" ]; then
             echo "No code signing identity in the imported certificate." >&2
             exit 1
