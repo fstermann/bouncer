@@ -30,7 +30,7 @@
 	<!-- Public half of the EdDSA key the release workflow signs updates with. Replace with
 	     the output of Sparkle's `generate_keys`; updates are refused until it matches. -->
 	<key>SUPublicEDKey</key>
-	<string>REPLACE_WITH_SPARKLE_PUBLIC_KEY</string>
+	<string>1Sn1HyZTHiNEUqmxAz6JaIockKQQvnbnmIbag0Cedw8=</string>
 	<!-- Set explicitly so Sparkle never puts up its own second-launch permission dialog:
 	     Settings is the only place updates are configured. Both are defaults the user
 	     overrides there, after which Sparkle stores their choice itself. -->
