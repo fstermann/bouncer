@@ -15,7 +15,8 @@ import Sparkle
 public final class UpdateController {
     /// Debug builds do not update themselves. They are a different app — `com.bouncer.app.dev`
     /// — but they share this feed, so an update would replace the build you are working on with
-    /// the released one. Callers hide the update controls when this is false.
+    /// the released one, so `start()` arms nothing. Callers gate the update controls on
+    /// `isRunning`, which stays false here.
     #if DEBUG
     public static let isSupported = false
     #else
@@ -24,6 +25,10 @@ public final class UpdateController {
 
     private let driver: SPUStandardUserDriver
     private let updater: SPUUpdater
+
+    /// False until `start()` has succeeded. Sparkle drops `checkForUpdates()` on an updater that
+    /// never started, with nothing shown to the user, so the controls are hidden instead.
+    public private(set) var isRunning = false
 
     public init() {
         driver = SPUStandardUserDriver(hostBundle: .main, delegate: nil)
@@ -39,6 +44,7 @@ public final class UpdateController {
         }
         do {
             try updater.start()
+            isRunning = true
         } catch {
             Log.updates.error("Sparkle did not start: \(error, privacy: .public)")
         }
@@ -47,7 +53,7 @@ public final class UpdateController {
     /// Bouncer has no Dock tile and is not the active app, so Sparkle's window would open
     /// behind whatever the user is looking at.
     public func checkForUpdates() {
-        guard Self.isSupported else { return }
+        guard isRunning else { return }
         NSApp.activate(ignoringOtherApps: true)
         updater.checkForUpdates()
     }
@@ -59,6 +65,9 @@ public final class UpdateController {
         set { updater.automaticallyChecksForUpdates = newValue }
     }
 
+    /// Only meaningful while `automaticallyChecks` is on: Sparkle derives this from it, and reads
+    /// NO — and ignores a write — whenever checks are off. Read it again after every write to
+    /// `automaticallyChecks`, never cache it across one.
     public var automaticallyDownloads: Bool {
         get { updater.automaticallyDownloadsUpdates }
         set { updater.automaticallyDownloadsUpdates = newValue }

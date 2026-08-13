@@ -8,7 +8,8 @@ struct GeneralSettingsView: View {
     let updates: UpdateController
     @Environment(\.colorScheme) private var colorScheme
     @State private var launchAtLogin = LaunchAtLogin.isEnabled
-    // Mirrors of Sparkle's own state, seeded once, the way `launchAtLogin` mirrors the system.
+    // Mirrors of Sparkle's own state, the way `launchAtLogin` mirrors the system. Nothing else
+    // writes them, so they are seeded here and re-read only where Sparkle moves them itself.
     @State private var checkForUpdates: Bool
     @State private var installUpdates: Bool
 
@@ -104,10 +105,16 @@ struct GeneralSettingsView: View {
             }
 
             Section("Updates") {
-                // A dev build does not update itself, so it does not offer the choice either.
-                if UpdateController.isSupported {
+                // A dev build, or an updater that failed to start, updates nothing — so it does
+                // not offer the choice either.
+                if updates.isRunning {
                     Toggle("Check for updates automatically", isOn: $checkForUpdates)
-                        .onChange(of: checkForUpdates) { updates.automaticallyChecks = checkForUpdates }
+                        .onChange(of: checkForUpdates) {
+                            updates.automaticallyChecks = checkForUpdates
+                            // Sparkle derives the install choice from this one, so turning checks
+                            // back on can flip it under us; re-read rather than show a stale value.
+                            installUpdates = updates.automaticallyDownloads
+                        }
 
                     if checkForUpdates {
                         Toggle("Download and install them automatically", isOn: $installUpdates)
@@ -119,7 +126,7 @@ struct GeneralSettingsView: View {
                     HStack(spacing: 8) {
                         Text(UpdateController.version)
                             .foregroundStyle(.secondary)
-                        if UpdateController.isSupported {
+                        if updates.isRunning {
                             Button("Check now", action: updates.checkForUpdates)
                         }
                     }

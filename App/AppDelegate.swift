@@ -23,6 +23,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Before the menu is built: whether it carries a "Check for Updates…" item depends on
+        // whether the updater actually started.
+        updates.start()
         menuBar.iconMenu = makeIconMenu()
         reveal.start()
         // After `reveal.start()`, which installs the default click behaviour: whether a
@@ -30,7 +33,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // RevealController has no business knowing about the standalone bar.
         menuBar.onIconClick = { [weak self] in self?.handleIconClick() }
         reveal.onHoverReveal = { [weak self] in self?.handleHoverReveal() }
-        updates.start()
         Log.app.info("Bouncer launched")
     }
 
@@ -55,7 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func makeIconMenu() -> NSMenu {
         let menu = NSMenu()
-        if UpdateController.isSupported {
+        if updates.isRunning {
             menu.addItem(withTitle: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
                 .target = self
         }
