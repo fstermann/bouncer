@@ -8,6 +8,7 @@ macOS menu bar manager. Read `docs/ARCHITECTURE.md` before changing how hiding w
 make test      # module tests — fast, no Xcode project needed
 make lint      # SwiftLint (must be clean)
 make run       # generate project, build, launch
+make release   # signed universal DMG + Sparkle zip; needs SIGN_IDENTITY
 ```
 
 `xcode-select` may point at the Command Line Tools; the Makefile sets `DEVELOPER_DIR`
@@ -30,6 +31,12 @@ Two principles decide every tradeoff — see README. In practice:
 - **Dependencies point one way** (`BouncerFoundation → Settings → MenuBar → BouncerUI`).
   Do not add a back edge; introduce a new module instead.
 - `Bouncer.xcodeproj` is generated — edit `project.yml`, never the project file.
+- **Debug is a different app.** `make run` builds `Bouncer Dev` / `com.bouncer.app.dev`, with its
+  own defaults domain, permissions and no updater, so it can run beside an installed Bouncer.
+  Never `pkill -x Bouncer` in a dev workflow — that kills the user's installed copy.
+- **Versions belong to release-please.** `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` in
+  `project.yml` are bumped by it off Conventional Commits; never edit them by hand, and keep
+  the `x-release-please-version` annotations on those lines.
 - `App/Resources/Logo.svg` is the source of truth for the mark. The app icon, the
   README lockups, `MenuBarIcon.imageset`, `MenuBarIconOpen.imageset`,
   `SectionEndIcon.imageset` and its mirror `SectionStartIcon.imageset` are derived from
