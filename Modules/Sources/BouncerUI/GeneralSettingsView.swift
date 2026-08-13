@@ -1,11 +1,24 @@
 import AppKit
 import Settings
 import SwiftUI
+import Updates
 
 struct GeneralSettingsView: View {
     @Bindable var settings: SettingsStore
+    let updates: UpdateController
     @Environment(\.colorScheme) private var colorScheme
     @State private var launchAtLogin = LaunchAtLogin.isEnabled
+    // Mirrors of Sparkle's own state, the way `launchAtLogin` mirrors the system. Nothing else
+    // writes them, so they are seeded here and re-read only where Sparkle moves them itself.
+    @State private var checkForUpdates: Bool
+    @State private var installUpdates: Bool
+
+    init(settings: SettingsStore, updates: UpdateController) {
+        _settings = Bindable(settings)
+        self.updates = updates
+        _checkForUpdates = State(initialValue: updates.automaticallyChecks)
+        _installUpdates = State(initialValue: updates.automaticallyDownloads)
+    }
 
     var body: some View {
         Form {
@@ -86,6 +99,35 @@ struct GeneralSettingsView: View {
                                 ColorPicker("Custom…", selection: barColour, supportsOpacity: false)
                                     .fixedSize()
                             }
+                        }
+                    }
+                }
+            }
+
+            Section("Updates") {
+                // A dev build, or an updater that failed to start, updates nothing — so it does
+                // not offer the choice either.
+                if updates.isRunning {
+                    Toggle("Check for updates automatically", isOn: $checkForUpdates)
+                        .onChange(of: checkForUpdates) {
+                            updates.automaticallyChecks = checkForUpdates
+                            // Sparkle derives the install choice from this one, so turning checks
+                            // back on can flip it under us; re-read rather than show a stale value.
+                            installUpdates = updates.automaticallyDownloads
+                        }
+
+                    if checkForUpdates {
+                        Toggle("Download and install them automatically", isOn: $installUpdates)
+                            .onChange(of: installUpdates) { updates.automaticallyDownloads = installUpdates }
+                    }
+                }
+
+                LabeledContent("Version") {
+                    HStack(spacing: 8) {
+                        Text(UpdateController.version)
+                            .foregroundStyle(.secondary)
+                        if updates.isRunning {
+                            Button("Check now", action: updates.checkForUpdates)
                         }
                     }
                 }

@@ -1,0 +1,149 @@
+name: Release build
+
+# Builds the signed universal app for a release, attaches the artifacts to the GitHub Release
+# release-please drafted with its changelog, and publishes it — so a release only ever exists
+# with a disk image and an appcast beside it.
+#
+# Invoked by release-please.yml when a release PR merges, or manually via workflow_dispatch to
+# (re)build an existing tag.
+#
+# Bouncer is signed with a self-signed certificate rather than an Apple Developer ID, so builds
+# are not notarized and users clear the quarantine flag once by hand (see the README). What the
+# certificate does buy is a *stable* identity: macOS keeps the permissions the standalone bar
+# was granted across updates, and Sparkle will only install an update whose identity matches
+# the installed app. Losing the certificate costs every user both.
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: "Release tag to build (e.g. v0.2.0)"
+        required: true
+        type: string
+      ref:
+        description: "Commit to build. The release is still a draft here, so its tag does not exist yet."
+        required: false
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to (re)build (e.g. v0.2.0)"
+        required: true
+        type: string
+
+env:
+  # Sparkle release the appcast tooling comes from. Keep in step with project.yml and
+  # Modules/Package.swift.
+  SPARKLE_VERSION: 2.9.5
+
+jobs:
+  release:
+    runs-on: macos-26
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || inputs.tag }}
+
+      - run: brew install xcodegen
+
+      # generate_appcast has to be the one that matches the framework in the bundle, and the two
+      # versions are pinned in different files.
+      - name: Check the appcast tooling matches the embedded Sparkle
+        run: |
+          set -euo pipefail
+          pinned=$(grep -A2 '^  Sparkle:' project.yml | sed -n 's/.*exactVersion: *//p')
+          module_pinned=$(sed -n 's/.*Sparkle", exact: "\([^"]*\)".*/\1/p' Modules/Package.swift)
+          if [ "$pinned" != "$SPARKLE_VERSION" ] || [ "$module_pinned" != "$SPARKLE_VERSION" ]; then
+            echo "Sparkle versions out of step: project.yml=$pinned, Package.swift=$module_pinned, workflow=$SPARKLE_VERSION." >&2
+            exit 1
+          fi
+
+      # A keychain of its own, holding exactly one identity, so the identity can be looked up
+      # by hash rather than by a name this workflow would have to agree on.
+      - name: Import the signing certificate
+        env:
+          CERTIFICATE_P12: ${{ secrets.RELEASE_CERTIFICATE_P12 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.RELEASE_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          keychain_password=$(uuidgen)
+          echo "$CERTIFICATE_P12" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+
+          security create-keychain -p "$keychain_password" "$keychain"
+          # No -l: the keychain must not relock part-way through the build.
+          security set-keychain-settings -ut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$RUNNER_TEMP/certificate.p12" -k "$keychain" \
+            -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$keychain_password" "$keychain" > /dev/null
+          security list-keychain -d user -s "$keychain" login.keychain-db
+          rm "$RUNNER_TEMP/certificate.p12"
+
+          # Not `-v`: that lists only identities whose chain evaluates as trusted, and a .p12
+          # carries no trust settings, so a self-signed root is always untrusted here. Signing
+          # does not need trust — only verification does, and these builds are not notarized
+          # anyway. The keychain holds one identity, so the first hash in the listing is it.
+          identity=$(security find-identity -p codesigning "$keychain" | grep -oE '[0-9A-F]{40}' | head -1)
+          if [ -z "$identity" ]; then
+            echo "No code signing identity in the imported certificate." >&2
+            exit 1
+          fi
+          echo "RELEASE_SIGN_IDENTITY=$identity" >> "$GITHUB_ENV"
+
+      - name: Build the disk image and the Sparkle archive
+        run: |
+          make release RELEASE_SIGN_IDENTITY="$RELEASE_SIGN_IDENTITY" \
+            SU_FEED_URL="https://github.com/${{ github.repository }}/releases/latest/download/appcast.xml"
+
+      # A destination-less xcodebuild silently narrows to the runner's own architecture, which
+      # would ship an Apple Silicon-only build to Intel users. Checked rather than trusted.
+      - name: Check the build is universal and signed by that certificate
+        run: |
+          set -euo pipefail
+          app=.build/xcode/Build/Products/Release/Bouncer.app
+          archs=$(lipo -archs "$app/Contents/MacOS/Bouncer")
+          echo "architectures: $archs"
+          for arch in arm64 x86_64; do
+            case " $archs " in *" $arch "*) ;; *) echo "missing $arch" >&2; exit 1 ;; esac
+          done
+          codesign --verify --deep --strict --verbose=2 "$app"
+          # Capture, then match: piping codesign into `grep -q` lets grep close the pipe on the
+          # first match and hit codesign with SIGPIPE (exit 141), which pipefail turns into a
+          # spurious failure of a verification that actually passed.
+          authority=$(codesign -dv --verbose=2 "$app/Contents/Frameworks/Sparkle.framework" 2>&1)
+          grep -q Authority= <<<"$authority"
+
+      # Signs the archive with the EdDSA key and writes the feed Sparkle reads. Regenerated
+      # per release from the one archive, so the feed carries only the newest item — which is
+      # all Sparkle needs to decide there is an update.
+      - name: Generate the appcast
+        env:
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          curl -fsSL -o sparkle.tar.xz \
+            "https://github.com/sparkle-project/Sparkle/releases/download/$SPARKLE_VERSION/Sparkle-$SPARKLE_VERSION.tar.xz"
+          mkdir sparkle-tools
+          tar -xf sparkle.tar.xz -C sparkle-tools
+          echo "$SPARKLE_ED_PRIVATE_KEY" | ./sparkle-tools/bin/generate_appcast \
+            --ed-key-file - \
+            --download-url-prefix "https://github.com/${{ github.repository }}/releases/download/${{ inputs.tag }}/" \
+            -o appcast.xml \
+            .build/release/sparkle/
+
+      # Publishing last, and only once everything above passed, is what creates the tag and makes
+      # the appcast the feed URL points at resolve.
+      - name: Attach the artifacts and publish the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh release upload "${{ inputs.tag }}" --clobber \
+            appcast.xml \
+            .build/release/*.dmg \
+            .build/release/sparkle/*.zip
+          gh release edit "${{ inputs.tag }}" --draft=false

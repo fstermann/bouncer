@@ -5,6 +5,7 @@ import MenuBar
 import Settings
 import StandaloneBar
 import SwiftUI
+import Updates
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -18,9 +19,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     )
     private lazy var reveal = RevealController(manager: menuBar, settings: settings)
     private lazy var standaloneBar = StandaloneBarController(menuBar: menuBar, settings: settings)
+    private let updates = UpdateController()
     private var settingsWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Before the menu is built: whether it carries a "Check for Updates…" item depends on
+        // whether the updater actually started.
+        updates.start()
         menuBar.iconMenu = makeIconMenu()
         reveal.start()
         // After `reveal.start()`, which installs the default click behaviour: whether a
@@ -52,11 +57,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func makeIconMenu() -> NSMenu {
         let menu = NSMenu()
+        if updates.isRunning {
+            menu.addItem(withTitle: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
+                .target = self
+        }
         menu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
             .target = self
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Quit Bouncer", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        menu.addItem(
+            withTitle: "Quit \(Self.appName)",
+            action: #selector(NSApplication.terminate(_:)),
+            keyEquivalent: "q"
+        )
         return menu
+    }
+
+    /// "Bouncer", or "Bouncer Dev" in a Debug build. A dev build sits in the menu bar beside an
+    /// installed Bouncer wearing the same glyph, so the words are the only way to tell whose
+    /// menu and whose window you have in front of you.
+    private static var appName: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "Bouncer"
     }
 
     /// A left click either walks the menu bar open, or opens Bouncer's own bar.
@@ -103,12 +123,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 
+    @objc private func checkForUpdates() {
+        updates.checkForUpdates()
+    }
+
     @objc private func openSettings() {
+        // A fresh hosting controller on every open: the window is reused, but its SwiftUI
+        // content would otherwise keep the state it was first built with, so the view's mirrors
+        // of Sparkle's and the login item's state would go stale when those change out of band.
+        let hosting = NSHostingController(
+            rootView: SettingsView(settings: settings, updates: updates)
+        )
+        hosting.sizingOptions = [.preferredContentSize]
         if settingsWindow == nil {
-            let hosting = NSHostingController(
-                rootView: SettingsView(settings: settings)
-            )
-            hosting.sizingOptions = [.preferredContentSize]
             // The style mask has to be set at init; assigning it afterwards drops the
             // layout the hosting controller established and the first tab renders empty.
             let window = NSWindow(
@@ -117,12 +144,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 backing: .buffered,
                 defer: false
             )
-            window.contentViewController = hosting
-            window.title = "Bouncer Settings"
-            window.setContentSize(hosting.view.fittingSize)
+            window.title = "\(Self.appName) Settings"
             window.isReleasedWhenClosed = false
             settingsWindow = window
         }
+        settingsWindow?.contentViewController = hosting
+        settingsWindow?.setContentSize(hosting.view.fittingSize)
         NSApp.activate(ignoringOtherApps: true)
         settingsWindow?.center()
         settingsWindow?.makeKeyAndOrderFront(nil)

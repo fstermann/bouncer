@@ -8,3 +8,7 @@ DerivedData/
 xcuserdata/
 .DS_Store
 .signing.mk
+# Signing key material never belongs in the tree, even untracked: Sparkle's `generate_keys -x`
+# and a certificate export both drop files here if you run them from the repo root.
+*.pem
+*.p12

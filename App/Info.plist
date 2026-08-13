@@ -23,6 +23,25 @@
 	<!-- Menu bar only: no Dock icon, no main menu. -->
 	<key>LSUIElement</key>
 	<true/>
+	<!-- Sparkle. The feed is regenerated on every release and attached to it, so
+	     `latest/download` always resolves to the newest one. The repository is substituted
+	     at build time (SU_FEED_URL, defaulted in project.yml) so the feed and the release
+	     workflow's enclosure URLs cannot drift apart across a rename, transfer or fork. -->
+	<key>SUFeedURL</key>
+	<string>$(SU_FEED_URL)</string>
+	<!-- Public half of the EdDSA key the release workflow signs updates with. Replace with
+	     the output of Sparkle's `generate_keys`; updates are refused until it matches. -->
+	<key>SUPublicEDKey</key>
+	<string>1Sn1HyZTHiNEUqmxAz6JaIockKQQvnbnmIbag0Cedw8=</string>
+	<!-- Set explicitly so Sparkle never puts up its own second-launch permission dialog:
+	     Settings is the only place updates are configured. Both are defaults the user
+	     overrides there, after which Sparkle stores their choice itself. -->
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
+	<key>SUAutomaticallyUpdate</key>
+	<false/>
 	<key>NSHumanReadableCopyright</key>
 	<string>MIT Licensed</string>
 </dict>
