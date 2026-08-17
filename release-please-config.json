@@ -24,6 +24,7 @@
         ".": {
             "package-name": "bouncer",
             "draft": true,
+            "force-tag-creation": true,
             "changelog-path": "CHANGELOG.md",
             "extra-files": ["project.yml"]
         }
