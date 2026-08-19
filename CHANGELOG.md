@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/fstermann/bouncer/compare/v0.2.1...v0.3.0) (2026-08-19)
+
+
+### Features
+
+* defer updates to Homebrew when installed via brew ([#12](https://github.com/fstermann/bouncer/issues/12)) ([df11740](https://github.com/fstermann/bouncer/commit/df11740b29d6cb78bd07879a7c030e9ff8c3ffa1))
+
 ## [0.2.1](https://github.com/fstermann/bouncer/compare/v0.2.0...v0.2.1) (2026-08-13)
 
 
