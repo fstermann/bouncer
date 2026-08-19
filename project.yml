@@ -26,8 +26,8 @@ settings:
     # Both bumped by release-please on the release PR; the annotation is what it looks for.
     # The build number is the same semver string because Sparkle compares CFBundleVersion to
     # decide whether an update is newer, so it has to rise on every release.
-    MARKETING_VERSION: "0.2.1" # x-release-please-version
-    CURRENT_PROJECT_VERSION: "0.2.1" # x-release-please-version
+    MARKETING_VERSION: "0.3.0" # x-release-please-version
+    CURRENT_PROJECT_VERSION: "0.3.0" # x-release-please-version
     DEAD_CODE_STRIPPING: YES
     # Xcode's debug dylib splits the app in two and requires both halves to carry the same
     # Team ID. A self-signed development certificate has none, so dyld refuses to load it
