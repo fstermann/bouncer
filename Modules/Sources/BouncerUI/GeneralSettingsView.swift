@@ -120,6 +120,10 @@ struct GeneralSettingsView: View {
                         Toggle("Download and install them automatically", isOn: $installUpdates)
                             .onChange(of: installUpdates) { updates.automaticallyDownloads = installUpdates }
                     }
+                } else if updates.installChannel == .homebrew {
+                    Text("Updates are managed by Homebrew. Run `brew upgrade` to update Bouncer.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
                 }
 
                 LabeledContent("Version") {
