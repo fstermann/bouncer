@@ -27,6 +27,7 @@ let package = Package(
         .testTarget(name: "MenuBarTests", dependencies: ["MenuBar"]),
         .testTarget(name: "SettingsTests", dependencies: ["Settings"]),
         .testTarget(name: "StandaloneBarTests", dependencies: ["StandaloneBar"]),
+        .testTarget(name: "UpdatesTests", dependencies: ["Updates"]),
     ],
     swiftLanguageModes: [.v6]
 )

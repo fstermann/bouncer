@@ -8,8 +8,9 @@ name: Release build
 # (re)build an existing tag.
 #
 # Bouncer is signed with a self-signed certificate rather than an Apple Developer ID, so builds
-# are not notarized and users clear the quarantine flag once by hand (see the README). What the
-# certificate does buy is a *stable* identity: macOS keeps the permissions the standalone bar
+# are not notarized and macOS shows an unverified-developer warning users clear once via
+# Control-click -> Open (see the README). What the certificate does buy is a *stable* identity:
+# macOS keeps the permissions the standalone bar
 # was granted across updates, and Sparkle will only install an update whose identity matches
 # the installed app. Losing the certificate costs every user both.
 
@@ -147,3 +148,36 @@ jobs:
             .build/release/*.dmg \
             .build/release/sparkle/*.zip
           gh release edit "${{ inputs.tag }}" --draft=false
+
+      # Point the Homebrew cask at the release just published: rewrite version + sha256 in the tap
+      # and push. GITHUB_TOKEN is scoped to this repo, so pushing to the tap needs a token with
+      # contents:write on it (HOMEBREW_TAP_TOKEN). Without it the release still stands — only the
+      # cask lags, to be bumped by hand.
+      - name: Update the Homebrew cask
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TAP_TOKEN:-}" ]; then
+            echo "HOMEBREW_TAP_TOKEN not set — skipping cask update; bump it by hand." >&2
+            exit 0
+          fi
+          version="${TAG#v}"
+          dmg=$(ls .build/release/*.dmg)
+          sha=$(shasum -a 256 "$dmg" | cut -d' ' -f1)
+
+          git clone --depth 1 \
+            "https://x-access-token:${TAP_TOKEN}@github.com/fstermann/homebrew-tap.git" tap
+          cask=tap/Casks/bouncer.rb
+          sed -i '' -E "s|^  version \".*\"|  version \"$version\"|" "$cask"
+          sed -i '' -E "s|^  sha256 \".*\"|  sha256 \"$sha\"|" "$cask"
+
+          if git -C tap diff --quiet; then
+            echo "Cask already at $version with this checksum."
+            exit 0
+          fi
+          git -C tap config user.name "github-actions[bot]"
+          git -C tap config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C tap commit -aqm "chore: update Bouncer to $version"
+          git -C tap push

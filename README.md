@@ -36,23 +36,25 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the hiding actually wor
 
 ## Installing
 
-Download the latest `.dmg` from [Releases](https://github.com/fstermann/bouncer/releases), drag
-Bouncer into Applications, then run this once:
+With [Homebrew](https://brew.sh):
 
 ```sh
-xattr -dr com.apple.quarantine /Applications/Bouncer.app
+brew install --cask fstermann/tap/bouncer
 ```
 
-Bouncer is signed, but with a certificate Apple did not issue and has not notarized, so
-Gatekeeper refuses to open it until the quarantine flag is gone. The certificate is not
-decoration: it gives the app a stable identity, which is what lets macOS keep the permissions
-the standalone bar was granted when a new version replaces the old one. Being asked to paste a
-command is a fair reason to be suspicious of an app — the line above only removes that flag,
-and you can read what the release ships in `.github/workflows/release.yml`.
+Or download the latest `.dmg` from [Releases](https://github.com/fstermann/bouncer/releases) and
+drag Bouncer into Applications. The first time you open it, macOS warns that it can't verify the
+developer — Control-click the app and choose **Open**, or allow it under **System Settings →
+Privacy & Security**. No terminal command is needed.
 
-Bouncer updates itself from then on, so the command is a one-time cost. It checks once a day,
-tells you what it found, and installs nothing without being asked — turn the check off, or let
-it install updates on its own, in Settings under **Updates**.
+Bouncer is signed, but with a certificate Apple did not issue and has not notarized, so macOS
+shows that warning once. The certificate is not decoration: it gives the app a stable identity,
+which is what lets macOS keep the permissions the standalone bar was granted when a new version
+replaces the old one.
+
+Bouncer updates itself from then on. It checks once a day, tells you what it found, and installs
+nothing without being asked — turn the check off, or let it install updates on its own, in
+Settings under **Updates**. A copy installed with Homebrew is updated by `brew upgrade` instead.
 
 ## Building
 

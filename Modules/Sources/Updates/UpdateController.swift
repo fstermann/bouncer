@@ -26,11 +26,16 @@ public final class UpdateController {
     private let driver: SPUStandardUserDriver
     private let updater: SPUUpdater
 
+    /// How this copy was installed. A Homebrew install leaves updates to `brew upgrade`, so
+    /// Sparkle never arms and every update control hides behind `isRunning`.
+    public let installChannel: InstallChannel
+
     /// False until `start()` has succeeded. Sparkle drops `checkForUpdates()` on an updater that
     /// never started, with nothing shown to the user, so the controls are hidden instead.
     public private(set) var isRunning = false
 
     public init() {
+        installChannel = InstallChannel.current()
         driver = SPUStandardUserDriver(hostBundle: .main, delegate: nil)
         updater = SPUUpdater(hostBundle: .main, applicationBundle: .main, userDriver: driver, delegate: nil)
     }
@@ -40,6 +45,10 @@ public final class UpdateController {
     public func start() {
         guard Self.isSupported else {
             Log.updates.info("Dev build: no updater")
+            return
+        }
+        guard installChannel == .direct else {
+            Log.updates.info("Installed via Homebrew: brew owns updates")
             return
         }
         do {
