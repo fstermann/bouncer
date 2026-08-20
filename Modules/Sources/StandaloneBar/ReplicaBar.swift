@@ -33,6 +33,9 @@ public final class ReplicaBar {
 
     private var window: BarWindow?
     private var shelf: NSView?
+    /// A pill floated below the bar while a section that reaches across the notch is being dragged,
+    /// to say the item cannot cross it. Torn down with the window.
+    private var notice: NSWindow?
     private let view = ReplicaBarView()
 
     public init() {
@@ -110,6 +113,61 @@ public final class ReplicaBar {
         view.inHand = windowID
     }
 
+    /// Floats a pill below the bar, centred on `centerX`, saying the item cannot cross the notch.
+    ///
+    /// A section wider than the space right of the notch is split around it: macOS pins the part
+    /// that fits and floats the rest, and an item cannot be dragged across the gap between them.
+    /// The pill says so, rather than leaving the item sliding for no reason the user can see. Only
+    /// up during the drag that straddles the notch — `hideNotice` takes it down on the drop.
+    func showNotice(_ text: String, centeredAt centerX: CGFloat) {
+        guard let host = window else { return }
+        let pill = notice ?? makeNotice(text)
+        let size = pill.frame.size
+        pill.setFrameOrigin(CGPoint(x: centerX - size.width / 2, y: host.frame.minY - Self.noticeGap - size.height))
+        pill.orderFrontRegardless()
+    }
+
+    func hideNotice() {
+        notice?.orderOut(nil)
+        notice = nil
+    }
+
+    /// The gap between the bar's lower edge and the pill, so it reads as a thing below the bar
+    /// rather than stuck to it.
+    private static let noticeGap: CGFloat = 8
+
+    private func makeNotice(_ text: String) -> NSWindow {
+        let label = NSTextField(labelWithString: text)
+        label.font = .systemFont(ofSize: 13, weight: .medium)
+        label.textColor = .labelColor
+        label.sizeToFit()
+        let hPad: CGFloat = 14, vPad: CGFloat = 7
+        let size = CGSize(width: label.frame.width + hPad * 2, height: label.frame.height + vPad * 2)
+
+        let pillBody = NSVisualEffectView(frame: CGRect(origin: .zero, size: size))
+        pillBody.material = .popover
+        pillBody.blendingMode = .behindWindow
+        pillBody.state = .active
+        pillBody.wantsLayer = true
+        pillBody.layer?.cornerRadius = size.height / 2
+        pillBody.layer?.masksToBounds = true
+        label.frame = CGRect(x: hPad, y: vPad, width: label.frame.width, height: label.frame.height)
+        pillBody.addSubview(label)
+
+        let pill = NSPanel(
+            contentRect: CGRect(origin: .zero, size: size),
+            styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false
+        )
+        pill.isOpaque = false
+        pill.backgroundColor = .clear
+        pill.hasShadow = true
+        pill.ignoresMouseEvents = true
+        pill.level = NSWindow.Level(rawValue: BarWindow.statusLevel.rawValue + 4)
+        pill.contentView = pillBody
+        notice = pill
+        return pill
+    }
+
     /// Hands over the latest captured frames, keyed by window ID.
     public func update(images: [UInt32: CGImage]) {
         view.images = images
@@ -123,6 +181,7 @@ public final class ReplicaBar {
         window?.orderOut(nil)
         window = nil
         shelf = nil
+        hideNotice()
         veil = nil
         view.images = [:]
         view.positions = [:]

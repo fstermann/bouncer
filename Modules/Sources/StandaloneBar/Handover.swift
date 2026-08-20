@@ -85,6 +85,7 @@ final class Handover {
         guard let strip = MenuBarItemGeometry.coverRect(for: settled) else { return false }
         // Every part of the panel, so this is the whole answer to "the section has moved or
         // changed". `followTheShift` has nothing else to put the shelf back under its items with.
+        bar.hideNotice()
         bar.show(settled, below: strip)
         cover.settle(onto: strip.insetBy(dx: -ReplicaBar.padding, dy: 0), over: slide)
         shield.show(over: strip)
@@ -202,6 +203,22 @@ final class Handover {
         // The cover comes with it. The two are one panel, and a cover left at its old width hangs
         // out past the shelf below it, over bar it is no longer hiding anything in.
         cover.show(over: strip.insetBy(dx: -ReplicaBar.padding, dy: 0))
+        if let notch = notchWall(across: read.items) {
+            bar.showNotice("Items can’t move past the notch", centeredAt: (notch.lowerBound + notch.upperBound) / 2)
+        } else {
+            bar.hideNotice()
+        }
+    }
+
+    /// The notch, when the section reaches across it — the one case where an item cannot be dragged
+    /// past where the notch falls, because macOS splits the section around it. `nil` otherwise,
+    /// which is every ordinary drag and every display without a notch.
+    private func notchWall(across items: [MenuBarItem]) -> ClosedRange<CGFloat>? {
+        guard let bounds = MenuBarItemGeometry.coverRect(for: items),
+              let notch = ItemHandoff.notch(under: bounds),
+              bounds.minX < notch.lowerBound, bounds.maxX > notch.upperBound
+        else { return nil }
+        return notch
     }
 
     /// Works out afresh what the section holds, and draws it.
@@ -228,7 +245,8 @@ final class Handover {
         let live = all.filter { ours[$0.windowID] == nil && $0.frame.minX >= 0 }
         let items = MenuBarItemGeometry.section(live, leftOf: edge)
         section = Set(items.map(\.windowID))
-        return (items, MenuBarItemGeometry.coverRect(for: items, upTo: edge))
+        let strip = MenuBarItemGeometry.coverRect(for: items, upTo: edge)
+        return (items, strip)
     }
 
     /// Names Bouncer's own windows, and picks the hidden divider out of them.
@@ -316,6 +334,7 @@ final class Handover {
         guard isUnderway else { return nil }
         following?.cancel()
         following = nil
+        bar.hideNotice()
         let settled = showTheSection()
         isUnderway = false
         Log.menuBar.info("Standalone bar: the handover is finished")

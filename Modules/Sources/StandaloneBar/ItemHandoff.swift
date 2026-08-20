@@ -54,8 +54,20 @@ enum ItemHandoff {
         // hand. Read before the warp, or it is the item's own position.
         let hand = CGEvent(source: nil)?.location ?? .zero
         row = frame.midY
+        picked = item
 
-        let grip = MenuBarItemGeometry.gripPoint(in: frame, clearOf: notch(under: frame))
+        let notch = notch(under: frame)
+        // An item entirely behind the notch has no pixel to press: there is no bar drawn there,
+        // so no warp can put the pointer on it. Stamp the down with the item's windowID instead,
+        // which routes the press to that status-item window regardless of the cursor's location,
+        // and let the user's own physical drag carry it out from under the notch.
+        guard MenuBarItemGeometry.isGrabbable(in: frame, clearOf: notch) else {
+            guard NSEvent.pressedMouseButtons & 1 == 1 else { return false }
+            post(.leftMouseDown, at: hand, forWindow: item)
+            return true
+        }
+
+        let grip = MenuBarItemGeometry.gripPoint(in: frame, clearOf: notch)
         CGWarpMouseCursorPosition(grip)
         await pointerArrives(at: grip)
         // A Cmd-click short enough is over before the pointer gets here. Pressing anyway starts
@@ -94,7 +106,7 @@ enum ItemHandoff {
 
     /// The stretch of the menu bar the notch takes up on the display `frame` is on, if it has
     /// one. The two auxiliary areas are the bar either side of it, so the gap between them is it.
-    private static func notch(under frame: CGRect) -> ClosedRange<CGFloat>? {
+    static func notch(under frame: CGRect) -> ClosedRange<CGFloat>? {
         guard let screen = NSScreen.screens.first(where: { $0.frame.minX...$0.frame.maxX ~= frame.midX }),
               let left = screen.auxiliaryTopLeftArea,
               let right = screen.auxiliaryTopRightArea,
@@ -139,11 +151,14 @@ enum ItemHandoff {
         // why the user's own movement carries the item and a warp does not. Without this the drag
         // still believes it is down in the shelf, and a release there is a move abandoned.
         CGWarpMouseCursorPosition(drop)
-        post(.leftMouseDragged, at: drop)
+        // Stamped with the item's windowID so the drag and the release reach it even when `drop` is
+        // under the notch, where there is no pixel for an unstamped event to land on — the mirror of
+        // how `begin` grabs a notch-occluded item.
+        post(.leftMouseDragged, at: drop, forWindow: picked)
         await pointerArrives(at: drop)
         // The rest of the old beat here was waiting on the warp, which is asked about directly now.
         try? await Task.sleep(for: beatBeforeReleasing)
-        post(.leftMouseUp, at: drop)
+        post(.leftMouseUp, at: drop, forWindow: picked)
         // No condition to ask here: the item comes back to the bar over an animation, and the
         // pointer is wanted back long before that. The user has already let go by now.
         try? await Task.sleep(for: beatBeforeReturning)
@@ -152,13 +167,21 @@ enum ItemHandoff {
 
     /// The menu bar's own row, remembered from the item that was picked up.
     private static var row: CGFloat = 12
+    /// The item picked up, remembered so `end` can stamp its release with the same windowID and
+    /// land it under the notch, where there is no pixel to release on.
+    private static var picked: UInt32?
 
-    private static func post(_ type: CGEventType, at point: CGPoint) {
+    private static func post(_ type: CGEventType, at point: CGPoint, forWindow windowID: UInt32? = nil) {
         guard let event = CGEvent(
             mouseEventSource: CGEventSource(stateID: .hidSystemState),
             mouseType: type, mouseCursorPosition: point, mouseButton: .left
         ) else { return }
         event.flags = .maskCommand
+        // The private field that routes a press to a specific status-item window regardless of the
+        // event's cursor location — the only way to grab an item with no pixel under the pointer.
+        if let windowID, let field = CGEventField(rawValue: 0x33) {
+            event.setIntegerValueField(field, value: Int64(windowID))
+        }
         event.post(tap: .cghidEventTap)
     }
 }

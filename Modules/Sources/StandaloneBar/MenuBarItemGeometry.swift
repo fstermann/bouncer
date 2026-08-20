@@ -203,6 +203,15 @@ public enum MenuBarItemGeometry {
         return CGPoint(x: grip, y: frame.midY)
     }
 
+    /// Whether the item has a pixel to press on — false when it is entirely behind the notch,
+    /// where there is no bar drawn and `gripPoint` can only point outside the item.
+    public static func isGrabbable(in frame: CGRect, clearOf notch: ClosedRange<CGFloat>?) -> Bool {
+        let grip = gripPoint(in: frame, clearOf: notch).x
+        guard frame.minX...frame.maxX ~= grip else { return false }
+        guard let notch else { return true }
+        return !notch.contains(grip)
+    }
+
     /// Where each item's replica sits in the standalone bar.
     ///
     /// Replicas mirror their real horizontal positions rather than being packed together,

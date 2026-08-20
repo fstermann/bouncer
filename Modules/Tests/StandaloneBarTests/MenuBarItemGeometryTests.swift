@@ -232,6 +232,42 @@ struct GripPointTests {
     }
 }
 
+@Suite("Whether an item can be grabbed")
+struct GrabbableTests {
+    private let notch: ClosedRange<CGFloat> = 620...892
+
+    @Test("An item clear of the notch is grabbable")
+    func clearOfTheNotch() {
+        #expect(MenuBarItemGeometry.isGrabbable(in: item(1000, 40).frame, clearOf: notch))
+    }
+
+    @Test("With no notch, always grabbable")
+    func noNotch() {
+        #expect(MenuBarItemGeometry.isGrabbable(in: item(700, 40).frame, clearOf: nil))
+    }
+
+    @Test("An item entirely behind the notch is not grabbable")
+    func behindTheNotch() {
+        #expect(!MenuBarItemGeometry.isGrabbable(in: item(700, 40).frame, clearOf: notch))
+    }
+
+    @Test("An item exactly the notch's width is not grabbable")
+    func exactlyTheNotch() {
+        #expect(!MenuBarItemGeometry.isGrabbable(in: item(620, 272).frame, clearOf: notch))
+    }
+
+    @Test("An item straddling with a wide clear side is grabbable")
+    func straddlingWideSide() {
+        #expect(MenuBarItemGeometry.isGrabbable(in: item(300, 700).frame, clearOf: notch))
+        #expect(MenuBarItemGeometry.isGrabbable(in: item(600, 500).frame, clearOf: notch))
+    }
+
+    @Test("An item mostly under the notch but with a clear grip is grabbable")
+    func clearGrip() {
+        #expect(MenuBarItemGeometry.isGrabbable(in: item(580, 300).frame, clearOf: notch))
+    }
+}
+
 @Suite("Replica layout")
 struct LayoutTests {
     @Test("Replicas mirror the real horizontal positions, so menus open under them")
