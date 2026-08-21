@@ -185,6 +185,21 @@ public enum MenuBarItemGeometry {
         items.filter { $0.frame.maxX <= dividerEdge }.sorted { $0.frame.minX < $1.frame.minX }
     }
 
+    /// The notch, when the section drawn over `items` reaches across it: macOS splits a section
+    /// around the notch, and an item cannot be dragged over the gap between the two halves. `nil`
+    /// when the section clears the notch, touches only one edge of it, or the display has none
+    /// (`notch` is `nil`).
+    ///
+    /// - Parameter notch: the stretch of bar the notch takes up, or `nil` on a display without one.
+    public static func notchWall(
+        for items: [MenuBarItem], notch: ClosedRange<CGFloat>?
+    ) -> ClosedRange<CGFloat>? {
+        guard let notch, let bounds = coverRect(for: items),
+              bounds.minX < notch.lowerBound, bounds.maxX > notch.upperBound
+        else { return nil }
+        return notch
+    }
+
     /// Where each item's replica sits in the standalone bar.
     ///
     /// Replicas mirror their real horizontal positions rather than being packed together,

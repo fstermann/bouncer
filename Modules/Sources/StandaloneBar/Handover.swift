@@ -40,6 +40,14 @@ final class Handover {
     /// when a drag begins, and reused for every frame of it.
     private var ours: [UInt32: String] = [:]
     private var dividerID: UInt32?
+    /// The notch on the drag's display, resolved on the first frame and reused for the rest: the
+    /// display does not change while a drag is underway. `notchLookedUp` tells "no notch" from
+    /// "not yet resolved", since `nil` is a valid answer.
+    private var notchRange: ClosedRange<CGFloat>?
+    private var notchLookedUp = false
+    /// Whether the across-the-notch notice is up, so it is shown on the frame the section first
+    /// straddles the notch rather than re-shown on every frame it stays across it.
+    private var noticeUp = false
     /// Watches for the user letting go, wherever they are by then.
     ///
     /// Not left to the shelf's own `mouseUp`. The pointer is warped out of that window as the
@@ -117,9 +125,11 @@ final class Handover {
         guard await ItemHandoff.begin(on: item.windowID, once: shield.settled) else {
             Log.menuBar.error("Standalone bar: nothing to press — the item is gone, or the user already let go")
             isUnderway = false
-            // Back to swallowing. Stood down for a press that never happened, it would otherwise
-            // leave every real item under the cover taking clicks nobody can see them take.
-            if let strip = MenuBarItemGeometry.coverRect(for: section) { shield.show(over: strip) }
+            // Back to swallowing, in place. Stood down for a press that never happened, it would
+            // otherwise leave every real item under the cover taking clicks nobody can see them
+            // take — and an empty section has no strip to re-show it over, so it is stood up, not
+            // shown.
+            shield.standUp()
             return
         }
         Log.menuBar.info("Standalone bar: the real item is in the user's hand")
@@ -177,6 +187,9 @@ final class Handover {
     /// making, it stops on the release that ends that drag, and there is nothing to observe
     /// instead — the window server rearranges status items without saying so.
     private func follow() async {
+        notchLookedUp = false
+        notchRange = nil
+        noticeUp = false
         while !Task.isCancelled {
             try? await Task.sleep(for: .milliseconds(16))
             guard !Task.isCancelled else { return }
@@ -208,22 +221,28 @@ final class Handover {
         // The cover comes with it. The two are one panel, and a cover left at its old width hangs
         // out past the shelf below it, over bar it is no longer hiding anything in.
         cover.show(over: strip.insetBy(dx: -ReplicaBar.padding, dy: 0))
-        if let notch = notchWall(across: read.items) {
-            bar.showNotice("Items can’t move past the notch", centeredAt: (notch.lowerBound + notch.upperBound) / 2)
-        } else {
+        // The notch does not move mid-drag, so the notice is put up once, when the section first
+        // reaches across it, and left in place; only crossing back off it takes it down.
+        if let notch = MenuBarItemGeometry.notchWall(for: read.items, notch: notchOnDisplay(of: read.items)) {
+            if !noticeUp {
+                bar.showNotice("Items can’t move past the notch", centeredAt: (notch.lowerBound + notch.upperBound) / 2)
+                noticeUp = true
+            }
+        } else if noticeUp {
             bar.hideNotice()
+            noticeUp = false
         }
     }
 
-    /// The notch, when the section reaches across it — the one case where an item cannot be dragged
-    /// past where the notch falls, because macOS splits the section around it. `nil` otherwise,
-    /// which is every ordinary drag and every display without a notch.
-    private func notchWall(across items: [MenuBarItem]) -> ClosedRange<CGFloat>? {
-        guard let bounds = MenuBarItemGeometry.coverRect(for: items),
-              let notch = ItemHandoff.notch(under: bounds),
-              bounds.minX < notch.lowerBound, bounds.maxX > notch.upperBound
-        else { return nil }
-        return notch
+    /// The notch on the display this drag is on, looked up once. The display does not change while
+    /// a drag is underway, so the screen scan behind it is not repeated every frame. `nil` means a
+    /// display without a notch, cached the same as one with.
+    private func notchOnDisplay(of items: [MenuBarItem]) -> ClosedRange<CGFloat>? {
+        if !notchLookedUp, let bounds = MenuBarItemGeometry.coverRect(for: items) {
+            notchRange = ItemHandoff.notch(under: bounds)
+            notchLookedUp = true
+        }
+        return notchRange
     }
 
     /// Works out afresh what the section holds, and draws it.
@@ -250,8 +269,7 @@ final class Handover {
         let live = all.filter { ours[$0.windowID] == nil && $0.frame.minX >= 0 }
         let items = MenuBarItemGeometry.section(live, leftOf: edge)
         section = Set(items.map(\.windowID))
-        let strip = MenuBarItemGeometry.coverRect(for: items, upTo: edge)
-        return (items, strip)
+        return (items, MenuBarItemGeometry.coverRect(for: items, upTo: edge))
     }
 
     /// Names Bouncer's own windows, and picks the hidden divider out of them.

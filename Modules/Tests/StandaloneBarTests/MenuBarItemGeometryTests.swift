@@ -204,6 +204,44 @@ struct CoverToDividerTests {
     }
 }
 
+@Suite("The notch wall")
+struct NotchWallTests {
+    /// Measured off a 14-inch display: the notch, and the bar either side of it.
+    private let notch: ClosedRange<CGFloat> = 620...892
+
+    @Test("A section reaching across the notch is walled at it")
+    func straddles() {
+        let section = [item(500, 40, id: 1), item(900, 40, id: 2)]
+        #expect(MenuBarItemGeometry.notchWall(for: section, notch: notch) == notch)
+    }
+
+    @Test("A section wholly on one side of the notch is not walled")
+    func clearOfTheNotch() {
+        let rightOfIt = [item(900, 40, id: 1), item(1000, 40, id: 2)]
+        #expect(MenuBarItemGeometry.notchWall(for: rightOfIt, notch: notch) == nil)
+        let leftOfIt = [item(400, 40, id: 3), item(500, 40, id: 4)]
+        #expect(MenuBarItemGeometry.notchWall(for: leftOfIt, notch: notch) == nil)
+    }
+
+    @Test("Reaching into the notch but not across it is not walled")
+    func reachingInNotAcross() {
+        // Left of the notch and into it, but not out the far side: not split around it.
+        let intoIt = [item(500, 40, id: 1), item(700, 40, id: 2)]
+        #expect(MenuBarItemGeometry.notchWall(for: intoIt, notch: notch) == nil)
+    }
+
+    @Test("With no notch on the display, there is no wall")
+    func noNotch() {
+        let section = [item(500, 40, id: 1), item(900, 40, id: 2)]
+        #expect(MenuBarItemGeometry.notchWall(for: section, notch: nil) == nil)
+    }
+
+    @Test("An empty section has no wall")
+    func emptySection() {
+        #expect(MenuBarItemGeometry.notchWall(for: [], notch: notch) == nil)
+    }
+}
+
 @Suite("Replica layout")
 struct LayoutTests {
     @Test("Replicas mirror the real horizontal positions, so menus open under them")
