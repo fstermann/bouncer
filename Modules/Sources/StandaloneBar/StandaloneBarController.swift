@@ -62,9 +62,10 @@ public final class StandaloneBarController {
         handover = Handover(bar: bar, cover: cover, shield: shield, capture: itemCapture)
         bar.onClick = { [weak self] item in self?.forward(to: item) }
         bar.onHandoff = { [weak self] item in
-            guard let self else { return }
-            Task { await handover.begin(on: item, from: items) }
+            Task { await self?.handover.begin(on: item, from: self?.items ?? []) }
         }
+        bar.onArm = { [weak self] in self?.shield.standDown() }
+        bar.onDisarm = { [weak self] in self?.shield.standUp() }
         handover.onRelease = { [weak self] in Task { await self?.finishHandingOver() } }
         handover.onEmptied = { [weak self] in Task { await self?.closeOverNothing() } }
         handover.onSectionChanged = { [weak self] settled, joined in

@@ -185,33 +185,6 @@ public enum MenuBarItemGeometry {
         items.filter { $0.frame.maxX <= dividerEdge }.sorted { $0.frame.minX < $1.frame.minX }
     }
 
-    /// Where in an item to take hold of it, to hand a drag over to it.
-    ///
-    /// Its middle, unless its middle is behind the notch — there is no bar drawn there and
-    /// nothing to press, so an item spanning it has to be taken by whichever side has more of it.
-    ///
-    /// - Parameter notch: the stretch of bar the notch takes up, or `nil` on a display without one.
-    public static func gripPoint(in frame: CGRect, clearOf notch: ClosedRange<CGFloat>?) -> CGPoint {
-        guard let notch, notch.contains(frame.midX) else {
-            return CGPoint(x: frame.midX, y: frame.midY)
-        }
-        let toTheLeft = notch.lowerBound - frame.minX
-        let toTheRight = frame.maxX - notch.upperBound
-        let grip = toTheLeft >= toTheRight
-            ? frame.minX + toTheLeft / 2
-            : frame.maxX - toTheRight / 2
-        return CGPoint(x: grip, y: frame.midY)
-    }
-
-    /// Whether the item has a pixel to press on — false when it is entirely behind the notch,
-    /// where there is no bar drawn and `gripPoint` can only point outside the item.
-    public static func isGrabbable(in frame: CGRect, clearOf notch: ClosedRange<CGFloat>?) -> Bool {
-        let grip = gripPoint(in: frame, clearOf: notch).x
-        guard frame.minX...frame.maxX ~= grip else { return false }
-        guard let notch else { return true }
-        return !notch.contains(grip)
-    }
-
     /// Where each item's replica sits in the standalone bar.
     ///
     /// Replicas mirror their real horizontal positions rather than being packed together,

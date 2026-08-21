@@ -11,9 +11,13 @@ import Settings
 public final class ReplicaBar {
     /// Called when a replica is clicked, with the item it replicates.
     public var onClick: (@MainActor (MenuBarItem) -> Void)?
-    /// Called when a replica is Cmd-pressed, with the item it stands for: the drag is to be
-    /// handed over to that item in the real menu bar.
+    /// Called when a replica's Cmd-press turns into a drag, with the item it stands for: the drag
+    /// is to be handed over to that item in the real menu bar.
     public var onHandoff: (@MainActor (MenuBarItem) -> Void)?
+    /// Called on the Cmd-press, so the shield can start standing down before the drag begins.
+    public var onArm: (@MainActor () -> Void)?
+    /// Called when that press is let go without a drag, to put the shield back.
+    public var onDisarm: (@MainActor () -> Void)?
 
     /// The shelf is wider than the replicas it holds, so the outermost icons are not flush
     /// against a rounded corner. The cover over the real section uses the same figure, so the
@@ -43,6 +47,8 @@ public final class ReplicaBar {
             self?.onClick?(item)
         }
         view.onHandoff = { [weak self] item in self?.onHandoff?(item) }
+        view.onArm = { [weak self] in self?.onArm?() }
+        view.onDisarm = { [weak self] in self?.onDisarm?() }
     }
 
     /// Shows the bar for `items`, directly below the menu bar band they came from.
@@ -247,6 +253,19 @@ final class ReplicaBarView: NSView {
     var inHand: UInt32? { didSet { rebuild() } }
     var onClick: (@MainActor (MenuBarItem) -> Void)?
     var onHandoff: (@MainActor (MenuBarItem) -> Void)?
+    /// Called on the Cmd-press, before any movement, so the slow part of getting out of the drag's
+    /// way — standing the click shield down — can start while the user is still deciding to drag.
+    var onArm: (@MainActor () -> Void)?
+    /// Called when a Cmd-press is let go without becoming a drag, to undo `onArm`.
+    var onDisarm: (@MainActor () -> Void)?
+
+    /// The Cmd-press that has not yet become a drag: the item under it and where it went down.
+    /// Set on the press, cleared by the first movement that hands the item over, or by the release
+    /// if none came.
+    private var pending: (item: MenuBarItem, from: CGPoint)?
+    /// How far the pointer must travel before a Cmd-press is a rearrangement rather than a click,
+    /// past the jitter of a press meant to stay put.
+    private static let dragSlop: CGFloat = 3
 
     /// Positions come from the window server, which measures downwards.
     override var isFlipped: Bool { true }
@@ -296,12 +315,33 @@ final class ReplicaBarView: NSView {
         let point = convert(event.locationInWindow, from: nil)
         guard event.modifierFlags.contains(.command) else { forward(point); return }
         guard let item = MenuBarItemGeometry.item(at: point, positions: positions) else { return }
-        onHandoff?(item)
+        pending = (item, point)
+        onArm?()
     }
 
-    /// Deliberately empty. The window server has the drag now and is following the pointer for
-    /// itself; anything drawn here would be a second, disagreeing answer to where the item is.
-    override func mouseDragged(with event: NSEvent) {}
+    /// Hands the item over on the first real movement, not on the press.
+    ///
+    /// A status item is grabbed by a synthesised press that only a drag can land. Grabbing on a
+    /// press that never moves leaves the item riding the pointer, because the release of a drag that
+    /// never lifted lands nothing. Waiting for movement means a plain Cmd-click grabs nothing at
+    /// all, exactly as pressing a real menu bar item without dragging it does. Once handed over the
+    /// window server follows the pointer for itself, so later movements here are ignored.
+    override func mouseDragged(with event: NSEvent) {
+        guard let pending else { return }
+        let point = convert(event.locationInWindow, from: nil)
+        guard hypot(point.x - pending.from.x, point.y - pending.from.y) >= Self.dragSlop else { return }
+        self.pending = nil
+        onHandoff?(pending.item)
+    }
+
+    /// A Cmd-press let go without moving hands nothing over: there is nothing to land, so it is a
+    /// click that does nothing. The pending press is dropped and the arm undone; once handed over,
+    /// `pending` is already nil and the handover owns the shield instead.
+    override func mouseUp(with event: NSEvent) {
+        guard pending != nil else { return }
+        pending = nil
+        onDisarm?()
+    }
 
     override func rightMouseDown(with event: NSEvent) {
         forward(convert(event.locationInWindow, from: nil))

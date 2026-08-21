@@ -126,6 +126,11 @@ final class Handover {
         // Its replica stops being drawn: the user is holding the real one, and two of the same
         // icon a row apart is one too many.
         bar.setInHand(item.windowID)
+        // The drag is already moving by the time this runs — the handoff is deferred to the user's
+        // first movement — so `followAlong` off the pointer monitor may have started a follow in the
+        // gap before `isUnderway` was set. Cancel it, or it is a second follow this assignment
+        // orphans, left redrawing the shelf for as long as the bar is open.
+        following?.cancel()
         following = Task { [weak self] in await self?.follow() }
         releaseWatch = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseUp]) { [weak self] _ in
             MainActor.assumeIsolated { self?.sawTheRelease() }
