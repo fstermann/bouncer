@@ -12,7 +12,10 @@ make release   # signed universal DMG + Sparkle zip; needs RELEASE_SIGN_IDENTITY
 ```
 
 `xcode-select` may point at the Command Line Tools; the Makefile sets `DEVELOPER_DIR`
-to `/Applications/Xcode.app` itself.
+to `/Applications/Xcode.app` itself. So use `make` — running `swift build` directly picks the
+Command Line Tools' Swift, and its `Modules/.build` then fails to load under the Xcode toolchain
+with "module compiled with Swift X cannot be imported by Swift Y". On that error, `rm -rf
+Modules/.build`.
 
 ## Rules
 

@@ -41,7 +41,17 @@ final class ClickShield {
     func standDown() {
         guard let window else { return }
         window.ignoresMouseEvents = true
-        stoodDown = .now
+        // Not restarted if it is already down: the clock is started as early as the Cmd-press, so
+        // its beat overlaps the user's own reaction and the first of their movement, and a second
+        // stand-down at the handoff must not throw that head start away.
+        if stoodDown == nil { stoodDown = .now }
+    }
+
+    /// Goes back to swallowing, in place — the counterpart to a `standDown` that no handoff
+    /// followed, such as a Cmd-press let go without a drag.
+    func standUp() {
+        window?.ignoresMouseEvents = false
+        stoodDown = nil
     }
 
     /// Waits out whatever is left of that beat, having spent the rest of it doing something else.

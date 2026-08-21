@@ -185,22 +185,19 @@ public enum MenuBarItemGeometry {
         items.filter { $0.frame.maxX <= dividerEdge }.sorted { $0.frame.minX < $1.frame.minX }
     }
 
-    /// Where in an item to take hold of it, to hand a drag over to it.
-    ///
-    /// Its middle, unless its middle is behind the notch — there is no bar drawn there and
-    /// nothing to press, so an item spanning it has to be taken by whichever side has more of it.
+    /// The notch, when the section drawn over `items` reaches across it: macOS splits a section
+    /// around the notch, and an item cannot be dragged over the gap between the two halves. `nil`
+    /// when the section clears the notch, touches only one edge of it, or the display has none
+    /// (`notch` is `nil`).
     ///
     /// - Parameter notch: the stretch of bar the notch takes up, or `nil` on a display without one.
-    public static func gripPoint(in frame: CGRect, clearOf notch: ClosedRange<CGFloat>?) -> CGPoint {
-        guard let notch, notch.contains(frame.midX) else {
-            return CGPoint(x: frame.midX, y: frame.midY)
-        }
-        let toTheLeft = notch.lowerBound - frame.minX
-        let toTheRight = frame.maxX - notch.upperBound
-        let grip = toTheLeft >= toTheRight
-            ? frame.minX + toTheLeft / 2
-            : frame.maxX - toTheRight / 2
-        return CGPoint(x: grip, y: frame.midY)
+    public static func notchWall(
+        for items: [MenuBarItem], notch: ClosedRange<CGFloat>?
+    ) -> ClosedRange<CGFloat>? {
+        guard let notch, let bounds = coverRect(for: items),
+              bounds.minX < notch.lowerBound, bounds.maxX > notch.upperBound
+        else { return nil }
+        return notch
     }
 
     /// Where each item's replica sits in the standalone bar.
