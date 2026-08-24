@@ -11,9 +11,13 @@ import Settings
 public final class ReplicaBar {
     /// Called when a replica is clicked, with the item it replicates.
     public var onClick: (@MainActor (MenuBarItem) -> Void)?
-    /// Called when a replica is Cmd-pressed, with the item it stands for: the drag is to be
-    /// handed over to that item in the real menu bar.
+    /// Called when a replica's Cmd-press turns into a drag, with the item it stands for: the drag
+    /// is to be handed over to that item in the real menu bar.
     public var onHandoff: (@MainActor (MenuBarItem) -> Void)?
+    /// Called on the Cmd-press, so the shield can start standing down before the drag begins.
+    public var onArm: (@MainActor () -> Void)?
+    /// Called when that press is let go without a drag, to put the shield back.
+    public var onDisarm: (@MainActor () -> Void)?
 
     /// The shelf is wider than the replicas it holds, so the outermost icons are not flush
     /// against a rounded corner. The cover over the real section uses the same figure, so the
@@ -33,6 +37,9 @@ public final class ReplicaBar {
 
     private var window: BarWindow?
     private var shelf: NSView?
+    /// A pill floated below the bar while a section that reaches across the notch is being dragged,
+    /// to say the item cannot cross it. Torn down with the window.
+    private var notice: NSWindow?
     private let view = ReplicaBarView()
 
     public init() {
@@ -40,6 +47,8 @@ public final class ReplicaBar {
             self?.onClick?(item)
         }
         view.onHandoff = { [weak self] item in self?.onHandoff?(item) }
+        view.onArm = { [weak self] in self?.onArm?() }
+        view.onDisarm = { [weak self] in self?.onDisarm?() }
     }
 
     /// Shows the bar for `items`, directly below the menu bar band they came from.
@@ -110,6 +119,61 @@ public final class ReplicaBar {
         view.inHand = windowID
     }
 
+    /// Floats a pill below the bar, centred on `centerX`, saying the item cannot cross the notch.
+    ///
+    /// A section wider than the space right of the notch is split around it: macOS pins the part
+    /// that fits and floats the rest, and an item cannot be dragged across the gap between them.
+    /// The pill says so, rather than leaving the item sliding for no reason the user can see. Only
+    /// up during the drag that straddles the notch — `hideNotice` takes it down on the drop.
+    func showNotice(_ text: String, centeredAt centerX: CGFloat) {
+        guard let host = window else { return }
+        let pill = notice ?? makeNotice(text)
+        let size = pill.frame.size
+        pill.setFrameOrigin(CGPoint(x: centerX - size.width / 2, y: host.frame.minY - Self.noticeGap - size.height))
+        pill.orderFrontRegardless()
+    }
+
+    func hideNotice() {
+        notice?.orderOut(nil)
+        notice = nil
+    }
+
+    /// The gap between the bar's lower edge and the pill, so it reads as a thing below the bar
+    /// rather than stuck to it.
+    private static let noticeGap: CGFloat = 8
+
+    private func makeNotice(_ text: String) -> NSWindow {
+        let label = NSTextField(labelWithString: text)
+        label.font = .systemFont(ofSize: 13, weight: .medium)
+        label.textColor = .labelColor
+        label.sizeToFit()
+        let hPad: CGFloat = 14, vPad: CGFloat = 7
+        let size = CGSize(width: label.frame.width + hPad * 2, height: label.frame.height + vPad * 2)
+
+        let pillBody = NSVisualEffectView(frame: CGRect(origin: .zero, size: size))
+        pillBody.material = .popover
+        pillBody.blendingMode = .behindWindow
+        pillBody.state = .active
+        pillBody.wantsLayer = true
+        pillBody.layer?.cornerRadius = size.height / 2
+        pillBody.layer?.masksToBounds = true
+        label.frame = CGRect(x: hPad, y: vPad, width: label.frame.width, height: label.frame.height)
+        pillBody.addSubview(label)
+
+        let pill = NSPanel(
+            contentRect: CGRect(origin: .zero, size: size),
+            styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false
+        )
+        pill.isOpaque = false
+        pill.backgroundColor = .clear
+        pill.hasShadow = true
+        pill.ignoresMouseEvents = true
+        pill.level = NSWindow.Level(rawValue: BarWindow.statusLevel.rawValue + 4)
+        pill.contentView = pillBody
+        notice = pill
+        return pill
+    }
+
     /// Hands over the latest captured frames, keyed by window ID.
     public func update(images: [UInt32: CGImage]) {
         view.images = images
@@ -123,6 +187,7 @@ public final class ReplicaBar {
         window?.orderOut(nil)
         window = nil
         shelf = nil
+        hideNotice()
         veil = nil
         view.images = [:]
         view.positions = [:]
@@ -188,6 +253,19 @@ final class ReplicaBarView: NSView {
     var inHand: UInt32? { didSet { rebuild() } }
     var onClick: (@MainActor (MenuBarItem) -> Void)?
     var onHandoff: (@MainActor (MenuBarItem) -> Void)?
+    /// Called on the Cmd-press, before any movement, so the slow part of getting out of the drag's
+    /// way — standing the click shield down — can start while the user is still deciding to drag.
+    var onArm: (@MainActor () -> Void)?
+    /// Called when a Cmd-press is let go without becoming a drag, to undo `onArm`.
+    var onDisarm: (@MainActor () -> Void)?
+
+    /// The Cmd-press that has not yet become a drag: the item under it and where it went down.
+    /// Set on the press, cleared by the first movement that hands the item over, or by the release
+    /// if none came.
+    private var pending: (item: MenuBarItem, from: CGPoint)?
+    /// How far the pointer must travel before a Cmd-press is a rearrangement rather than a click,
+    /// past the jitter of a press meant to stay put.
+    private static let dragSlop: CGFloat = 3
 
     /// Positions come from the window server, which measures downwards.
     override var isFlipped: Bool { true }
@@ -237,12 +315,33 @@ final class ReplicaBarView: NSView {
         let point = convert(event.locationInWindow, from: nil)
         guard event.modifierFlags.contains(.command) else { forward(point); return }
         guard let item = MenuBarItemGeometry.item(at: point, positions: positions) else { return }
-        onHandoff?(item)
+        pending = (item, point)
+        onArm?()
     }
 
-    /// Deliberately empty. The window server has the drag now and is following the pointer for
-    /// itself; anything drawn here would be a second, disagreeing answer to where the item is.
-    override func mouseDragged(with event: NSEvent) {}
+    /// Hands the item over on the first real movement, not on the press.
+    ///
+    /// A status item is grabbed by a synthesised press that only a drag can land. Grabbing on a
+    /// press that never moves leaves the item riding the pointer, because the release of a drag that
+    /// never lifted lands nothing. Waiting for movement means a plain Cmd-click grabs nothing at
+    /// all, exactly as pressing a real menu bar item without dragging it does. Once handed over the
+    /// window server follows the pointer for itself, so later movements here are ignored.
+    override func mouseDragged(with event: NSEvent) {
+        guard let pending else { return }
+        let point = convert(event.locationInWindow, from: nil)
+        guard hypot(point.x - pending.from.x, point.y - pending.from.y) >= Self.dragSlop else { return }
+        self.pending = nil
+        onHandoff?(pending.item)
+    }
+
+    /// A Cmd-press let go without moving hands nothing over: there is nothing to land, so it is a
+    /// click that does nothing. The pending press is dropped and the arm undone; once handed over,
+    /// `pending` is already nil and the handover owns the shield instead.
+    override func mouseUp(with event: NSEvent) {
+        guard pending != nil else { return }
+        pending = nil
+        onDisarm?()
+    }
 
     override func rightMouseDown(with event: NSEvent) {
         forward(convert(event.locationInWindow, from: nil))

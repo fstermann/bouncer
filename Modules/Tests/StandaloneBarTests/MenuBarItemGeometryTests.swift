@@ -204,31 +204,41 @@ struct CoverToDividerTests {
     }
 }
 
-@Suite("Where an item is taken hold of")
-struct GripPointTests {
+@Suite("The notch wall")
+struct NotchWallTests {
     /// Measured off a 14-inch display: the notch, and the bar either side of it.
     private let notch: ClosedRange<CGFloat> = 620...892
 
-    @Test("An item clear of the notch is taken by its middle")
-    func middleOfTheItem() {
-        let grip = MenuBarItemGeometry.gripPoint(in: item(1000, 40).frame, clearOf: notch)
-        #expect(grip == CGPoint(x: 1020, y: 16.5))
+    @Test("A section reaching across the notch is walled at it")
+    func straddles() {
+        let section = [item(500, 40, id: 1), item(900, 40, id: 2)]
+        #expect(MenuBarItemGeometry.notchWall(for: section, notch: notch) == notch)
     }
 
-    @Test("With no notch, always the middle")
+    @Test("A section wholly on one side of the notch is not walled")
+    func clearOfTheNotch() {
+        let rightOfIt = [item(900, 40, id: 1), item(1000, 40, id: 2)]
+        #expect(MenuBarItemGeometry.notchWall(for: rightOfIt, notch: notch) == nil)
+        let leftOfIt = [item(400, 40, id: 3), item(500, 40, id: 4)]
+        #expect(MenuBarItemGeometry.notchWall(for: leftOfIt, notch: notch) == nil)
+    }
+
+    @Test("Reaching into the notch but not across it is not walled")
+    func reachingInNotAcross() {
+        // Left of the notch and into it, but not out the far side: not split around it.
+        let intoIt = [item(500, 40, id: 1), item(700, 40, id: 2)]
+        #expect(MenuBarItemGeometry.notchWall(for: intoIt, notch: notch) == nil)
+    }
+
+    @Test("With no notch on the display, there is no wall")
     func noNotch() {
-        let grip = MenuBarItemGeometry.gripPoint(in: item(600, 400).frame, clearOf: nil)
-        #expect(grip.x == 800)
+        let section = [item(500, 40, id: 1), item(900, 40, id: 2)]
+        #expect(MenuBarItemGeometry.notchWall(for: section, notch: nil) == nil)
     }
 
-    @Test("An item spanning the notch is taken by whichever side has more of it")
-    func theWiderSide() {
-        // 320 pt to the left of the notch, 108 pt to the right: taken on the left.
-        let wideLeft = MenuBarItemGeometry.gripPoint(in: item(300, 700).frame, clearOf: notch)
-        #expect(wideLeft.x == 460)
-        // 20 pt to the left, 208 pt to the right: taken on the right.
-        let wideRight = MenuBarItemGeometry.gripPoint(in: item(600, 500).frame, clearOf: notch)
-        #expect(wideRight.x == 996)
+    @Test("An empty section has no wall")
+    func emptySection() {
+        #expect(MenuBarItemGeometry.notchWall(for: [], notch: notch) == nil)
     }
 }
 
