@@ -136,12 +136,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // layout the hosting controller established and the first tab renders empty.
             let window = NSWindow(
                 contentRect: .zero,
-                styleMask: [.titled, .closable],
+                styleMask: [.titled, .closable, .fullSizeContentView],
                 backing: .buffered,
                 defer: false
             )
             window.title = "\(Self.appName) Settings"
             window.isReleasedWhenClosed = false
+            // Content runs under a transparent, title-less titlebar so the sidebar shade and the
+            // divider reach the very top; only the traffic lights sit on top.
+            window.titleVisibility = .hidden
+            window.titlebarAppearsTransparent = true
             settingsWindow = window
         }
         settingsWindow?.contentViewController = hosting
