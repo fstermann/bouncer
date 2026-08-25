@@ -20,7 +20,7 @@ let package = Package(
         .target(name: "BouncerFoundation"),
         .target(name: "Settings", dependencies: ["BouncerFoundation"]),
         .target(name: "MenuBar", dependencies: ["BouncerFoundation", "Settings"]),
-        .target(name: "BouncerUI", dependencies: ["MenuBar", "Settings", "Updates"]),
+        .target(name: "BouncerUI", dependencies: ["MenuBar", "Settings", "StandaloneBar", "Updates"]),
         .target(name: "Updates", dependencies: ["BouncerFoundation", .product(name: "Sparkle", package: "Sparkle")]),
         // Behind its own module because it is the one feature that asks for permissions.
         .target(name: "StandaloneBar", dependencies: ["BouncerFoundation", "MenuBar"]),

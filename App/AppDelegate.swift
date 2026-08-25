@@ -19,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     )
     private lazy var reveal = RevealController(manager: menuBar, settings: settings)
     private lazy var standaloneBar = StandaloneBarController(menuBar: menuBar, settings: settings)
+    private let permissions = StandaloneBarPermissions()
     private let updates = UpdateController()
     private var settingsWindow: NSWindow?
 
@@ -85,12 +86,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// A left click either walks the menu bar open, or opens Bouncer's own bar.
+    ///
+    /// The permissions are normally asked for when the bar is turned on, in Settings; this
+    /// re-asks only as a fallback for a user who dismissed those prompts. Accessibility
+    /// missing still opens the bar — the items show, they are just not clickable yet.
     private func handleIconClick() {
         guard settings.preferences.showItemsInBar else {
             menuBar.toggle()
             return
         }
-        guard hasStandaloneBarPermissions() else { return }
+        permissions.refresh()
+        guard permissions.screenRecording == .granted else {
+            Log.app.error("Standalone bar: Screen Recording not granted; requesting")
+            permissions.request()
+            return
+        }
         Task { await standaloneBar.toggle() }
     }
 
@@ -105,27 +115,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             menuBar.setVisibility(.revealed)
             return
         }
-        guard CGPreflightScreenCaptureAccess() else { return }
+        guard StandaloneBarPermissions.screenRecordingGranted else { return }
         Task { await standaloneBar.open() }
-    }
-
-    /// Asks for the two permissions the standalone bar needs, at the moment the user asks
-    /// for the bar — never at launch, and never for anything else Bouncer does.
-    ///
-    /// Both are reported rather than failing quietly. Screen Recording in particular only
-    /// takes effect on the next launch, and without saying so the bar simply does nothing.
-    private func hasStandaloneBarPermissions() -> Bool {
-        if !CGPreflightScreenCaptureAccess() {
-            Log.app.error("Standalone bar: requesting Screen Recording; Bouncer must be restarted after granting")
-            CGRequestScreenCaptureAccess()
-            return false
-        }
-        if !ClickForwarder.isPermitted {
-            Log.app.error("Standalone bar: requesting Accessibility; replicas will not be clickable until granted")
-            ClickForwarder.requestPermission()
-            // The bar is still worth showing: the items are visible, just not yet clickable.
-        }
-        return true
     }
 
     @objc private func checkForUpdates() {
@@ -137,7 +128,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // content would otherwise keep the state it was first built with, so the view's mirrors
         // of Sparkle's and the login item's state would go stale when those change out of band.
         let hosting = NSHostingController(
-            rootView: SettingsView(settings: settings, updates: updates)
+            rootView: SettingsView(settings: settings, updates: updates, permissions: permissions)
         )
         hosting.sizingOptions = [.preferredContentSize]
         if settingsWindow == nil {

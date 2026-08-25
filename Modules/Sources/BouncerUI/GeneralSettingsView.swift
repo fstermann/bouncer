@@ -1,11 +1,13 @@
 import AppKit
 import Settings
+import StandaloneBar
 import SwiftUI
 import Updates
 
 struct GeneralSettingsView: View {
     @Bindable var settings: SettingsStore
     let updates: UpdateController
+    @Bindable var permissions: StandaloneBarPermissions
     @Environment(\.colorScheme) private var colorScheme
     @State private var launchAtLogin = LaunchAtLogin.isEnabled
     // Mirrors of Sparkle's own state, the way `launchAtLogin` mirrors the system. Nothing else
@@ -13,9 +15,10 @@ struct GeneralSettingsView: View {
     @State private var checkForUpdates: Bool
     @State private var installUpdates: Bool
 
-    init(settings: SettingsStore, updates: UpdateController) {
+    init(settings: SettingsStore, updates: UpdateController, permissions: StandaloneBarPermissions) {
         _settings = Bindable(settings)
         self.updates = updates
+        _permissions = Bindable(permissions)
         _checkForUpdates = State(initialValue: updates.automaticallyChecks)
         _installUpdates = State(initialValue: updates.automaticallyDownloads)
     }
@@ -52,12 +55,29 @@ struct GeneralSettingsView: View {
 
             Section("Standalone bar") {
                 Toggle("Show hidden items in a bar of their own", isOn: $settings.preferences.showItemsInBar)
+                    .onChange(of: settings.preferences.showItemsInBar) {
+                        // Ask for both permissions the moment the feature is turned on, not
+                        // piecemeal on a later icon click.
+                        if settings.preferences.showItemsInBar { permissions.request() }
+                    }
                 Text("Clicking Bouncer's icon opens the bar instead of revealing the menu bar. "
                      + "Needs Screen Recording to read the items, and Accessibility to click them.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
 
                 if settings.preferences.showItemsInBar {
+                    PermissionRow(
+                        name: "Screen Recording",
+                        status: permissions.screenRecording,
+                        pane: "Privacy_ScreenCapture",
+                        note: "Takes effect after Bouncer restarts."
+                    )
+                    PermissionRow(
+                        name: "Accessibility",
+                        status: permissions.accessibility,
+                        pane: "Privacy_Accessibility"
+                    )
+
                     Toggle("Slide the bar in and out", isOn: $settings.preferences.animateBar)
                     if settings.preferences.animateBar {
                         Slider(value: animationMilliseconds, in: 60...500, step: 20) {
@@ -138,6 +158,11 @@ struct GeneralSettingsView: View {
             }
         }
         .formStyle(.grouped)
+        // The user grants a permission in System Settings and switches back: re-read then,
+        // rather than on a timer.
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            permissions.refresh()
+        }
     }
 
     private enum RehideMode: CaseIterable, Hashable {
@@ -273,5 +298,45 @@ struct GeneralSettingsView: View {
             guard case .afterDelay(let seconds) = settings.preferences.autoRehide else { return 10 }
             return seconds
         } set: { settings.preferences.autoRehide = .afterDelay(seconds: $0) }
+    }
+}
+
+/// One permission's live status, with a shortcut to its System Settings pane while it is
+/// missing — the native prompt only re-shows the first time, so a denied permission is
+/// fixed there.
+private struct PermissionRow: View {
+    let name: String
+    let status: PermissionStatus
+    let pane: String
+    var note: String?
+
+    var body: some View {
+        LabeledContent(name) {
+            switch status {
+            case .granted:
+                Label("Granted", systemImage: "checkmark.circle.fill")
+                    .labelStyle(.titleAndIcon)
+                    .foregroundStyle(.green)
+            case .missing:
+                HStack(spacing: 8) {
+                    Label("Not granted", systemImage: "exclamationmark.triangle.fill")
+                        .labelStyle(.titleAndIcon)
+                        .foregroundStyle(.orange)
+                    Button("Open System Settings", action: openPane)
+                }
+            }
+        }
+        if status == .missing, let note {
+            Text(note)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func openPane() {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)") else {
+            return
+        }
+        NSWorkspace.shared.open(url)
     }
 }
