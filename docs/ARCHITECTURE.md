@@ -233,8 +233,11 @@ BouncerFoundation   Logging, signposts, observation helper. No dependencies.
 
 `StandaloneBar` is a module of its own because it is the one feature that asks for
 permissions. Keeping it off to the side means the permission surface is a directory, not a
-grep. `Updates` is separate for the same reason in the other direction: it is where the only
-third-party code and the only outbound network request live.
+grep. `BouncerUI` depends on it so the settings pane can show and trigger those permissions
+through `StandaloneBarPermissions` — the single entry point every Screen Recording and
+Accessibility call goes through — but the calls themselves stay in this directory. `Updates`
+is separate for the same reason in the other direction: it is where the only third-party
+code and the only outbound network request live.
 
 Dependencies point one way only. `MenuBar` is AppKit-facing but its decision logic
 (`MenuBarVisibility`) is pure and tested without a running app, which is why `make test`
@@ -255,6 +258,9 @@ needs no Xcode project and finishes in under a second.
 - **`SettingsStore`** — one JSON blob in `UserDefaults`. One read at launch, one
   coalesced write per burst of edits. Keys added after 0.1.0 decode as optional, so a blob
   written before one existed keeps the user's other settings.
+- **`StandaloneBarPermissions`** — the one place Screen Recording and Accessibility are
+  read and requested. Requested together when the user turns the bar on; re-read when the
+  app regains focus, so the settings pane shows live status without a timer.
 - **`StandaloneBarController`** — opens and closes the replica bar, and owns the ordering
   the whole feature turns on: photograph, draw the panel where the section is about to land,
   run it out of the menu bar, reveal underneath it — and the reverse on the way out, where
