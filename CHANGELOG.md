@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/fstermann/bouncer/compare/v0.4.0...v0.4.1) (2026-09-08)
+
+
+### Documentation
+
+* add shared agent instructions ([#18](https://github.com/fstermann/bouncer/issues/18)) ([084ee69](https://github.com/fstermann/bouncer/commit/084ee69c23474599c2b2207cce9b78224f6e3992))
+
 ## [0.4.0](https://github.com/fstermann/bouncer/compare/v0.3.0...v0.4.0) (2026-08-25)
 
 
