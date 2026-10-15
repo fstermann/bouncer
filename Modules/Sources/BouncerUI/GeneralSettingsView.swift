@@ -8,6 +8,7 @@ struct GeneralSettingsView: View {
     @Bindable var settings: SettingsStore
     let updates: UpdateController
     @Bindable var permissions: StandaloneBarPermissions
+    let standaloneItemArrangement: StandaloneItemArrangement
     @Environment(\.colorScheme) private var colorScheme
     @State private var launchAtLogin = LaunchAtLogin.isEnabled
     // Mirrors of Sparkle's own state, the way `launchAtLogin` mirrors the system. Nothing else
@@ -15,14 +16,6 @@ struct GeneralSettingsView: View {
     @State private var checkForUpdates: Bool
     @State private var installUpdates: Bool
     @State private var selection: Pane = .general
-
-    init(settings: SettingsStore, updates: UpdateController, permissions: StandaloneBarPermissions) {
-        _settings = Bindable(settings)
-        self.updates = updates
-        _permissions = Bindable(permissions)
-        _checkForUpdates = State(initialValue: updates.automaticallyChecks)
-        _installUpdates = State(initialValue: updates.automaticallyDownloads)
-    }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -107,6 +100,12 @@ struct GeneralSettingsView: View {
         }
 
         if settings.preferences.showItemsInBar {
+            StandaloneItemsSection(
+                arrangement: standaloneItemArrangement,
+                canArrange: canArrangeStandaloneItems,
+                style: settings.preferences.barStyle
+            )
+
             Section("Permissions") {
                 PermissionRow(
                     name: "Screen Recording",
@@ -167,6 +166,10 @@ struct GeneralSettingsView: View {
                 }
             }
         }
+    }
+
+    private var canArrangeStandaloneItems: Bool {
+        permissions.screenRecording == .granted && permissions.accessibility == .granted
     }
 
     @ViewBuilder private var updatesPane: some View {
@@ -285,5 +288,21 @@ struct GeneralSettingsView: View {
             guard case .afterDelay(let seconds) = settings.preferences.autoRehide else { return 10 }
             return seconds
         } set: { settings.preferences.autoRehide = .afterDelay(seconds: $0) }
+    }
+}
+
+extension GeneralSettingsView {
+    init(
+        settings: SettingsStore,
+        updates: UpdateController,
+        permissions: StandaloneBarPermissions,
+        standaloneItemArrangement: StandaloneItemArrangement
+    ) {
+        _settings = Bindable(settings)
+        self.updates = updates
+        _permissions = Bindable(permissions)
+        self.standaloneItemArrangement = standaloneItemArrangement
+        _checkForUpdates = State(initialValue: updates.automaticallyChecks)
+        _installUpdates = State(initialValue: updates.automaticallyDownloads)
     }
 }

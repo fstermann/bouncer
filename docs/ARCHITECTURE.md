@@ -93,6 +93,16 @@ and resolved by `BarSurface`, which dresses both halves of the panel alike. Glas
 cover is dimmed rather than clear, a knowing trade of airtight hiding for a panel that reads
 as one material: clear glass would refract the very icons the cover exists to hide.
 
+The settings editor follows a stricter capture path on current systems: a parked status item
+can return a correctly sized but transparent image. It covers the section's landing strip,
+reveals the items, waits for both their frames and backing surfaces to settle, photographs
+them, and immediately puts them away again. The section is resolved from the divider again
+after the reveal rather than trusting its old window IDs, because WindowServer may renumber
+them during that transition. Those stills are cached; reordering only captures again if such
+a renumber leaves the pictures under obsolete IDs. A correctly sized capture is not enough to
+count as a still: WindowServer can fill every pixel with zero alpha before the backing surface
+is ready, so the editor validates visible pixels and retries briefly while the cover remains up.
+
 The reveal is for the menus alone. A status item anchors its menu to its own window, so an
 item left parked off the display opens its menu off the display too — measured, at x =
 -4237. That is the one thing the pictures cannot stand in for.
@@ -297,11 +307,15 @@ These are enforced by review, not by tooling:
    observer. A user with both off has zero installed observers. The standalone bar goes
    further: its pointer monitor, its menu observer and its windows exist only while the
    bar is open, so a user who has enabled it and closed it is paying nothing either.
-3. **Polling is a last resort, is scoped, and is documented.** One exists: `PlacementWait`
-   reads item frames every 8–16 ms while the standalone bar opens and closes. The window
-   server places status items over several frames and sends no notification when it has
+3. **Polling is a last resort, is scoped, and is documented.** `PlacementWait` reads item
+   frames every 8–16 ms while the standalone bar opens, closes, or reorders an item. The
+   window server places status items over several frames and sends no notification when it has
    finished, so there is nothing to observe; each wait returns the moment the state it is
    after arrives, is bounded, and runs only inside an interaction the user just asked for.
+   A reorder waits for the source and destination before picking the item up, then keeps the
+   destination ID fixed while the source is absent from the status-item layer, and resolves the
+   destination edge again after mouse-down. If privacy indicators keep the destination unstable,
+   the move is cancelled instead of risking the wrong order.
    Anything else that needs one has to justify why no notification carries the same change,
    and stop polling the moment the feature that needs it is closed.
 4. **Value types over object graphs.** `Preferences` is one `Hashable` struct, so
