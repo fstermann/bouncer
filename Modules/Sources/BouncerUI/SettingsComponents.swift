@@ -105,6 +105,124 @@ struct SwatchButton: View {
     }
 }
 
+/// A live replica of the standalone bar. Dragging changes its preview immediately; the model
+/// then performs the equivalent move on the real menu bar and replaces the preview with truth.
+struct StandaloneItemsSection: View {
+    @Bindable var arrangement: StandaloneItemArrangement
+    let canArrange: Bool
+    let style: BarStyle
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var draggedItem: UInt32?
+
+    var body: some View {
+        Section("Items") {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Drag to arrange the items in the standalone bar.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
+                if !canArrange {
+                    Text("Grant both permissions below to load and move items.")
+                        .frame(maxWidth: .infinity, minHeight: 48)
+                        .foregroundStyle(.secondary)
+                } else if arrangement.items.isEmpty {
+                    Text("No standalone items found.")
+                        .frame(maxWidth: .infinity, minHeight: 48)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ScrollView(.horizontal) {
+                        HStack(spacing: 0) {
+                            ForEach(arrangement.items, id: \.windowID) { item in
+                                replica(for: item)
+                                    .onDrag { beginDragging(item) }
+                                    .onDrop(
+                                        of: [.text],
+                                        delegate: StandaloneItemDropDelegate(
+                                            destination: item.windowID,
+                                            draggedItem: $draggedItem,
+                                            arrangement: arrangement
+                                        )
+                                    )
+                            }
+                        }
+                        .padding(.horizontal, 10)
+                        .frame(minWidth: 0, minHeight: 48, alignment: .trailing)
+                        .animation(.smooth(duration: 0.2), value: arrangement.items.map(\.windowID))
+                    }
+                    .background(barBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            .stroke(.separator, lineWidth: 0.5)
+                    }
+                    .opacity(arrangement.isApplying ? 0.65 : 1)
+                }
+            }
+            .onAppear { if canArrange { arrangement.refresh() } }
+            .onChange(of: canArrange) { if canArrange { arrangement.refresh() } }
+        }
+    }
+
+    private func replica(for item: MenuBarItem) -> some View {
+        Group {
+            if let image = arrangement.images[item.windowID] {
+                Image(decorative: image, scale: backingScale, orientation: .up)
+                    .resizable()
+                    .frame(width: item.frame.width, height: item.frame.height)
+            } else {
+                Image(systemName: "questionmark")
+                    .frame(width: item.frame.width, height: item.frame.height)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .contentShape(Rectangle())
+        .opacity(draggedItem == item.windowID ? 0.25 : 1)
+    }
+
+    @ViewBuilder private var barBackground: some View {
+        switch style {
+        case .glass:
+            Rectangle().fill(.ultraThinMaterial)
+        case .automatic:
+            Color(white: colorScheme == .dark ? BarStyle.automaticDark : BarStyle.automaticLight)
+        case .custom(let red, let green, let blue):
+            Color(.sRGB, red: red, green: green, blue: blue)
+        }
+    }
+
+    private var backingScale: CGFloat { NSScreen.main?.backingScaleFactor ?? 2 }
+
+    private func beginDragging(_ item: MenuBarItem) -> NSItemProvider {
+        guard !arrangement.isApplying else { return NSItemProvider() }
+        draggedItem = item.windowID
+        arrangement.beginPreview()
+        return NSItemProvider(object: String(item.windowID) as NSString)
+    }
+}
+
+private struct StandaloneItemDropDelegate: DropDelegate {
+    let destination: UInt32
+    @Binding var draggedItem: UInt32?
+    let arrangement: StandaloneItemArrangement
+
+    func dropEntered(info: DropInfo) {
+        guard let draggedItem else { return }
+        withAnimation(.smooth(duration: 0.2)) {
+            arrangement.previewMove(draggedItem, over: destination)
+        }
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        guard let draggedItem else { return false }
+        arrangement.commitPreview(of: draggedItem)
+        self.draggedItem = nil
+        return true
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
+}
+
 /// One permission's live status, with a shortcut to its System Settings pane while it is
 /// missing — the native prompt only re-shows the first time, so a denied permission is
 /// fixed there.

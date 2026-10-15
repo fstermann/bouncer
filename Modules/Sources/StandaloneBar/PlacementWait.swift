@@ -1,6 +1,31 @@
 import BouncerFoundation
 import CoreGraphics
 
+/// Recognises one unchanged run of frames for an exact set of status-item window IDs.
+/// A privacy indicator appearing or disappearing changes those frames and starts the run over.
+struct PlacementStability {
+    let ids: Set<UInt32>
+    let readingsRequired: Int
+    private var previous: [UInt32: CGRect]?
+    private var matchingReadings = 0
+
+    init(ids: Set<UInt32>, readingsRequired: Int) {
+        self.ids = ids
+        self.readingsRequired = readingsRequired
+    }
+
+    mutating func observe(_ frames: [UInt32: CGRect]) -> [UInt32: CGRect]? {
+        guard Set(frames.keys) == ids else {
+            previous = nil
+            matchingReadings = 0
+            return nil
+        }
+        matchingReadings = frames == previous ? matchingReadings + 1 : 1
+        previous = frames
+        return matchingReadings >= readingsRequired ? frames : nil
+    }
+}
+
 /// Bounded waits on the window server placing status items.
 ///
 /// The divider moves nothing synchronously: expanding or collapsing it lands over a few
@@ -8,6 +33,23 @@ import CoreGraphics
 /// moment the state it is after arrives, and none runs outside an open or close the user
 /// just asked for — they are waits inside an interaction, not polls.
 enum PlacementWait {
+    /// Waits for these exact items to keep the same frames for several display ticks.
+    ///
+    /// Used around synthetic status-item drags, where a privacy indicator shifting the bar
+    /// between mouse-down and mouse-up would turn a correct destination ID into a stale point.
+    /// Once the press lands the picked-up item itself is deliberately omitted: it leaves the
+    /// status-item layer for the duration of the drag.
+    static func stableFrames(of ids: Set<UInt32>) async -> [UInt32: CGRect]? {
+        var stability = PlacementStability(ids: ids, readingsRequired: stableReadingsRequired)
+        for _ in 0..<attemptLimit {
+            if let stable = stability.observe(frames(of: ids)) { return stable }
+            try? await Task.sleep(for: .milliseconds(16))
+            if Task.isCancelled { return nil }
+        }
+        Log.menuBar.error("Status items did not hold still long enough to move safely")
+        return nil
+    }
+
     /// Waits for the window server to place the items the divider just released.
     ///
     /// Yielding once is not enough; the move takes a few frames.
@@ -73,6 +115,7 @@ enum PlacementWait {
     }
 
     private static let attemptLimit = 30
+    private static let stableReadingsRequired = 6
 
     /// Readings that must agree in a row once the bar has shifted, how long a shift is
     /// waited for before concluding there will not be one, and the most that will be waited

@@ -19,6 +19,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     )
     private lazy var reveal = RevealController(manager: menuBar, settings: settings)
     private lazy var standaloneBar = StandaloneBarController(menuBar: menuBar, settings: settings)
+    private lazy var standaloneItemArrangement = StandaloneItemArrangement(
+        menuBar: menuBar,
+        settings: settings
+    )
     private let permissions = StandaloneBarPermissions()
     private let updates = UpdateController()
     private var settingsWindow: NSWindow?
@@ -128,7 +132,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // content would otherwise keep the state it was first built with, so the view's mirrors
         // of Sparkle's and the login item's state would go stale when those change out of band.
         let hosting = NSHostingController(
-            rootView: SettingsView(settings: settings, updates: updates, permissions: permissions)
+            rootView: SettingsView(
+                settings: settings,
+                updates: updates,
+                permissions: permissions,
+                standaloneItemArrangement: standaloneItemArrangement
+            )
         )
         hosting.sizingOptions = [.preferredContentSize]
         if settingsWindow == nil {
@@ -154,4 +163,5 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settingsWindow?.center()
         settingsWindow?.makeKeyAndOrderFront(nil)
     }
+
 }
