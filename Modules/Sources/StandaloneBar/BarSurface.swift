@@ -120,6 +120,8 @@ enum BarSurface {
         switch style {
         case .automatic, .glass:
             colour
+        case .notch:
+            .black
         case .custom(let red, let green, let blue):
             // Opaque no matter what was stored: the cover hides icons, and any alpha shows them.
             NSColor(srgbRed: red, green: green, blue: blue, alpha: 1)

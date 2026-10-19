@@ -150,6 +150,27 @@ public enum MenuBarItemGeometry {
         }
     }
 
+    /// `section` with `newcomer` counted in right after `anchor`, and `order` with it slotted in
+    /// there, so `packed` puts it where it is going to land. `nil` when `anchor` is not in `section`.
+    public static func joining(
+        _ newcomer: MenuBarItem, after anchor: UInt32, to section: [MenuBarItem], like order: [UInt32]
+    ) -> (items: [MenuBarItem], order: [UInt32])? {
+        var ids = sorted(section, like: order).map(\.windowID)
+        guard let index = ids.firstIndex(of: anchor) else { return nil }
+        ids.insert(newcomer.windowID, at: index + 1)
+        return (section + [newcomer], ids)
+    }
+
+    /// The item of `section` immediately left of `item`, when `item` sits among them rather than
+    /// beside them.
+    public static func predecessor(of item: MenuBarItem, in section: [MenuBarItem]) -> UInt32? {
+        let others = section.filter { $0.windowID != item.windowID }.sorted { $0.frame.minX < $1.frame.minX }
+        guard let first = others.first, let last = others.last,
+              first.frame.minX < item.frame.midX, item.frame.midX < last.frame.maxX
+        else { return nil }
+        return others.last { $0.frame.midX < item.frame.midX }?.windowID
+    }
+
     private static func sorted(_ items: [MenuBarItem], like order: [UInt32]) -> [MenuBarItem] {
         let rank = Dictionary(order.enumerated().map { ($0.element, $0.offset) }) { first, _ in first }
         return items.enumerated()
@@ -198,6 +219,43 @@ public enum MenuBarItemGeometry {
               bounds.minX < notch.lowerBound, bounds.maxX > notch.upperBound
         else { return nil }
         return notch
+    }
+
+    /// How far left the section has to move for its centre to sit at `centre`.
+    ///
+    /// Whole points, because macOS rounds a status item's width to them: a half left in the shift
+    /// was measured landing the section half a point further left than asked. Zero when it already
+    /// sits at or left of that: the section can only be pushed left, by widening the divider on
+    /// its right.
+    public static func shiftCentring(_ strip: CGRect, on centre: CGFloat) -> CGFloat {
+        max(0, (strip.midX - centre).rounded())
+    }
+
+    /// Whether the section came back inside `strip` with nothing else in there.
+    ///
+    /// Measured: while a status item is widened, macOS reorders the items around it whenever one
+    /// would sit across the notch's edge, trading items from one side of the widened item to the
+    /// other. Widened, the divider can therefore trade an item between sections, and the bar has
+    /// to notice rather than replicate the wrong ones.
+    ///
+    /// - Parameter all: every item in the bar, dividers excluded.
+    public static func landedIntact(_ section: [MenuBarItem], in strip: CGRect, among all: [MenuBarItem]) -> Bool {
+        let members = Set(section.map(\.windowID))
+        let slack = strip.insetBy(dx: -1, dy: 0)
+        let sectionInside = section.allSatisfy { slack.minX <= $0.frame.minX && $0.frame.maxX <= slack.maxX }
+        let intruder = all.contains {
+            !members.contains($0.windowID) && strip.minX < $0.frame.midX && $0.frame.midX < strip.maxX
+        }
+        return sectionInside && !intruder
+    }
+
+    /// `rect` widened to take in the notch, so a panel growing out of it reaches it from
+    /// wherever the section sits. `rect` unchanged without a notch.
+    public static func span(of rect: CGRect, reaching notch: ClosedRange<CGFloat>?) -> CGRect {
+        guard let notch else { return rect }
+        let minX = min(rect.minX, notch.lowerBound)
+        let maxX = max(rect.maxX, notch.upperBound)
+        return CGRect(x: minX, y: rect.minY, width: maxX - minX, height: rect.height)
     }
 
     /// Where each item's replica sits in the standalone bar.

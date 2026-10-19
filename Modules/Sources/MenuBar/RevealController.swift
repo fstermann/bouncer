@@ -18,11 +18,17 @@ public final class RevealController {
     private let settings: SettingsStore
 
     private var hoverMonitor: Any?
+    /// The same watch over Bouncer's own windows, which a global monitor never hears from. The
+    /// collapsed divider is one of them, stretched across the menu bar and the notch.
+    private var localHoverMonitor: Any?
     private var activationObserver: NSObjectProtocol?
     private var rehideTask: Task<Void, Never>?
+    /// The hover delay running out, started when the pointer arrives where it reveals.
+    private var pendingReveal: Task<Void, Never>?
 
     private var inputObservation: ObservationLoop?
     private var rehideObservation: ObservationLoop?
+    private var settledObservation: ObservationLoop?
 
     public init(manager: MenuBarManager, settings: SettingsStore) {
         self.manager = manager
@@ -47,7 +53,7 @@ public final class RevealController {
     private func configureInputs() {
         let preferences = settings.preferences
 
-        setHoverMonitorEnabled(preferences.revealOnHover)
+        setHoverMonitorEnabled(preferences.revealOnHover || preferences.revealNearNotch)
         setActivationObserverEnabled(preferences.autoRehide == .onFocusedAppChange)
     }
 
@@ -56,23 +62,74 @@ public final class RevealController {
         guard isEnabled else {
             hoverMonitor.map(NSEvent.removeMonitor)
             hoverMonitor = nil
+            localHoverMonitor.map(NSEvent.removeMonitor)
+            localHoverMonitor = nil
+            pendingReveal?.cancel()
+            pendingReveal = nil
+            settledObservation?.cancel()
+            settledObservation = nil
             return
         }
         hoverMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved]) { _ in
             MainActor.assumeIsolated { self.handlePointerMoved() }
         }
+        localHoverMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved]) { event in
+            MainActor.assumeIsolated { self.handlePointerMoved() }
+            return event
+        }
+        // The pointer may have come back while the section or the bar was still going away, and
+        // moves made then were turned down. Like the Dock, it reveals again without another move.
+        settledObservation = ObservationLoop { [weak self] in
+            self?.handlePointerMoved()
+        }
     }
 
+    /// Reveals once the pointer has rested where it reveals for the hover delay, the way the Dock
+    /// shows. Leaving before then calls it off.
     private func handlePointerMoved() {
-        guard manager.visibility == .collapsed,
-              let screen = NSScreen.main,
-              screen.frame.maxY - NSEvent.mouseLocation.y <= screen.menuBarHeight
-        else { return }
-        guard let onHoverReveal else {
-            manager.setVisibility(.revealed)
+        // Both read first, so the observation that re-runs this hears either change.
+        let isSettled = manager.visibility == .collapsed && !manager.isRevealHeld
+        guard hoverMonitor != nil, isSettled, isPointerRevealing else {
+            pendingReveal?.cancel()
+            pendingReveal = nil
             return
         }
-        onHoverReveal()
+        guard pendingReveal == nil else { return }
+        let delay = hoverDelay
+        pendingReveal = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(delay))
+            guard let self, !Task.isCancelled else { return }
+            pendingReveal = nil
+            guard manager.visibility == .collapsed, isPointerRevealing else { return }
+            guard let onHoverReveal else {
+                manager.setVisibility(.revealed)
+                return
+            }
+            onHoverReveal()
+        }
+    }
+
+    private var hoverDelay: TimeInterval {
+        switch settings.preferences.hoverDelay {
+        case .matchDock: DockDelay.current
+        case .seconds(let seconds): seconds
+        }
+    }
+
+    private var isPointerRevealing: Bool {
+        NSScreen.main.map(isRevealing(on:)) ?? false
+    }
+
+    /// Anywhere in the menu bar, or only near the notch when that is the one switched on.
+    private func isRevealing(on screen: NSScreen) -> Bool {
+        let point = NSEvent.mouseLocation
+        guard !settings.preferences.revealOnHover else {
+            return screen.frame.maxY - point.y <= screen.menuBarHeight
+        }
+        let notch = DisplayNotch.range(
+            left: screen.auxiliaryTopLeftArea, right: screen.auxiliaryTopRightArea, screen: screen.frame
+        ).range
+        return DisplayNotch.reveals(at: point, notch: notch, screen: screen.frame, menuBarHeight: screen.menuBarHeight)
     }
 
     private func setActivationObserverEnabled(_ isEnabled: Bool) {

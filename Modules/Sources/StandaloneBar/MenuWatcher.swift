@@ -3,9 +3,7 @@ import ApplicationServices
 
 /// Watches one app for its menus opening and closing.
 ///
-/// A menu opens from the real item, a row above the bar, and lands on top of the replicas.
-/// Nothing there can be clicked while it is up, so the bar steps back visually rather than
-/// pretending otherwise.
+/// While a menu is up the bar stays open, whatever the pointer does on its way through it.
 ///
 /// Both signals come from the item's own application element, and cover the plain menus and
 /// the panels some apps put up in their place — the two behave differently in every other

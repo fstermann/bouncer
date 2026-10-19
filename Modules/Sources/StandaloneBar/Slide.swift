@@ -18,22 +18,35 @@ enum Slide {
     /// the cover being over the section is what makes it safe to reveal, and eased out so the
     /// panel settles rather than stopping dead.
     static func panelOut(_ bar: ReplicaBar, _ cover: CoverWindow, over duration: TimeInterval) async {
+        if let notch = cover.notch { return await NotchSlide.panelOut(bar, cover, from: notch, over: duration) }
         guard let shelf = bar.panel else { return }
         cover.park(by: bar.travel)
         bar.park(by: bar.travel)
         await run([shelf, cover.panel], to: .zero, over: duration, easing: .easeOut)
     }
 
-    /// Takes the panel back into the menu bar, and returns once it has gone.
+    /// Runs `putAway`, which takes the section off the display, then takes the panel back into
+    /// the menu bar, and returns once it has gone. Without a `duration` it only puts away.
     ///
-    /// Only ever called with the section already put away: the cover leaves with the panel, so
+    /// The section has to be gone before the panel goes: the cover leaves with the panel, so
     /// anything it was hiding has to have stopped being there first.
     ///
     /// Eased at both ends rather than mirroring the way in. The reverse of an ease out is an ease
     /// in, which spends its slow half creeping and then throws the panel out of sight in the last
     /// few frames — the leaving is the part being watched, and it read as the bar vanishing rather
     /// than going.
-    static func panelIn(_ bar: ReplicaBar, _ cover: CoverWindow, over duration: TimeInterval) async {
+    static func panelIn(
+        _ bar: ReplicaBar, _ cover: CoverWindow, over duration: TimeInterval?, after putAway: () async -> Void
+    ) async {
+        // A pointer moving over a window of Bouncer's own is invisible to the hover watch, which
+        // has to see one coming back into the menu bar to reveal again once this has gone.
+        bar.window?.ignoresMouseEvents = true
+        bar.setCrossing(true)
+        guard let duration else { return await putAway() }
+        if let notch = cover.notch {
+            return await NotchSlide.panelIn(bar, cover, into: notch, over: duration, after: putAway)
+        }
+        await putAway()
         guard let shelf = bar.panel else { return }
         let parked = CGPoint(x: 0, y: bar.travel)
         await run([shelf, cover.panel], to: parked, over: duration, easing: .easeInEaseOut)

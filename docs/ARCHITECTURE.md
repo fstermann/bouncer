@@ -110,6 +110,25 @@ landing has to be *worked out* rather than measured — the panel is built and m
 reveal, so it cannot wait to be told where the section went. It lands where the items pack
 edge to edge left of the visible run, one collapsed divider's width clear of it.
 
+The notch style (`BarStyle.notch`) takes another path out of the menu bar. The panel starts as
+the notch, black on black, and grows wider and taller at once on one spring, its lower corners
+travelling diagonally out to where it rests, the replicas blurring into focus as it lands. The
+way back blurs them out, then lifts and gathers without bounce (`NotchSlide`), every property on
+Core Animation springs from one start time. A display without a notch gets a notch-sized
+stand-in at the top centre, faded in as it grows. To make the panel grow evenly either
+side of the notch, the section is pushed left until it is centred under it, by widening the hidden
+divider while it is revealed (`NotchCentring`). The window server places items behind the notch
+without complaint, and those are covered anyway. It does not always take the widening quietly:
+measured, it reorders the items around a widened item whenever one would sit across the notch's
+edge, trading items from one side of it to the other. For the divider that would be an item
+changing sections, so the landing is checked after the reveal and the shift dropped when anything
+crossed. The panel then reaches further to one side of the notch than the other.
+
+The camera, microphone and screen recording indicator would trip that check every time. macOS
+keeps it on screen right of the divider while the section is hidden, and moves it in among the
+section's items as it is revealed. So the item it followed is remembered, and from the next open
+the indicator is counted as part of the section, replica and all (`PrivacyIndicator`).
+
 Three consequences worth knowing before changing any of it:
 
 - **Replicas are stills.** The pictures are taken once per open. Streaming them keeps the
@@ -292,11 +311,13 @@ These are enforced by review, not by tooling:
    app that is launched at login and never quit would otherwise never learn a fix exists. It is
    one timer, it fires 86,400 seconds apart, and turning the check off in Settings leaves
    nothing scheduled at all.
-2. **Pay only for what you enable.** The global mouse monitor is installed when
-   `revealOnHover` is on and removed when it is off. Same for the app-activation
-   observer. A user with both off has zero installed observers. The standalone bar goes
-   further: its pointer monitor, its menu observer and its windows exist only while the
-   bar is open, so a user who has enabled it and closed it is paying nothing either.
+2. **Pay only for what you enable.** The global mouse monitor, and its local twin for Bouncer's
+   own windows, are installed when `revealOnHover` or `revealNearNotch` is on and removed when
+   both are off, together with the observation that reveals again when the pointer came back
+   while the section was going away, and the one-shot wait for the hover delay. Same for the
+   app-activation observer. A user with both off has zero installed observers. The standalone
+   bar goes further: its pointer monitor, its menu observer and its windows exist only while
+   the bar is open, so a user who has enabled it and closed it is paying nothing either.
 3. **Polling is a last resort, is scoped, and is documented.** One exists: `PlacementWait`
    reads item frames every 8–16 ms while the standalone bar opens and closes. The window
    server places status items over several frames and sends no notification when it has

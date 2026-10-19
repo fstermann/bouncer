@@ -1,6 +1,5 @@
 import AppKit
 import BouncerFoundation
-import CoreGraphics
 import MenuBar
 import Observation
 import Settings
@@ -55,6 +54,7 @@ public final class StandaloneBarController {
     /// were measured trading places on the way back on screen. What the section did last time
     /// is the best guide there is, and it is replaced by the truth on every open.
     private var orderLastTime: [UInt32] = []
+    private let indicator = PrivacyIndicator()
 
     public init(menuBar: MenuBarManager, settings: SettingsStore) {
         self.menuBar = menuBar
@@ -87,7 +87,7 @@ public final class StandaloneBarController {
     }
 
     /// Reveals the hidden section, hides it again behind a cover, and replicates it below.
-    public func open() async {
+    public func open(closingWhenLeft: Bool = false) async {
         guard !isOpen, !isOpening, !isClosing else { return }
         isOpening = true
         defer { isOpening = false }
@@ -102,6 +102,7 @@ public final class StandaloneBarController {
         Log.menuBar.info("Standalone bar: opening")
         // Read once per open, so the bar leaves the way it arrived even if the preference changes.
         slide = settings.preferences.animateBar ? settings.preferences.barAnimationDuration : nil
+        closing.closesOnLeave = closingWhenLeft
         cover.style = settings.preferences.barStyle
         bar.style = settings.preferences.barStyle
 
@@ -109,7 +110,8 @@ public final class StandaloneBarController {
         // they are back on screen they are indistinguishable from the ones that were
         // visible all along. Identity survives the move; position does not.
         let all = MenuBarItemGeometry.excludingDividers(StatusItemScanner.scan())
-        let parked = MenuBarItemGeometry.offScreen(all, screens: NSScreen.screens.map(\.frame))
+        let section = indicator.section(of: all, screens: NSScreen.screens.map(\.frame), like: orderLastTime)
+        let parked = section.items
         let hidden = Set(parked.map(\.windowID))
         guard !hidden.isEmpty else {
             Log.menuBar.info("Standalone bar: nothing is hidden — is the section already revealed?")
@@ -119,7 +121,7 @@ public final class StandaloneBarController {
         // Photographed where they are, before anything moves. The pictures do not depend on
         // the items being on screen, only the menus do, so this runs while the bar is still
         // untouched — and it is what keeps the replicas out of the reveal's way entirely.
-        itemCapture.capture(parked)
+        await itemCapture.captureOnceDrawn(parked)
 
         // Before anything moves: the accessibility tree lags the window server after a layout
         // change, so an item looked up just after being revealed is matched against where it isn't.
@@ -134,16 +136,17 @@ public final class StandaloneBarController {
         // Nothing of the real bar is disturbed while it comes down. The section is still
         // parked off the display, so the replicas cross empty menu bar, and only once the
         // cover has landed over that stretch are the real items brought back underneath it.
-        let landing = MenuBarItemGeometry.landingStrip(for: parked, leftOf: all)
+        let landing = NotchCentring(menuBar: menuBar).landing(for: parked, leftOf: section.run, as: cover.style)
         cover.show(over: landing.insetBy(dx: -Self.coverBleed, dy: 0))
         bar.update(images: itemCapture.images)
-        bar.show(MenuBarItemGeometry.packed(parked, into: landing, like: orderLastTime), below: landing)
+        bar.show(MenuBarItemGeometry.packed(parked, into: landing, like: section.order), below: landing)
         if let slide { await Slide.panelOut(bar, cover, over: slide) }
+        bar.setCrossing(false)
 
-        let revealed = await reveal(hidden)
+        let revealed = await NotchCentring(menuBar: menuBar).confirm(await reveal(hidden), in: landing, of: hidden)
         guard let strip = MenuBarItemGeometry.coverRect(for: revealed) else {
             Log.menuBar.info("Standalone bar: the hidden section did not come back on screen")
-            await abandonOpen(of: hidden)
+            await abandonOpen(of: indicator.parkable(parked))
             return
         }
         items = revealed
@@ -176,8 +179,8 @@ public final class StandaloneBarController {
         menuBar.setBoundaryMarkersVisible(false)
         menuBar.setVisibility(.revealed)
         await PlacementWait.placement(of: hidden)
-        return MenuBarItemGeometry.excludingDividers(StatusItemScanner.scan())
-            .filter { hidden.contains($0.windowID) && $0.frame.minX >= 0 }
+        return indicator.learning(from: MenuBarItemGeometry.excludingDividers(StatusItemScanner.scan())
+            .filter { hidden.contains($0.windowID) && $0.frame.minX >= 0 })
     }
 
     /// How far past the section the cover reaches at each end: the same as the shelf below
@@ -258,25 +261,22 @@ public final class StandaloneBarController {
         settling = nil
         menus.stop()
         isMenuOpen = false
-        let replicated = Set(items.map(\.windowID))
+        let replicated = indicator.parkable(items)
         items = []
         resolvingElements?.cancel()
         resolvingElements = nil
-
         itemCapture.stop()
 
-        // The section goes away first, underneath the panel that is still over it — the open
-        // run backwards. The cover leaves with the panel it is half of, so anything it was
-        // hiding has to be gone by then, or the items sit in plain sight until the divider
-        // catches up. Awaited: dimmed first, or the glass shows the smudges vanishing in a frame.
+        // The section goes away underneath the panel, which only uncovers the bar once it has:
+        // the cover leaves with the panel it is half of. Awaited: dimmed first, or the glass shows
+        // the smudges vanishing in a frame.
         await BarSurface.fade([cover.veil, bar.veil], toDimmed: true, over: slide)
-        menuBar.setVisibility(.collapsed)
-        await PlacementWait.removal(of: replicated)
-        // Before the panel goes rather than after: showing a marker changes the divider's
-        // width, and every item to the left of it shifts to make room. Cheaper to do that
-        // while something is still over it than to find out it shows.
-        menuBar.setBoundaryMarkersVisible(true)
-        if let slide { await Slide.panelIn(bar, cover, over: slide) }
+        await Slide.panelIn(bar, cover, over: slide) { [menuBar] in
+            menuBar.setVisibility(.collapsed)
+            await PlacementWait.removal(of: replicated)
+            // Before the panel goes: a marker widens the divider, shifting the items left of it.
+            menuBar.setBoundaryMarkersVisible(true)
+        }
         bar.hide()
         cover.hide()
         shield.hide()
@@ -333,6 +333,8 @@ public final class StandaloneBarController {
                 }
             }
         }
+        // It may have left while the bar was opening, before there was a watch to see it go.
+        closeIfThePointerHasLeft()
     }
 
     /// Whether a drag in flight could be moving a status item: Cmd held, and the pointer still up
@@ -387,12 +389,10 @@ public final class StandaloneBarController {
             menus.watch(pid: owner) { [weak self] isOpen in
                 guard let self else { return }
                 self.isMenuOpen = isOpen
-                self.bar.setDimmed(isOpen)
-                if !isOpen {
-                    self.menus.stop()
-                    // The pointer is usually deep in the menu that just closed.
-                    self.closeIfThePointerHasLeft()
-                }
+                guard !isOpen else { return }
+                self.menus.stop()
+                // The pointer is usually deep in the menu that just closed.
+                self.closeIfThePointerHasLeft()
             }
         }
         Task.detached { ClickForwarder.press(element) }

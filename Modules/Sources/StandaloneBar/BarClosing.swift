@@ -13,6 +13,9 @@ import Settings
 @MainActor
 final class BarClosing {
     private var pending: Task<Void, Never>?
+    /// Set for a bar the pointer opened at the notch, which goes the moment the pointer leaves it,
+    /// the way the Dock does, whatever "Hide again" says.
+    var closesOnLeave = false
     private var activationObserver: NSObjectProtocol?
 
     /// Watches for another app taking over, in the one mode that closes on it.
@@ -29,12 +32,18 @@ final class BarClosing {
 
     /// The pointer has left the bar: close once the delay is up, where there is one.
     func pointerLeft(for mode: AutoRehide, onClose: @MainActor @escaping () -> Void) {
-        guard pending == nil, case .afterDelay(let seconds) = mode else { return }
+        guard pending == nil, let delay = delay(for: mode) else { return }
         pending = Task {
-            try? await Task.sleep(for: .seconds(seconds))
+            try? await Task.sleep(for: delay)
             guard !Task.isCancelled else { return }
             onClose()
         }
+    }
+
+    private func delay(for mode: AutoRehide) -> Duration? {
+        if closesOnLeave { return .zero }
+        guard case .afterDelay(let seconds) = mode else { return nil }
+        return .seconds(seconds)
     }
 
     /// Taken back before the close came due.

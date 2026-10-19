@@ -293,3 +293,95 @@ struct HitTests {
         #expect(MenuBarItemGeometry.item(at: CGPoint(x: 60, y: 16), positions: positions) == nil)
     }
 }
+
+@Suite("Notch")
+struct NotchTests {
+    /// The 14-inch MacBook Pro's notch, as `auxiliaryTopLeftArea` and `auxiliaryTopRightArea` report it.
+    private let notch: ClosedRange<CGFloat> = 663...848
+
+    @Test("A section right of the notch moves left until its centre is on the display's")
+    func centresUnderTheNotch() {
+        let strip = CGRect(x: 1100, y: 0, width: 100, height: 33)
+        let shift = MenuBarItemGeometry.shiftCentring(strip, on: 756)
+        #expect(shift == 394)
+        #expect(strip.offsetBy(dx: -shift, dy: 0).midX == 756)
+    }
+
+    @Test("The shift is whole points, because macOS rounds item widths to them")
+    func wholePoints() {
+        // An odd width cannot centre exactly; the half is rounded rather than left to macOS.
+        let strip = CGRect(x: 1100, y: 0, width: 655, height: 33)
+        #expect(MenuBarItemGeometry.shiftCentring(strip, on: 756) == 672)
+    }
+
+    @Test("A section already left of centre is not moved, because it can only be pushed left")
+    func neverMovesRight() {
+        let strip = CGRect(x: 500, y: 0, width: 100, height: 33)
+        #expect(MenuBarItemGeometry.shiftCentring(strip, on: 756) == 0)
+    }
+
+    @Test("A section that came back where it was sent is intact")
+    func intact() {
+        let section = [item(706, 38, id: 1), item(744, 42, id: 2)]
+        let strip = CGRect(x: 706, y: 0, width: 80, height: 33)
+        let all = section + [item(1376, 33, id: 3)]
+        #expect(MenuBarItemGeometry.landedIntact(section, in: strip, among: all))
+    }
+
+    @Test("A visible item traded into the section's strip is caught")
+    func visibleItemTradedIn() {
+        // Measured: widening an item to 500 pt moved the item at 1376 to 860, across it.
+        let section = [item(717, 38, id: 1), item(755, 42, id: 2)]
+        let strip = CGRect(x: 717, y: 0, width: 176, height: 33)
+        let all = section + [item(860, 33, id: 3)]
+        #expect(!MenuBarItemGeometry.landedIntact(section, in: strip, among: all))
+    }
+
+    @Test("A hidden item traded out past the divider is caught")
+    func hiddenItemTradedOut() {
+        let section = [item(717, 38, id: 1), item(1313, 63, id: 2)]
+        let strip = CGRect(x: 717, y: 0, width: 80, height: 33)
+        #expect(!MenuBarItemGeometry.landedIntact(section, in: strip, among: section))
+    }
+
+    @Test("A panel is widened to take in the notch, from whichever side the section is on")
+    func spanReachesTheNotch() {
+        let right = CGRect(x: 1000, y: 0, width: 100, height: 33)
+        #expect(MenuBarItemGeometry.span(of: right, reaching: notch) == CGRect(x: 663, y: 0, width: 437, height: 33))
+        let under = CGRect(x: 700, y: 0, width: 50, height: 33)
+        #expect(MenuBarItemGeometry.span(of: under, reaching: notch) == CGRect(x: 663, y: 0, width: 185, height: 33))
+        #expect(MenuBarItemGeometry.span(of: right, reaching: nil) == right)
+    }
+}
+
+@Suite("Privacy indicator joining the section")
+struct PrivacyIndicatorTests {
+    // Measured: revealed, the indicator (9) landed between Wi-Fi (3) and the item after it (4).
+    private let revealed = [item(782, 44, id: 1), item(826, 33, id: 2), item(859, 38, id: 3), item(945, 130, id: 4)]
+    private let indicator = item(897, 48, id: 9)
+
+    @Test("It follows the item it landed right of")
+    func landedAmongThem() {
+        #expect(MenuBarItemGeometry.predecessor(of: indicator, in: revealed) == 3)
+    }
+
+    @Test("Beside the section rather than in it, it follows nothing")
+    func besideTheSection() {
+        #expect(MenuBarItemGeometry.predecessor(of: item(1191, 48, id: 9), in: revealed) == nil)
+    }
+
+    @Test("Counted in, it is packed right after the item it follows")
+    func packedAfterItsPredecessor() throws {
+        let parked = [item(-4092, 44, id: 1), item(-4048, 33, id: 2), item(-4015, 38, id: 3), item(-3977, 130, id: 4)]
+        let joined = try #require(MenuBarItemGeometry.joining(item(1191, 48, id: 9), after: 3, to: parked, like: []))
+        let strip = CGRect(x: 782, y: 0, width: 293, height: 33)
+        let packed = MenuBarItemGeometry.packed(joined.items, into: strip, like: joined.order)
+        #expect(packed.map(\.windowID) == [1, 2, 3, 9, 4])
+        #expect(packed.map(\.frame.minX) == revealed.prefix(3).map(\.frame.minX) + [897, 945])
+    }
+
+    @Test("Without the item it followed, it is left out")
+    func predecessorGone() {
+        #expect(MenuBarItemGeometry.joining(indicator, after: 7, to: revealed, like: []) == nil)
+    }
+}

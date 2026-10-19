@@ -38,6 +38,12 @@ final class ControlItem: NSObject {
         didSet { if showsMarker != oldValue { updateAppearance() } }
     }
 
+    /// Extra width taken while the section is revealed without a marker, pushing it that much
+    /// further left. Ignored while expanded, where the divider is already wider than any bar.
+    var padding: CGFloat = 0 {
+        didSet { if padding != oldValue { updateAppearance() } }
+    }
+
     /// Frame in window-server coordinates, or `nil` before the item has a window.
     var frame: CGRect? { item.button?.window?.frame }
 
@@ -92,7 +98,7 @@ final class ControlItem: NSObject {
             item.length = NSStatusItem.variableLength
             item.button?.image = markerImage
         } else {
-            item.length = Self.hairlineLength
+            item.length = Self.hairlineLength + padding
             item.button?.image = nil
         }
     }
