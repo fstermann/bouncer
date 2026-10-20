@@ -25,18 +25,24 @@ public final class ReplicaBar {
     static let padding: CGFloat = 8
     /// Only the lower corners are rounded: the shelf hangs off the menu bar, and a gap above
     /// it would show it is a window of its own rather than part of the bar.
-    private static let cornerRadius: CGFloat = 10
+    static let cornerRadius: CGFloat = 10
 
     /// How the shelf is painted. Set by the controller before each open, so the shelf leaves
     /// the way it arrived even if the preference changes while it is out.
     var style: BarStyle = .automatic
+    /// The notch a notch-style shelf grows out of, found when it is shown. The shelf is widened
+    /// to reach it from wherever the section sits.
+    private var notch: Notch?
     /// The dimming layer over the shelf's glass, faded through `BarSurface.fade` together
     /// with the cover's, so the dim never shows as a step at the seam between them. The
     /// replicas sit above it: they slide in plain view, only their background dims.
     private(set) var veil: NSView?
 
-    private var window: BarWindow?
+    /// Read by `NotchSlide`, which fades it while a notch stand-in grows in or goes away.
+    private(set) var window: BarWindow?
     private var shelf: NSView?
+    /// Holds the shelf, so a notch-style open can lower one view while it widens the other.
+    private(set) var hanger: NSView?
     /// A pill floated below the bar while a section that reaches across the notch is being dragged,
     /// to say the item cannot cross it. Torn down with the window.
     private var notice: NSWindow?
@@ -62,23 +68,27 @@ public final class ReplicaBar {
     public func show(_ items: [MenuBarItem], below menuBarFrame: CGRect) {
         let (positions, size) = MenuBarItemGeometry.layout(items)
         guard size.width > 0 else { takeDown(); return }
+        if window == nil { notch = style == .notch ? Notch.on(displayOf: menuBarFrame) : nil }
 
         // As wide as the stretch of bar it hangs under, not as wide as the replicas on it. The two
         // are the same at rest. Mid-drag they are not: the strip reaches to the divider, over the
         // hole macOS has opened for the item in hand, and the shelf has to reach with it or it
         // keeps its old width for the whole drag and jumps on the drop.
-        let frame = CGRect(
-            x: menuBarFrame.minX - Self.padding,
-            y: menuBarFrame.minY,
-            width: menuBarFrame.width + Self.padding * 2,
-            height: menuBarFrame.height + size.height
-        )
+        let frame = MenuBarItemGeometry.span(
+            of: CGRect(
+                x: menuBarFrame.minX - Self.padding,
+                y: menuBarFrame.minY,
+                width: menuBarFrame.width + Self.padding * 2,
+                height: menuBarFrame.height + size.height + room.height
+            ),
+            reaching: notch?.range
+        ).insetBy(dx: -room.width, dy: 0)
         let bar = window ?? make(frame, shelfHeight: size.height)
         bar.setFrame(cgFrame: frame)
         // Size only: a later show follows the items sideways and must not drag the shelf back
         // to where a descent that is still running started it.
-        shelf?.setFrameSize(CGSize(width: frame.width, height: size.height))
-        view.frame = CGRect(origin: CGPoint(x: Self.padding, y: 0), size: size)
+        shelf?.setFrameSize(CGSize(width: frame.width - room.width * 2, height: size.height + overlap))
+        view.frame = CGRect(origin: CGPoint(x: menuBarFrame.minX - frame.minX - room.width, y: 0), size: size)
         view.positions = positions
         bar.orderFrontRegardless()
         window = bar
@@ -88,6 +98,29 @@ public final class ReplicaBar {
     /// shelf's own place. The cover's half of the panel is run the same distance.
     var panel: NSView? { shelf }
     var travel: CGFloat { window?.frame.height ?? 0 }
+
+    /// The replicas, faded out while a notch-style shelf is still tucked up in the menu bar.
+    var replicas: NSView { view }
+
+    /// How high a notch-style open lowers the hanger from: the shelf tucked up behind the bar.
+    var tuck: CGFloat { (shelf?.frame.height ?? 0) - overlap }
+
+    var restingShelf: CGRect? {
+        guard let shelf else { return nil }
+        return CGRect(origin: CGPoint(x: room.width, y: room.height), size: shelf.frame.size)
+    }
+
+    /// The shelf drawn in to the notch, where a notch-style shelf starts from and ends.
+    func shelfGathered(into notch: Notch) -> CGRect? {
+        guard let window, let resting = restingShelf else { return nil }
+        return CGRect(
+            x: notch.range.lowerBound - window.frame.minX, y: resting.minY,
+            width: notch.range.upperBound - notch.range.lowerBound, height: resting.height
+        )
+    }
+
+    private var room: CGSize { notch == nil ? .zero : Notch.springRoom }
+    private var overlap: CGFloat { notch == nil ? 0 : Notch.seamOverlap }
 
     /// Lifts the shelf clear of the menu bar, ready to be run back down out of it.
     func park(by travel: CGFloat) {
@@ -103,16 +136,15 @@ public final class ReplicaBar {
     /// is not there. Zero would read as nowhere: the watch asks whether the pointer is below this
     /// edge, and nothing is below zero — so a shelf that took itself down over an emptied section
     /// left a bar nothing could ever close.
-    var bottomEdge: CGFloat { window?.frame.minY ?? .infinity }
+    var bottomEdge: CGFloat { window.map { $0.frame.minY + room.height } ?? .infinity }
 
-    /// Fades the bar while a menu is open over it.
-    ///
-    /// The menu comes out of the real item a row above and covers the replicas, which cannot
-    /// be clicked through it. Dimming says so, rather than leaving a bar that looks live
-    /// underneath.
-    public func setDimmed(_ dimmed: Bool) {
-        window?.alphaValue = dimmed ? 0.4 : 1
+    /// Above the cover while the shelf crosses the menu bar, and once it rests under it, below the
+    /// windows items open there: Control Center's menus were measured at layer 23, two under the items.
+    public func setCrossing(_ crossing: Bool) {
+        window?.level = crossing ? Self.crossingLevel : NSWindow.Level(rawValue: BarWindow.statusLevel.rawValue - 3)
     }
+
+    private static let crossingLevel = NSWindow.Level(rawValue: BarWindow.statusLevel.rawValue + 3)
 
     /// The item the user has picked up, whose replica is not drawn while they hold it.
     public func setInHand(_ windowID: UInt32?) {
@@ -129,7 +161,7 @@ public final class ReplicaBar {
         guard let host = window else { return }
         let pill = notice ?? makeNotice(text)
         let size = pill.frame.size
-        pill.setFrameOrigin(CGPoint(x: centerX - size.width / 2, y: host.frame.minY - Self.noticeGap - size.height))
+        pill.setFrameOrigin(CGPoint(x: centerX - size.width / 2, y: bottomEdge - Self.noticeGap - size.height))
         pill.orderFrontRegardless()
     }
 
@@ -187,8 +219,12 @@ public final class ReplicaBar {
         window?.orderOut(nil)
         window = nil
         shelf = nil
+        hanger = nil
         hideNotice()
         veil = nil
+        // The view outlives the window, and a notch-style close leaves it faded out.
+        view.alphaValue = 1
+        view.contentFilters = []
         view.images = [:]
         view.positions = [:]
     }
@@ -198,10 +234,7 @@ public final class ReplicaBar {
         // their way down, and behind the cover they would be crossing it unseen. The window
         // only draws where the shelf is, and a fully transparent stretch is click-through, so
         // the band it reaches over stays the shield's to swallow.
-        let bar = BarWindow(
-            frame: frame,
-            level: NSWindow.Level(rawValue: BarWindow.statusLevel.rawValue + 3)
-        )
+        let bar = BarWindow(frame: frame, level: Self.crossingLevel)
         // Replicas are icons on nothing, so the bar has to bring its own surface or they sit
         // unreadable on whatever window is behind.
         //
@@ -214,8 +247,13 @@ public final class ReplicaBar {
         clip.wantsLayer = true
         clip.layer?.masksToBounds = true
 
+        let hanger = NSView(frame: CGRect(origin: .zero, size: frame.size))
+        hanger.autoresizingMask = [.width, .height]
+        // Its own layer from the start, or the shelf's layer is placed by its offset and springs to the wrong place.
+        hanger.wantsLayer = true
         // At the bottom of the window, which is the only part of it the shelf ever rests in.
-        let backing = NSView(frame: CGRect(x: 0, y: 0, width: frame.width, height: shelfHeight))
+        let backing = NSView(frame: CGRect(
+            x: room.width, y: room.height, width: frame.width - room.width * 2, height: shelfHeight + overlap))
         backing.wantsLayer = true
         // A shelf hanging off the menu bar: square where it meets it, rounded where it ends.
         backing.layer?.cornerRadius = Self.cornerRadius
@@ -224,9 +262,11 @@ public final class ReplicaBar {
         veil = BarSurface.dress(backing, in: style, coveringIcons: false)
         view.wantsLayer = true
         backing.addSubview(view)
-        clip.addSubview(backing)
+        hanger.addSubview(backing)
+        clip.addSubview(hanger)
         bar.contentView = clip
         shelf = backing
+        self.hanger = hanger
         return bar
     }
 }

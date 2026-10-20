@@ -63,6 +63,17 @@ public enum StatusItemScanner {
         return Dictionary(named) { first, _ in first }
     }
 
+    /// The status item created under `name`, if there is one. Costs Screen Recording, as
+    /// `bouncersOwn` does.
+    public static func windowID(named name: String) -> UInt32? {
+        let options = CGWindowListOption(arrayLiteral: .optionAll, .excludeDesktopElements)
+        let windows = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] ?? []
+        let window = windows.first {
+            $0[kCGWindowLayer as String] as? Int == statusWindowLayer && $0[kCGWindowName as String] as? String == name
+        }
+        return (window?[kCGWindowNumber as String] as? Int).map(UInt32.init)
+    }
+
     /// Every status item currently in the bar, ordered left to right, dividers included.
     ///
     /// `.optionAll` rather than `.optionOnScreenOnly` on purpose: a hidden section is

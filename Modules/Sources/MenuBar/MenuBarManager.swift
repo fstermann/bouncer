@@ -87,6 +87,13 @@ public final class MenuBarManager {
         alwaysHiddenDivider?.showsMarker = areVisible
     }
 
+    /// How far further left the revealed hidden section is pushed, by widening its divider. Only
+    /// takes effect while the boundary markers are hidden, and goes back to zero on a collapse.
+    public var sectionShift: CGFloat {
+        get { hiddenDivider.padding }
+        set { hiddenDivider.padding = newValue }
+    }
+
     public func setVisibility(_ newValue: MenuBarVisibility) {
         guard newValue != visibility else { return }
         visibility = newValue
@@ -108,6 +115,7 @@ public final class MenuBarManager {
 
     private func apply(_ visibility: MenuBarVisibility) {
         hiddenDivider.isExpanded = !visibility.shows(.hidden)
+        if hiddenDivider.isExpanded { hiddenDivider.padding = 0 }
         alwaysHiddenDivider?.isExpanded = !visibility.shows(.alwaysHidden)
         iconItem?.button?.image = markImage(for: visibility)
     }

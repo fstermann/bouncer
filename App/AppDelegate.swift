@@ -116,7 +116,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         guard StandaloneBarPermissions.screenRecordingGranted else { return }
-        Task { await standaloneBar.open() }
+        // With hover over the whole menu bar off, only the notch could have opened it.
+        Task { await standaloneBar.open(closingWhenLeft: !settings.preferences.revealOnHover) }
     }
 
     @objc private func checkForUpdates() {

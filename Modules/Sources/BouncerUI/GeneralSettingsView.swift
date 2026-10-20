@@ -72,7 +72,7 @@ struct GeneralSettingsView: View {
 
     @ViewBuilder private var revealingPane: some View {
         Section {
-            Toggle("Reveal when the pointer enters the menu bar", isOn: $settings.preferences.revealOnHover)
+            HoverRevealOptions(preferences: $settings.preferences)
 
             Picker("Hide again", selection: rehideMode) {
                 ForEach(RehideMode.allCases, id: \.self) { mode in
@@ -138,6 +138,7 @@ struct GeneralSettingsView: View {
                     if #available(macOS 26.0, *) {
                         Text("Liquid Glass").tag(BarStyleChoice.glass)
                     }
+                    Text("Grow out of the notch").tag(BarStyleChoice.notch)
                     Text("Custom colour").tag(BarStyleChoice.custom)
                 }
                 if case .automatic = settings.preferences.barStyle {
@@ -233,7 +234,7 @@ struct GeneralSettingsView: View {
     }
 
     private enum BarStyleChoice: Hashable {
-        case automatic, glass, custom
+        case automatic, glass, notch, custom
     }
 
     private var barStyleChoice: Binding<BarStyleChoice> {
@@ -241,12 +242,14 @@ struct GeneralSettingsView: View {
             switch settings.preferences.barStyle {
             case .automatic: .automatic
             case .glass: .glass
+            case .notch: .notch
             case .custom: .custom
             }
         } set: { choice in
             settings.preferences.barStyle = switch choice {
             case .automatic: .automatic
             case .glass: .glass
+            case .notch: .notch
             case .custom: .custom(red: 0.5, green: 0.5, blue: 0.5)
             }
         }

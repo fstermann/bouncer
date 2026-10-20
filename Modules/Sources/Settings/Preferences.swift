@@ -7,6 +7,17 @@ public enum AutoRehide: Codable, Hashable, Sendable {
     case onFocusedAppChange
 }
 
+/// How long the pointer rests where hover reveals before it does, the way the Dock waits before
+/// it shows.
+public enum HoverDelay: Codable, Hashable, Sendable {
+    /// The Dock's own auto-hide delay, read on every reveal so a change to it carries over.
+    case matchDock
+    case seconds(TimeInterval)
+
+    /// The longest the custom delay can be set to.
+    public static let longest: TimeInterval = 2
+}
+
 /// How the standalone bar's panel is painted.
 ///
 /// Plain values rather than a colour type, so the choice encodes with the rest of the
@@ -17,6 +28,9 @@ public enum BarStyle: Codable, Hashable, Sendable {
     case automatic
     /// Liquid Glass, on a macOS that has it; the automatic grey where it does not.
     case glass
+    /// Black, grown out of the display's notch, or out of a notch-sized point at the top centre
+    /// of a display without one.
+    case notch
     /// A flat colour of the user's choosing, in sRGB.
     case custom(red: Double, green: Double, blue: Double)
 
@@ -33,6 +47,9 @@ public struct Preferences: Codable, Hashable, Sendable {
     public var enableAlwaysHiddenSection: Bool
     /// Reveal by moving the pointer into the menu bar, without a click.
     public var revealOnHover: Bool
+    /// The same, but only near the notch, or the top centre of a display without one.
+    public var revealNearNotch: Bool
+    public var hoverDelay: HoverDelay
     public var showBouncerIcon: Bool
     /// Show the hidden section as replicas in a bar of Bouncer's own, rather than by
     /// revealing it in the menu bar.
@@ -52,6 +69,8 @@ public struct Preferences: Codable, Hashable, Sendable {
         autoRehide: AutoRehide = .afterDelay(seconds: 10),
         enableAlwaysHiddenSection: Bool = false,
         revealOnHover: Bool = false,
+        revealNearNotch: Bool = false,
+        hoverDelay: HoverDelay = .matchDock,
         showBouncerIcon: Bool = true,
         showItemsInBar: Bool = false,
         animateBar: Bool = true,
@@ -61,6 +80,8 @@ public struct Preferences: Codable, Hashable, Sendable {
         self.autoRehide = autoRehide
         self.enableAlwaysHiddenSection = enableAlwaysHiddenSection
         self.revealOnHover = revealOnHover
+        self.revealNearNotch = revealNearNotch
+        self.hoverDelay = hoverDelay
         self.showBouncerIcon = showBouncerIcon
         self.showItemsInBar = showItemsInBar
         self.animateBar = animateBar
@@ -81,6 +102,11 @@ public struct Preferences: Codable, Hashable, Sendable {
         }
         enableAlwaysHiddenSection = try container.decode(Bool.self, forKey: .enableAlwaysHiddenSection)
         revealOnHover = try container.decode(Bool.self, forKey: .revealOnHover)
+        revealNearNotch = try container.decodeIfPresent(Bool.self, forKey: .revealNearNotch) ?? false
+        hoverDelay = switch try container.decodeIfPresent(HoverDelay.self, forKey: .hoverDelay) ?? .matchDock {
+        case .seconds(let seconds): .seconds(min(max(seconds, 0), HoverDelay.longest))
+        case .matchDock: .matchDock
+        }
         showBouncerIcon = try container.decode(Bool.self, forKey: .showBouncerIcon)
         showItemsInBar = try container.decodeIfPresent(Bool.self, forKey: .showItemsInBar) ?? false
         animateBar = try container.decodeIfPresent(Bool.self, forKey: .animateBar) ?? true

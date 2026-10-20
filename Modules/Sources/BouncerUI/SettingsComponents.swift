@@ -1,4 +1,5 @@
 import AppKit
+import MenuBar
 import Settings
 import StandaloneBar
 import SwiftUI
@@ -142,5 +143,55 @@ struct PermissionRow: View {
             return
         }
         NSWorkspace.shared.open(url)
+    }
+}
+
+/// Revealing by pointer alone, and how long it waits first: the Dock's own delay, or one of the
+/// user's. Custom starts from the Dock's, so switching to it changes nothing until the slider moves.
+struct HoverRevealOptions: View {
+    @Binding var preferences: Preferences
+
+    var body: some View {
+        Toggle("Reveal when the pointer enters the menu bar", isOn: $preferences.revealOnHover)
+        Toggle(isOn: $preferences.revealNearNotch) {
+            Text("Reveal when the pointer reaches the notch")
+            Text("Closes again when the pointer leaves. Without a notch, the top centre of the menu bar.")
+        }
+        if preferences.revealOnHover || preferences.revealNearNotch {
+            delayPicker
+        }
+    }
+
+    @ViewBuilder private var delayPicker: some View {
+        Picker("Delay before revealing", selection: followsDock) {
+            Text("Match the Dock (\(Self.label(DockDelay.current)))").tag(true)
+            Text("Custom").tag(false)
+        }
+        if case .seconds(let seconds) = preferences.hoverDelay {
+            Slider(value: custom, in: 0...HoverDelay.longest, step: 0.01) {
+                Text(Self.label(seconds))
+            } minimumValueLabel: {
+                Text("0 ms")
+            } maximumValueLabel: {
+                Text("\(Int(HoverDelay.longest))s")
+            }
+        }
+    }
+
+    private var followsDock: Binding<Bool> {
+        Binding { preferences.hoverDelay == .matchDock } set: { matches in
+            preferences.hoverDelay = matches ? .matchDock : .seconds(min(DockDelay.current, HoverDelay.longest))
+        }
+    }
+
+    private var custom: Binding<Double> {
+        Binding {
+            guard case .seconds(let seconds) = preferences.hoverDelay else { return 0 }
+            return seconds
+        } set: { preferences.hoverDelay = .seconds($0) }
+    }
+
+    private static func label(_ seconds: TimeInterval) -> String {
+        "\(Int((seconds * 1000).rounded())) ms"
     }
 }

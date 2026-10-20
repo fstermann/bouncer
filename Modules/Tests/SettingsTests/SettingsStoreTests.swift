@@ -95,6 +95,15 @@ private final class MemoryPersistence: PreferencesPersistence, @unchecked Sendab
         #expect(store.preferences.autoRehide == .afterDelay(seconds: 10))
     }
 
+    @Test func hoverDelayFollowsTheDockUntilSetAndIsClampedToTheSlidersRange() {
+        #expect(Preferences().hoverDelay == .matchDock)
+        let persistence = MemoryPersistence()
+        let store = SettingsStore(persistence: persistence)
+        store.preferences.hoverDelay = .seconds(30)
+        store.flush()
+        #expect(SettingsStore(persistence: persistence).preferences.hoverDelay == .seconds(HoverDelay.longest))
+    }
+
     @Test func corruptStoredDataFallsBackToDefaults() {
         let store = SettingsStore(persistence: MemoryPersistence(data: Data("not json".utf8)))
         #expect(store.preferences == Preferences())
