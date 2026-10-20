@@ -28,7 +28,6 @@ public final class RevealController {
 
     private var inputObservation: ObservationLoop?
     private var rehideObservation: ObservationLoop?
-    private var settledObservation: ObservationLoop?
 
     public init(manager: MenuBarManager, settings: SettingsStore) {
         self.manager = manager
@@ -45,6 +44,9 @@ public final class RevealController {
         }
         rehideObservation = ObservationLoop { [weak self] in
             self?.scheduleRehide()
+            // The pointer may have come back while the section or the bar was still going away, and
+            // moves made then were turned down. Like the Dock, it reveals again without another move.
+            self?.handlePointerMoved()
         }
     }
 
@@ -66,8 +68,6 @@ public final class RevealController {
             localHoverMonitor = nil
             pendingReveal?.cancel()
             pendingReveal = nil
-            settledObservation?.cancel()
-            settledObservation = nil
             return
         }
         hoverMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved]) { _ in
@@ -77,17 +77,12 @@ public final class RevealController {
             MainActor.assumeIsolated { self.handlePointerMoved() }
             return event
         }
-        // The pointer may have come back while the section or the bar was still going away, and
-        // moves made then were turned down. Like the Dock, it reveals again without another move.
-        settledObservation = ObservationLoop { [weak self] in
-            self?.handlePointerMoved()
-        }
     }
 
     /// Reveals once the pointer has rested where it reveals for the hover delay, the way the Dock
     /// shows. Leaving before then calls it off.
     private func handlePointerMoved() {
-        // Both read first, so the observation that re-runs this hears either change.
+        // Both read first, so the rehide observation re-runs this on either change.
         let isSettled = manager.visibility == .collapsed && !manager.isRevealHeld
         guard hoverMonitor != nil, isSettled, isPointerRevealing else {
             pendingReveal?.cancel()

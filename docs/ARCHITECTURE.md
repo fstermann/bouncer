@@ -313,8 +313,7 @@ These are enforced by review, not by tooling:
    nothing scheduled at all.
 2. **Pay only for what you enable.** The global mouse monitor, and its local twin for Bouncer's
    own windows, are installed when `revealOnHover` or `revealNearNotch` is on and removed when
-   both are off, together with the observation that reveals again when the pointer came back
-   while the section was going away, and the one-shot wait for the hover delay. Same for the
+   both are off, together with the one-shot wait for the hover delay. Same for the
    app-activation observer. A user with both off has zero installed observers. The standalone
    bar goes further: its pointer monitor, its menu observer and its windows exist only while
    the bar is open, so a user who has enabled it and closed it is paying nothing either.
