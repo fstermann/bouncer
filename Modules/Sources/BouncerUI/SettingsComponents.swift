@@ -155,12 +155,17 @@ struct HoverRevealOptions: View {
         Toggle("Reveal when the pointer enters the menu bar", isOn: $preferences.revealOnHover)
         Toggle(isOn: $preferences.revealNearNotch) {
             Text("Reveal when the pointer reaches the notch")
-            Text("Closes again when the pointer leaves. Without a notch, the top centre of the menu bar.")
+            Text(closesOnLeave ? "Closes again when the pointer leaves. \(withoutNotch)" : withoutNotch)
         }
         if preferences.revealOnHover || preferences.revealNearNotch {
             delayPicker
         }
     }
+
+    private let withoutNotch = "Without a notch, the top centre of the menu bar."
+
+    /// Only Bouncer's own bar can tell a menu is open under it, so only it closes on leaving.
+    private var closesOnLeave: Bool { preferences.showItemsInBar && !preferences.revealOnHover }
 
     @ViewBuilder private var delayPicker: some View {
         Picker("Delay before revealing", selection: followsDock) {
