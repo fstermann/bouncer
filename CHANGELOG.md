@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.5.0](https://github.com/fstermann/bouncer/compare/v0.4.0...v0.5.0) (2026-10-21)
+
+
+### Features
+
+* add a notch bar style that grows out of the display notch ([#21](https://github.com/fstermann/bouncer/issues/21)) ([adea201](https://github.com/fstermann/bouncer/commit/adea201b68cf2b94a2ba630066e7b20249dd88aa))
+* add a todo page to the notch panel ([#22](https://github.com/fstermann/bouncer/issues/22)) ([5840a3d](https://github.com/fstermann/bouncer/commit/5840a3da734df1349b65bedfd02e4a13fa187d39))
+
+
+### Documentation
+
+* add shared agent instructions ([#18](https://github.com/fstermann/bouncer/issues/18)) ([084ee69](https://github.com/fstermann/bouncer/commit/084ee69c23474599c2b2207cce9b78224f6e3992))
+
 ## [0.4.0](https://github.com/fstermann/bouncer/compare/v0.3.0...v0.4.0) (2026-08-25)
 
 
