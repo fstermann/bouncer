@@ -38,6 +38,8 @@ public final class ReplicaBar {
     /// replicas sit above it: they slide in plain view, only their background dims.
     private(set) var veil: NSView?
 
+    /// Kept invisible while the todo panel shrinks into its shape over the top, and shown once it has.
+    var isConcealed = false { didSet { window?.alphaValue = isConcealed ? 0 : 1 } }
     /// Read by `NotchSlide`, which fades it while a notch stand-in grows in or goes away.
     private(set) var window: BarWindow?
     private var shelf: NSView?
@@ -235,6 +237,7 @@ public final class ReplicaBar {
         // only draws where the shelf is, and a fully transparent stretch is click-through, so
         // the band it reaches over stays the shield's to swallow.
         let bar = BarWindow(frame: frame, level: Self.crossingLevel)
+        bar.alphaValue = isConcealed ? 0 : 1
         // Replicas are icons on nothing, so the bar has to bring its own surface or they sit
         // unreadable on whatever window is behind.
         //

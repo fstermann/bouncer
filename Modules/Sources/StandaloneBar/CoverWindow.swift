@@ -20,6 +20,18 @@ import Settings
 /// clipped to the strip until it gets there.
 @MainActor
 public final class CoverWindow {
+    /// Run by an open that does not slide the panel out, once its windows are up and before the
+    /// section is revealed under them: whatever takes the panel's place on screen meanwhile.
+    var arrival: (@MainActor () async -> Void)?
+
+    func arrive() async {
+        let arrival = arrival
+        self.arrival = nil
+        await arrival?()
+    }
+
+    /// Kept invisible while the todo panel shrinks into its shape over the top, and shown once it has.
+    var isConcealed = false { didSet { window?.alphaValue = isConcealed ? 0 : 1 } }
     /// Read by `NotchSlide`, which fades it while a notch stand-in grows in or goes away.
     private(set) var window: BarWindow?
     private let surface = NSView()
@@ -118,6 +130,7 @@ public final class CoverWindow {
 
     private func make(_ rect: CGRect) -> BarWindow {
         let cover = BarWindow(frame: rect, level: Self.aboveItems)
+        cover.alphaValue = isConcealed ? 0 : 1
         // Clicks belong to the items underneath, which are painted over rather than moved.
         // `ClickShield` is what stops one reaching an icon nobody can see.
         cover.ignoresMouseEvents = true

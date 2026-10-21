@@ -25,9 +25,9 @@ public final class StandaloneBarController {
     private let menuBar: MenuBarManager
     private let settings: SettingsStore
     private let itemCapture = ItemCapture()
-    private let cover = CoverWindow()
-    private let shield = ClickShield()
-    private let bar = ReplicaBar()
+    let cover = CoverWindow()
+    let shield = ClickShield()
+    let bar = ReplicaBar()
     private let menus = MenuWatcher()
     private let handover: Handover
 
@@ -87,7 +87,7 @@ public final class StandaloneBarController {
     }
 
     /// Reveals the hidden section, hides it again behind a cover, and replicates it below.
-    public func open(closingWhenLeft: Bool = false) async {
+    public func open(closingWhenLeft: Bool = false, animated: Bool = true) async {
         guard !isOpen, !isOpening, !isClosing else { return }
         isOpening = true
         defer { isOpening = false }
@@ -140,7 +140,7 @@ public final class StandaloneBarController {
         cover.show(over: landing.insetBy(dx: -Self.coverBleed, dy: 0))
         bar.update(images: itemCapture.images)
         bar.show(MenuBarItemGeometry.packed(parked, into: landing, like: section.order), below: landing)
-        if let slide { await Slide.panelOut(bar, cover, over: slide) }
+        await Slide.panelOut(bar, cover, over: animated ? slide : nil)
         bar.setCrossing(false)
 
         let revealed = await NotchCentring(menuBar: menuBar).confirm(await reveal(hidden), in: landing, of: hidden)
@@ -246,7 +246,7 @@ public final class StandaloneBarController {
     }
 
     /// Puts everything away and hands hiding back to the divider.
-    public func close() async {
+    public func close(animated: Bool = true) async {
         guard isOpen else { return }
         isOpen = false
         isClosing = true
@@ -270,8 +270,8 @@ public final class StandaloneBarController {
         // The section goes away underneath the panel, which only uncovers the bar once it has:
         // the cover leaves with the panel it is half of. Awaited: dimmed first, or the glass shows
         // the smudges vanishing in a frame.
-        await BarSurface.fade([cover.veil, bar.veil], toDimmed: true, over: slide)
-        await Slide.panelIn(bar, cover, over: slide) { [menuBar] in
+        await BarSurface.fade([cover.veil, bar.veil], toDimmed: true, over: animated ? slide : nil)
+        await Slide.panelIn(bar, cover, shield, over: animated ? slide : nil) { [menuBar] in
             menuBar.setVisibility(.collapsed)
             await PlacementWait.removal(of: replicated)
             // Before the panel goes: a marker widens the divider, shifting the items left of it.

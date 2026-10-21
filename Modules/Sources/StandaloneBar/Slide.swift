@@ -17,7 +17,11 @@ enum Slide {
     /// through — in one animation group, which is what keeps them a single panel. Awaited, because
     /// the cover being over the section is what makes it safe to reveal, and eased out so the
     /// panel settles rather than stopping dead.
-    static func panelOut(_ bar: ReplicaBar, _ cover: CoverWindow, over duration: TimeInterval) async {
+    ///
+    /// Without a `duration` the panel is already where it rests, and whatever stands in for its
+    /// arrival meanwhile runs instead (`CoverWindow.arrival`).
+    static func panelOut(_ bar: ReplicaBar, _ cover: CoverWindow, over duration: TimeInterval?) async {
+        guard let duration else { return await cover.arrive() }
         if let notch = cover.notch { return await NotchSlide.panelOut(bar, cover, from: notch, over: duration) }
         guard let shelf = bar.panel else { return }
         cover.park(by: bar.travel)
@@ -36,8 +40,11 @@ enum Slide {
     /// few frames — the leaving is the part being watched, and it read as the bar vanishing rather
     /// than going.
     static func panelIn(
-        _ bar: ReplicaBar, _ cover: CoverWindow, over duration: TimeInterval?, after putAway: () async -> Void
+        _ bar: ReplicaBar, _ cover: CoverWindow, _ shield: ClickShield, over duration: TimeInterval?,
+        after putAway: () async -> Void
     ) async {
+        // Goes with the replicas, not with the shield, which stays until the panel has gone.
+        shield.fadeSwitch(to: 0, over: (duration ?? 0) * 0.6)
         // A pointer moving over a window of Bouncer's own is invisible to the hover watch, which
         // has to see one coming back into the menu bar to reveal again once this has gone.
         bar.window?.ignoresMouseEvents = true

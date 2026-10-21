@@ -5,6 +5,7 @@ import MenuBar
 import Settings
 import StandaloneBar
 import SwiftUI
+import Todos
 import Updates
 
 @MainActor
@@ -19,6 +20,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     )
     private lazy var reveal = RevealController(manager: menuBar, settings: settings)
     private lazy var standaloneBar = StandaloneBarController(menuBar: menuBar, settings: settings)
+    private lazy var todos = TodoController(settings: settings)
+    private var pageSwitches: ObservationLoop?
     private let permissions = StandaloneBarPermissions()
     private let updates = UpdateController()
     private var settingsWindow: NSWindow?
@@ -34,6 +37,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // RevealController has no business knowing about the standalone bar.
         menuBar.onIconClick = { [weak self] in self?.handleIconClick() }
         reveal.onHoverReveal = { [weak self] in self?.handleHoverReveal() }
+        pageSwitches = ObservationLoop { [weak self] in self?.wirePageSwitches() }
         Log.app.info("Bouncer launched")
     }
 
@@ -111,6 +115,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// request for the bar, and prompting on it would put a dialog up for simply moving the
     /// mouse. The bar stays behind a click until both are granted.
     private func handleHoverReveal() {
+        let preferences = settings.preferences
+        if todos.isAvailable, !preferences.showItemsInBar || preferences.notchPage == .todos {
+            Task { await todos.open() }
+            return
+        }
         guard settings.preferences.showItemsInBar else {
             menuBar.setVisibility(.revealed)
             return
@@ -118,6 +127,50 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard StandaloneBarPermissions.screenRecordingGranted else { return }
         // With hover over the whole menu bar off, only the notch could have opened it.
         Task { await standaloneBar.open(closingWhenLeft: !settings.preferences.revealOnHover) }
+    }
+
+    /// Each page of the notch panel offers the other only while the other has something to show.
+    private func wirePageSwitches() {
+        let preferences = settings.preferences
+        standaloneBar.onSwitchPage = nil
+        todos.onSwitchPage = nil
+        if preferences.todoFile != nil {
+            standaloneBar.onSwitchPage = { [weak self] in self?.switchPage(to: .todos) }
+        }
+        // Only while there is a todo page to open, so ⌘⇧B is left to the apps otherwise.
+        if preferences.todoFile == nil {
+            if todos.onShortcut != nil { todos.onShortcut = nil }
+        } else if todos.onShortcut == nil {
+            todos.onShortcut = { [weak self] in self?.handleTodoShortcut() }
+        }
+        if preferences.showItemsInBar {
+            todos.onSwitchPage = { [weak self] in self?.switchPage(to: .items) }
+        }
+    }
+
+    /// Turns one page into the other, which hover then opens next time. The todo panel does the
+    /// moving both ways: it grows out of the items panel and takes it away once covering it, or
+    /// has it built underneath itself and shrinks into its shape before it shows.
+    private func switchPage(to page: NotchPage) {
+        settings.preferences.notchPage = page
+        Task { [standaloneBar, todos, settings] in
+            switch page {
+            case .todos:
+                await todos.open(from: standaloneBar.panelFrame) { await standaloneBar.close(animated: false) }
+            case .items:
+                await todos.close { shape in
+                    await standaloneBar.open(closingWhenLeft: !settings.preferences.revealOnHover, takingShape: shape)
+                }
+            }
+        }
+    }
+
+    /// ⌘⇧B opens the todo page, from the items page if that is up, and closes it again.
+    private func handleTodoShortcut() {
+        guard !standaloneBar.isOpen else { return switchPage(to: .todos) }
+        Task { [todos] in
+            todos.isOpen ? await todos.close() : await todos.open(closesOnLeave: false)
+        }
     }
 
     @objc private func checkForUpdates() {

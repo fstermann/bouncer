@@ -65,6 +65,23 @@ private final class MemoryPersistence: PreferencesPersistence, @unchecked Sendab
         #expect(store.preferences.animateBar)
         #expect(store.preferences.barAnimationDuration == 0.18)
         #expect(store.preferences.barStyle == .automatic)
+        #expect(store.preferences.todoFile == nil)
+        #expect(store.preferences.notchPage == .items)
+        #expect(store.preferences.tagColors.isEmpty)
+    }
+
+    @Test func todoPreferencesRoundTrip() throws {
+        let persistence = MemoryPersistence()
+        let store = SettingsStore(persistence: persistence)
+        store.preferences.todoFile = Data([1, 2, 3])
+        store.preferences.notchPage = .todos
+        store.preferences.tagColors = ["work": "blue"]
+        store.flush()
+
+        let reloaded = SettingsStore(persistence: persistence)
+        #expect(reloaded.preferences.todoFile == Data([1, 2, 3]))
+        #expect(reloaded.preferences.notchPage == .todos)
+        #expect(reloaded.preferences.tagColors == ["work": "blue"])
     }
 
     @Test func barStyleRoundTrips() throws {

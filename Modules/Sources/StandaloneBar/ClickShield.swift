@@ -10,16 +10,29 @@ import AppKit
 /// swallow them for every visible item and the app menus with them; it has to let everything
 /// through, and this takes back the one stretch that should not.
 ///
-/// Nothing is drawn. The window exists to be hit first and do nothing about it.
+/// Nothing is drawn but the page switch, which sits over the section's last item: an item hidden
+/// under the cover, whose clicks this swallows anyway, so the switch takes nothing from the user.
+/// Otherwise the window exists to be hit first and do nothing about it.
 @MainActor
 final class ClickShield {
     private var window: BarWindow?
+    private let view = ShieldView()
+    /// Kept invisible while the todo panel shrinks into its shape over the top, and shown once it has.
+    var isConcealed = false { didSet { window?.alphaValue = isConcealed ? 0 : 1 } }
+
+    /// Switches the notch panel to the todo page. `nil` hides the switch.
+    var onSwitchPage: (@MainActor () -> Void)? {
+        get { view.onSwitch }
+        set { view.onSwitch = newValue }
+    }
 
     /// The shield's own window, so a capture of the bar can leave it out.
     var windowID: UInt32? { window.map { UInt32($0.windowNumber) } }
 
     /// Covers `rect`, in window-server coordinates.
     func show(over rect: CGRect) {
+        // The panel is out by the first show of an open, and the switch eases in on it.
+        if window == nil { view.fadeSwitch(from: 0, to: 1, over: Self.switchFade) }
         let shield = window ?? make(rect)
         window = shield
         shield.ignoresMouseEvents = false
@@ -73,6 +86,13 @@ final class ClickShield {
     /// anybody can feel.
     private static let beatBeforeItTakesEffect: Duration = .milliseconds(120)
 
+    /// Fades the switch with the rest of the panel's contents.
+    func fadeSwitch(to alpha: CGFloat, over duration: TimeInterval) {
+        view.fadeSwitch(to: alpha, over: duration)
+    }
+
+    private static let switchFade: TimeInterval = 0.25
+
     func hide() {
         window?.orderOut(nil)
         window = nil
@@ -91,6 +111,60 @@ final class ClickShield {
         // transparent is a target; at 1/255 over a strip that is already a picture of empty
         // bar, there is nothing to see.
         shield.backgroundColor = NSColor.black.withAlphaComponent(1.0 / 255.0)
+        shield.alphaValue = isConcealed ? 0 : 1
+        view.frame = CGRect(origin: .zero, size: rect.size)
+        view.autoresizingMask = [.width, .height]
+        shield.contentView = view
         return shield
+    }
+}
+
+/// Swallows every click except one on the page switch.
+///
+/// The switch is white on a dark disc, so it reads on black, on grey and on glass alike without
+/// knowing which the cover is painted with.
+@MainActor
+private final class ShieldView: NSView {
+    private let glyph = NSImageView()
+    var onSwitch: (@MainActor () -> Void)? { didSet { glyph.isHidden = onSwitch == nil } }
+
+    private static let glyphSize: CGFloat = 20
+    private static let inset: CGFloat = 2
+
+    init() {
+        super.init(frame: .zero)
+        glyph.image = NSImage(systemSymbolName: "checklist", accessibilityDescription: "Show todos")
+        glyph.symbolConfiguration = .init(pointSize: 11, weight: .medium)
+        glyph.contentTintColor = .white
+        glyph.wantsLayer = true
+        glyph.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.35).cgColor
+        glyph.layer?.cornerRadius = Self.glyphSize / 2
+        glyph.isHidden = true
+        addSubview(glyph)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    func fadeSwitch(from start: CGFloat? = nil, to alpha: CGFloat, over duration: TimeInterval) {
+        if let start { glyph.alphaValue = start }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = duration
+            glyph.animator().alphaValue = alpha
+        }
+    }
+
+    override func layout() {
+        super.layout()
+        let size = Self.glyphSize
+        glyph.frame = CGRect(
+            x: bounds.maxX - size - Self.inset, y: (bounds.height - size) / 2, width: size, height: size
+        )
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        guard !glyph.isHidden, glyph.frame.insetBy(dx: -4, dy: -4).contains(convert(event.locationInWindow, from: nil))
+        else { return }
+        onSwitch?()
     }
 }

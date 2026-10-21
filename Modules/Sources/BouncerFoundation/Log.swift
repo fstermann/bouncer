@@ -7,6 +7,7 @@ public enum Log {
     public static let settings = Logger(subsystem: subsystem, category: "settings")
     public static let app = Logger(subsystem: subsystem, category: "app")
     public static let updates = Logger(subsystem: subsystem, category: "updates")
+    public static let todos = Logger(subsystem: subsystem, category: "todos")
 
     /// Signposts for measuring hot paths (`xctrace record --template 'Time Profiler'`).
     public static let signposter = OSSignposter(subsystem: subsystem, category: "perf")
