@@ -247,9 +247,16 @@ event source; a change synced in while it is closed is read on the next open. Ed
 file as it is on disk at that moment, and a tick or edit whose line no longer holds the todo is dropped
 rather than landing on another line.
 
-Each page switches to the other from the top right of the panel. On the items page that is the
-`ClickShield`, which already swallows clicks over the section's last item, so the switch costs the
-user nothing; it follows the section through every open and rearrangement because the shield does.
+Each page switches to the other from the top right of the panel. On the items page the
+`ClickShield` takes its click, since it already swallows clicks over the section's last item, so the
+switch costs the user nothing; it follows the section through every open and rearrangement because
+the shield does. The cover draws it, so it rides the panel's edge and comes into focus with the
+replicas instead of appearing once the panel has landed.
+
+Both pages move alike, on the same `Motion` springs: the panel grows, and its content is cut to the
+panel's shape and pinned to its top, so the panel reveals it rather than the content appearing
+beside a panel still on its way. The content comes into focus as the panel lands and goes out of
+focus as it leaves.
 Hover opens whichever page the switch last chose (`Preferences.notchPage`). Switching morphs
 rather than closing one panel and opening the other, and the todo panel does all the moving: it
 fades in over the items panel, which is then taken down unanimated underneath it, and springs to
@@ -269,7 +276,7 @@ count todos ticked here. Indented lines under a task are its note. Preset catego
 Logic lives in `Modules/` (a SwiftPM package); `App/` is a thin shell.
 
 ```
-BouncerFoundation   Logging, signposts, observation helper. No dependencies.
+BouncerFoundation   Logging, signposts, observation helper, the panel's springs. No dependencies.
       ↑         ↑
   Settings   Updates   Preferences value type, persistence, launch-at-login.
       ↑         ↑      Sparkle, wrapped thin — the one third-party dependency.

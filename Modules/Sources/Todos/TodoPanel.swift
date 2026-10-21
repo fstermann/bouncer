@@ -1,4 +1,5 @@
 import AppKit
+import BouncerFoundation
 import MenuBar
 import SwiftUI
 
@@ -66,34 +67,39 @@ final class TodoPanel {
         content.layoutSubtreeIfNeeded()
         let origin = start ?? notch.rect
         reach(origin, in: window)
-        content.alphaValue = 0
         window.orderFrontRegardless()
         window.makeKey()
         page.focusRequests += 1
         guard let duration else {
-            content.alphaValue = 1
             await onceCovered()
             return settle(window)
         }
         isMoving = true
-        surface.frame = local(origin, in: window)
+        content.alphaValue = 0
+        // The content is pinned to the surface's top centre, so the surface reveals it as it grows.
+        shape(surface, to: local(origin, in: window))
         if start != nil {
             // Fades in over the panel it replaces, which is only taken away once it is covered.
-            surface.alphaValue = 0
-            fade(surface, to: 1, over: duration * 0.6)
-            try? await Task.sleep(for: .seconds(duration * 0.6))
+            let appear = Motion(duration: duration * 0.6, bounce: 0)
+            for view in body(surface) {
+                view.alphaValue = 0
+                appear.fade(view, to: 1)
+            }
+            await appear.finished()
             await onceCovered()
         } else if !notch.isReal {
-            surface.alphaValue = 0
-            fade(surface, to: 1, over: duration * 2.4)
+            body(surface).forEach { $0.alphaValue = 0 }
         }
-        let grow = duration * 2.4
-        Spring(duration: grow, bounce: 0.1).move(surface, to: local(rest, in: window))
-        try? await Task.sleep(for: .seconds(duration * 0.6))
-        fade(content, to: 1, over: duration * 1.6)
-        try? await Task.sleep(for: .seconds(grow - duration * 0.6))
+        // The same springs as the items page, so the two pages grow and focus alike.
+        let grow = Motion(duration: duration * 2.4, bounce: 0.1)
+        shape(surface, to: local(rest, in: window), on: grow)
+        if start == nil, !notch.isReal { body(surface).forEach { grow.fade($0, to: 1) } }
+        Motion(duration: duration * 1.6, bounce: 0, delay: duration * 0.6, startingWith: grow).focusIn([content])
+        await grow.finished()
         isMoving = false
-        if window === self.window { settle(window) }
+        guard window === self.window else { return }
+        Motion.unfocus([content])
+        settle(window)
     }
 
     /// Lets go of the window at once, so an open started while this one is still going away
@@ -111,27 +117,28 @@ final class TodoPanel {
         self.surface = nil
         self.content = nil
         isMoving = false
-        if let duration { fade(content, to: 0, over: duration * 0.6) }
+        if let duration, let content { Motion(duration: duration * 0.6, bounce: 0).focusOut([content]) }
         var isShaped = false
         await items? { [self] frame in
             isShaped = true
             guard let duration else { return }
             reach(frame, in: window, resting: rest)
-            let gather = duration * 1.6
-            Spring(duration: gather, bounce: 0).move(surface, to: local(frame, in: window))
-            try? await Task.sleep(for: .seconds(gather))
+            let gather = Motion(duration: duration * 1.6, bounce: 0)
+            shape(surface, to: local(frame, in: window), on: gather)
+            await gather.finished()
         }
         guard let duration else { return window.orderOut(nil) }
         if isShaped {
             // Shaped like the panel underneath by now, and faded off it rather than lifted.
-            fade(window.contentView, to: 0, over: duration * 0.6)
-            try? await Task.sleep(for: .seconds(duration * 0.6))
+            let fade = Motion(duration: duration * 0.6, bounce: 0)
+            fade.fade(window.contentView, to: 0)
+            await fade.finished()
         } else {
             reach(notch.rect, in: window, resting: rest)
-            let gather = duration * 1.6
-            Spring(duration: gather, bounce: 0).move(surface, to: local(notch.rect, in: window))
-            if !notch.isReal { fade(surface, to: 0, over: gather) }
-            try? await Task.sleep(for: .seconds(gather))
+            let gather = Motion(duration: duration * 1.6, bounce: 0)
+            shape(surface, to: local(notch.rect, in: window), on: gather)
+            if !notch.isReal { body(surface).forEach { gather.fade($0, to: 0) } }
+            await gather.finished()
         }
         window.orderOut(nil)
     }
@@ -149,6 +156,7 @@ final class TodoPanel {
     /// old coordinates; moving the window under it would carry the panel sideways and snap it back.
     private func settle(_ window: NSWindow) {
         window.contentView?.subviews.forEach { $0.layer?.removeAllAnimations() }
+        content?.layer?.removeAllAnimations()
         window.setFrame(frame(around: [rest]), display: true)
         place(at: rest, in: window)
     }
@@ -161,8 +169,24 @@ final class TodoPanel {
     }
 
     private func place(at rect: CGRect, in window: NSWindow) {
-        let frame = local(rect, in: window)
-        window.contentView?.subviews.forEach { $0.frame = frame }
+        guard let surface else { return }
+        shape(surface, to: local(rect, in: window))
+        content?.frame = surface.bounds
+    }
+
+    /// Gives the panel `rect`, at once or on `motion`, and the fillets joining its top to the top of
+    /// the display go with its edges.
+    private func shape(_ surface: NSView, to rect: CGRect, on motion: Motion? = nil) {
+        for view in body(surface) {
+            let frame = (view as? NotchShoulder)?.frame(beside: rect) ?? rect
+            if let motion { motion.move(view, to: frame) } else { view.frame = frame }
+        }
+    }
+
+    /// The panel and its fillets, which are drawn beside it rather than in it, since the panel cuts
+    /// its content to its own shape.
+    private func body(_ surface: NSView) -> [NSView] {
+        [surface] + (surface.superview?.subviews.filter { $0 is NotchShoulder } ?? [])
     }
 
     private func frame(around rects: [CGRect]) -> CGRect {
@@ -190,19 +214,24 @@ final class TodoPanel {
         surface.layer?.cornerRadius = Self.cornerRadius
         // Square where it meets the top of the display, rounded where it hangs.
         surface.layer?.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
+        // The content is cut to the panel's shape while it grows, never drawn outside it.
+        surface.layer?.masksToBounds = true
         surface.onExit = { [weak self] in self?.pointerLeft() }
         surface.onEnter = { [weak self] in self?.stopWatchingTheLeave() }
         root.addSubview(surface)
+        root.addSubview(NotchShoulder(left: true))
+        root.addSubview(NotchShoulder(left: false))
         let content = NSHostingView(rootView: TodoPageView(page: page))
         // Sized by the panel, which follows the height the page measures for itself.
         content.sizingOptions = []
-        root.addSubview(content)
+        // Kept at the panel's resting size and pinned to its top centre, the way the page sits.
+        content.autoresizingMask = [.minXMargin, .maxXMargin, .minYMargin]
+        surface.addSubview(content)
         window.contentView = root
-        place(at: rest, in: window)
-
         self.window = window
         self.surface = surface
         self.content = content
+        place(at: rest, in: window)
         resignObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didResignKeyNotification, object: window, queue: .main
         ) { [weak self] _ in
@@ -259,44 +288,6 @@ final class TodoPanel {
         window?.onEscape = nil
         surface?.onExit = nil
         surface?.onEnter = nil
-    }
-
-    private func fade(_ view: NSView?, to alpha: CGFloat, over duration: TimeInterval) {
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = duration
-            view?.animator().alphaValue = alpha
-        }
-    }
-}
-
-/// A Core Animation spring on a view's frame, started from wherever it is on screen now, so a
-/// close that interrupts an open turns around mid-flight instead of jumping.
-@MainActor
-private struct Spring {
-    let duration: TimeInterval
-    let bounce: CGFloat
-
-    func move(_ view: NSView, to frame: CGRect) {
-        guard let layer = view.layer else { return view.frame = frame }
-        // On screen only while something is moving it: at rest the presentation copy can still be
-        // in the coordinates of a window that has just been resized.
-        let shown = (layer.animationKeys() ?? []).isEmpty ? layer : layer.presentation() ?? layer
-        let position = shown.position, bounds = shown.bounds
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        view.frame = frame
-        CATransaction.commit()
-        animate(layer, "position", from: NSValue(point: position), to: NSValue(point: layer.position))
-        animate(layer, "bounds", from: NSValue(rect: bounds), to: NSValue(rect: layer.bounds))
-    }
-
-    private func animate(_ layer: CALayer, _ keyPath: String, from: Any, to: Any) {
-        let animation = CASpringAnimation(perceptualDuration: duration, bounce: bounce)
-        animation.keyPath = keyPath
-        animation.fromValue = from
-        animation.toValue = to
-        animation.duration = animation.settlingDuration
-        layer.add(animation, forKey: keyPath)
     }
 }
 
