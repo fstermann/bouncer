@@ -271,7 +271,7 @@ public final class StandaloneBarController {
         // the cover leaves with the panel it is half of. Awaited: dimmed first, or the glass shows
         // the smudges vanishing in a frame.
         await BarSurface.fade([cover.veil, bar.veil], toDimmed: true, over: animated ? slide : nil)
-        await Slide.panelIn(bar, cover, shield, over: animated ? slide : nil) { [menuBar] in
+        await Slide.panelIn(bar, cover, over: animated ? slide : nil) { [menuBar] in
             menuBar.setVisibility(.collapsed)
             await PlacementWait.removal(of: replicated)
             // Before the panel goes: a marker widens the divider, shifting the items left of it.

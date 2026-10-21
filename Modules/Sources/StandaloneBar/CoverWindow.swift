@@ -1,4 +1,6 @@
 import AppKit
+import BouncerFoundation
+import MenuBar
 import Settings
 
 /// Hides the replicated items by covering them, without moving them.
@@ -35,6 +37,9 @@ public final class CoverWindow {
     /// Read by `NotchSlide`, which fades it while a notch stand-in grows in or goes away.
     private(set) var window: BarWindow?
     private let surface = NSView()
+    /// Drawn on the surface rather than on the shield, so it travels and comes into focus with the
+    /// panel. The shield above it is what takes the click.
+    let pageSwitch = PageSwitchGlyph.make()
     /// The dimming layer over the cover's glass, worn while the section underneath is
     /// moving. Faded through `BarSurface.fade`, together with the shelf's, so the dim never
     /// shows as a step at the seam between them.
@@ -50,6 +55,7 @@ public final class CoverWindow {
     public init() {
         surface.autoresizingMask = [.width, .height]
         surface.wantsLayer = true
+        surface.addSubview(pageSwitch)
     }
 
     /// The part that moves. Parked and run by the controller, with the shelf's, so the two
@@ -69,7 +75,8 @@ public final class CoverWindow {
         // Keeps its vertical origin, so a cover tightened onto the section it has just hidden is
         // not dragged back to where its descent started.
         let resting = restingSurface(in: frame.size)
-        surface.frame = CGRect(x: resting.minX, y: surface.frame.minY, width: resting.width, height: resting.height)
+        shape(to: CGRect(x: resting.minX, y: surface.frame.minY, width: resting.width, height: resting.height))
+        placeSwitch(over: rect, in: frame)
         cover.orderFrontRegardless()
     }
 
@@ -110,6 +117,7 @@ public final class CoverWindow {
     func settle(onto rect: CGRect, over duration: TimeInterval?) {
         guard let window, let duration else { show(over: rect); return }
         let frame = windowFrame(over: rect)
+        placeSwitch(over: rect, in: frame)
         // Resized at once rather than with the window. The surface is what is actually painted,
         // and a window that grows around a surface that did not shows the real items through the
         // stretch it has just gained; being briefly wider than the window costs nothing, because
@@ -126,6 +134,23 @@ public final class CoverWindow {
     public func hide() {
         window?.orderOut(nil)
         window = nil
+        // The surface outlives the window, and a notch-style close leaves the switch faded out.
+        pageSwitch.alphaValue = 1
+        pageSwitch.contentFilters = []
+    }
+
+    /// Puts the switch over the section's last item, where the shield takes its click, pinned to the
+    /// surface's right edge so it rides that edge as the surface grows.
+    ///
+    /// - Parameter rect: what the cover is shown over: the section and the bleed either side.
+    private func placeSwitch(over rect: CGRect, in frame: CGRect) {
+        let size = PageSwitchGlyph.size
+        let section = rect.maxX - ReplicaBar.padding
+        let fromRight = frame.maxX - margin - (section - PageSwitchGlyph.inset)
+        pageSwitch.frame = CGRect(
+            x: surface.bounds.width - fromRight - size, y: ((surface.bounds.height - size) / 2).rounded(),
+            width: size, height: size
+        )
     }
 
     private func make(_ rect: CGRect) -> BarWindow {
@@ -139,7 +164,6 @@ public final class CoverWindow {
         // Only a notch-style cover is ever rounded, and only while it stands alone in the bar.
         surface.layer?.cornerRadius = 0
         surface.layer?.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
-        dressShoulders()
         // The surface arrives from above the window, so it is clipped to it: the part still up
         // in the menu bar must not be drawn over the bar it has not reached yet.
         let clip = NSView(frame: CGRect(origin: .zero, size: rect.size))
@@ -147,24 +171,30 @@ public final class CoverWindow {
         clip.wantsLayer = true
         clip.layer?.masksToBounds = true
         clip.addSubview(surface)
+        dressShoulders(in: clip)
         cover.contentView = clip
         return cover
     }
 
-    /// Hung off the surface's top corners, outside it, so they travel with it as it grows. Taken
-    /// off again for a style without them, since the surface outlives each open.
-    private func dressShoulders() {
-        surface.subviews.filter { $0 is NotchShoulder }.forEach { $0.removeFromSuperview() }
+    /// Gives the surface `rect`, at once or on `motion`, with its shoulders on its top corners.
+    func shape(to rect: CGRect, on motion: Motion? = nil) {
+        if let motion { motion.move(surface, to: rect) } else { surface.frame = rect }
+        for shoulder in surface.superview?.subviews.compactMap({ $0 as? NotchShoulder }) ?? [] {
+            let frame = shoulder.frame(beside: rect)
+            if let motion { motion.move(shoulder, to: frame) } else { shoulder.frame = frame }
+        }
+    }
+
+    /// Beside the surface's top corners rather than on it: the surface is rounded while it grows
+    /// out of the notch, and a rounded view clips what it holds. Pinned to the window's edges, which
+    /// the surface keeps to as the window follows the section.
+    private func dressShoulders(in clip: NSView) {
         guard notch != nil else { return }
-        let size = NotchShoulder.radius
-        let top = surface.bounds.height - size
-        let left = NotchShoulder(left: true)
-        left.frame.origin = CGPoint(x: -size, y: top)
-        left.autoresizingMask = [.maxXMargin, .minYMargin]
-        let right = NotchShoulder(left: false)
-        right.frame.origin = CGPoint(x: surface.bounds.width, y: top)
-        right.autoresizingMask = [.minXMargin, .minYMargin]
-        surface.addSubview(left)
-        surface.addSubview(right)
+        for left in [true, false] {
+            let shoulder = NotchShoulder(left: left)
+            shoulder.frame = shoulder.frame(beside: surface.frame)
+            shoulder.autoresizingMask = left ? [.maxXMargin, .minYMargin] : [.minXMargin, .minYMargin]
+            clip.addSubview(shoulder)
+        }
     }
 }

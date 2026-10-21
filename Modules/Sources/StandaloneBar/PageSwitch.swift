@@ -5,7 +5,10 @@ extension StandaloneBarController {
     /// end of the menu bar row, over the section's last item.
     public var onSwitchPage: (@MainActor () -> Void)? {
         get { shield.onSwitchPage }
-        set { shield.onSwitchPage = newValue }
+        set {
+            shield.onSwitchPage = newValue
+            cover.pageSwitch.isHidden = newValue == nil
+        }
     }
 
     /// Opens the panel under another that takes its shape first, the way the todo page turns into
@@ -50,5 +53,27 @@ extension StandaloneBarController {
             x: shelfFrame.minX, y: shelfFrame.minY,
             width: shelfFrame.width, height: screen.frame.maxY - shelfFrame.minY
         )
+    }
+}
+
+/// The switch to the todo page: white on a dark disc, so it reads on black, on grey and on glass
+/// alike without knowing which the cover is painted with.
+@MainActor
+enum PageSwitchGlyph {
+    static let size: CGFloat = 20
+    /// How far in from the section's right end it sits.
+    static let inset: CGFloat = 2
+
+    static func make() -> NSImageView {
+        let glyph = NSImageView()
+        glyph.image = NSImage(systemSymbolName: "checklist", accessibilityDescription: "Show todos")
+        glyph.symbolConfiguration = .init(pointSize: 11, weight: .medium)
+        glyph.contentTintColor = .white
+        glyph.wantsLayer = true
+        glyph.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.35).cgColor
+        glyph.layer?.cornerRadius = size / 2
+        glyph.autoresizingMask = [.minXMargin, .minYMargin, .maxYMargin]
+        glyph.isHidden = true
+        return glyph
     }
 }
