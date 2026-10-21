@@ -233,12 +233,50 @@ covered strip does not open the menus of items the user cannot see.
 Each of these came out of a spike rather than from first principles;
 [SPIKES.md](SPIKES.md) has the measurements.
 
+### The todo page
+
+The notch panel has a second page: the open `- [ ]` lines of a Markdown file the user picks, such
+as an inbox in an Obsidian vault, whose own sync carries edits between devices. It lives in
+`Todos`, apart from `StandaloneBar`, because it needs none of that module's permissions: the file is
+reached through a security-scoped bookmark made when the user picked it, so a vault in Documents
+asks for nothing. The panel is its own black window grown out of the notch, not the replica bar's
+shelf, since it has no section to cover.
+
+The file is read when the page opens and watched only while it is open, through a file system
+event source; a change synced in while it is closed is read on the next open. Edits are made to the
+file as it is on disk at that moment, and a tick or edit whose line no longer holds the todo is dropped
+rather than landing on another line.
+
+Each page switches to the other from the top right of the panel. On the items page the
+`ClickShield` takes its click, since it already swallows clicks over the section's last item, so the
+switch costs the user nothing; it follows the section through every open and rearrangement because
+the shield does. The cover draws it, so it rides the panel's edge and comes into focus with the
+replicas instead of appearing once the panel has landed.
+
+Both pages move alike, on the same `Motion` springs: the panel grows, and its content is cut to the
+panel's shape and pinned to its top, so the panel reveals it rather than the content appearing
+beside a panel still on its way. The content comes into focus as the panel lands and goes out of
+focus as it leaves.
+Hover opens whichever page the switch last chose (`Preferences.notchPage`). Switching morphs
+rather than closing one panel and opening the other, and the todo panel does all the moving: it
+fades in over the items panel, which is then taken down unanimated underneath it, and springs to
+its own shape. Going back, the items panel's windows are built invisible underneath it, the todo
+panel springs to their outline (`StandaloneBarController.open(closingWhenLeft:takingShape:)`), they
+show, and only then is the section revealed under them; the todo panel fades off last. Shown any
+sooner they stick out past the panel still changing shape, and hidden while the section is revealed
+they leave its real items showing in the menu bar.
+
+The file is read the way the Tasks plugin writes it: `#tags` anywhere in a task, `📅` before its due
+day and `✅` before the day it was done, which Bouncer stamps when ticking so the vault's queries
+count todos ticked here. Indented lines under a task are its note. Preset categories are a
+`categories` list in the file's frontmatter.
+
 ## Modules
 
 Logic lives in `Modules/` (a SwiftPM package); `App/` is a thin shell.
 
 ```
-BouncerFoundation   Logging, signposts, observation helper. No dependencies.
+BouncerFoundation   Logging, signposts, observation helper, the panel's springs. No dependencies.
       ↑         ↑
   Settings   Updates   Preferences value type, persistence, launch-at-login.
       ↑         ↑      Sparkle, wrapped thin — the one third-party dependency.
@@ -248,6 +286,9 @@ BouncerFoundation   Logging, signposts, observation helper. No dependencies.
       ↑                  ↑         it needs — capture, cover, click forwarding.
       └────── App ───────┘         AppDelegate: constructs the graph, owns the menu
                                    and window.
+
+Todos   The todo page: Markdown task lines, the file, the panel. Depends on
+        BouncerFoundation, Settings and MenuBar; BouncerUI and App depend on it.
 ```
 
 `StandaloneBar` is a module of its own because it is the one feature that asks for

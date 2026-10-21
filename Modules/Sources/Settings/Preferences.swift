@@ -40,6 +40,12 @@ public enum BarStyle: Codable, Hashable, Sendable {
     public static let automaticDark = 0.24
 }
 
+/// The notch panel's two pages: the hidden items, and the todo list.
+public enum NotchPage: Codable, Hashable, Sendable {
+    case items
+    case todos
+}
+
 /// The complete user-facing configuration. One value type so it round-trips as a
 /// single encode/decode and comparing two states is a plain `==`.
 public struct Preferences: Codable, Hashable, Sendable {
@@ -64,6 +70,13 @@ public struct Preferences: Codable, Hashable, Sendable {
     public var barAnimationDuration: TimeInterval
     /// What that bar's cover and shelf are painted with.
     public var barStyle: BarStyle
+    /// A bookmark to the Markdown file the todo page reads and writes; `nil` while the page is off.
+    /// A bookmark rather than a path, so the file is found again after it is moved or renamed.
+    public var todoFile: Data?
+    /// The page the notch panel was last left on, which is the one hover opens next.
+    public var notchPage: NotchPage
+    /// The colour each todo tag's chip is drawn in, by name; a tag left out is grey.
+    public var tagColors: [String: String]
 
     public init(
         autoRehide: AutoRehide = .afterDelay(seconds: 10),
@@ -75,7 +88,10 @@ public struct Preferences: Codable, Hashable, Sendable {
         showItemsInBar: Bool = false,
         animateBar: Bool = true,
         barAnimationDuration: TimeInterval = 0.18,
-        barStyle: BarStyle = .automatic
+        barStyle: BarStyle = .automatic,
+        todoFile: Data? = nil,
+        notchPage: NotchPage = .items,
+        tagColors: [String: String] = [:]
     ) {
         self.autoRehide = autoRehide
         self.enableAlwaysHiddenSection = enableAlwaysHiddenSection
@@ -87,6 +103,9 @@ public struct Preferences: Codable, Hashable, Sendable {
         self.animateBar = animateBar
         self.barAnimationDuration = barAnimationDuration
         self.barStyle = barStyle
+        self.todoFile = todoFile
+        self.notchPage = notchPage
+        self.tagColors = tagColors
     }
 
     /// A blob stored before a key existed must keep the user's other settings, not throw
@@ -117,5 +136,8 @@ public struct Preferences: Codable, Hashable, Sendable {
             0.5
         )
         barStyle = try container.decodeIfPresent(BarStyle.self, forKey: .barStyle) ?? .automatic
+        todoFile = try container.decodeIfPresent(Data.self, forKey: .todoFile)
+        notchPage = try container.decodeIfPresent(NotchPage.self, forKey: .notchPage) ?? .items
+        tagColors = try container.decodeIfPresent([String: String].self, forKey: .tagColors) ?? [:]
     }
 }

@@ -17,7 +17,11 @@ enum Slide {
     /// through — in one animation group, which is what keeps them a single panel. Awaited, because
     /// the cover being over the section is what makes it safe to reveal, and eased out so the
     /// panel settles rather than stopping dead.
-    static func panelOut(_ bar: ReplicaBar, _ cover: CoverWindow, over duration: TimeInterval) async {
+    ///
+    /// Without a `duration` the panel is already where it rests, and whatever stands in for its
+    /// arrival meanwhile runs instead (`CoverWindow.arrival`).
+    static func panelOut(_ bar: ReplicaBar, _ cover: CoverWindow, over duration: TimeInterval?) async {
+        guard let duration else { return await cover.arrive() }
         if let notch = cover.notch { return await NotchSlide.panelOut(bar, cover, from: notch, over: duration) }
         guard let shelf = bar.panel else { return }
         cover.park(by: bar.travel)

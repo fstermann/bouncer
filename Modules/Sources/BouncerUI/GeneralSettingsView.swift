@@ -45,6 +45,7 @@ struct GeneralSettingsView: View {
                 case .general: generalPane
                 case .revealing: revealingPane
                 case .standaloneBar: standaloneBarPane
+                case .todos: TodoOptions(preferences: $settings.preferences)
                 case .updates: updatesPane
                 }
             }

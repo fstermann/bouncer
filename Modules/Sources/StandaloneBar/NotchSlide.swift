@@ -1,4 +1,5 @@
 import AppKit
+import BouncerFoundation
 
 /// Grows the bar's panel out of the notch and takes it back in, the way the iPhone's Dynamic
 /// Island grows: on one spring, wider and taller at once, with the replicas coming into focus as
@@ -30,32 +31,23 @@ enum NotchSlide {
         shelf.frame = gatheredShelf
         replicas.setFrameOrigin(centred(replicas, in: gatheredShelf))
         hanger.setFrameOrigin(CGPoint(x: 0, y: bar.tuck))
-        cover.panel.frame = gatheredCover
+        cover.shape(to: gatheredCover)
         cover.panel.layer?.cornerRadius = ReplicaBar.cornerRadius
-        replicas.alphaValue = 0
-        focus(replicas, blurredBy: focusBlur)
         for window in windows { window?.alphaValue = 0 }
 
+        // One spring for the drop and the sides alike, so the lower corners travel a straight line.
         let grow = Motion(duration: duration * 2.4, bounce: 0.1)
-        // Bouncier than the sides, which overshoot by a share of a far longer way: on the same
-        // spring the drop's overshoot is a point, too little to see.
-        let drop = Motion(duration: grow.duration, bounce: 0.4, startingWith: grow)
-        drop.move(hanger, to: CGPoint.zero)
+        grow.move(hanger, to: CGPoint.zero)
         grow.move(shelf, to: resting)
         grow.move(replicas, to: restingReplicas)
-        // The drop carries the replicas; taking its bounce back out lets them settle without it.
-        drop.offset(replicas, from: -bar.tuck)
-        Motion(duration: grow.duration, bounce: 0, startingWith: grow).offset(replicas, from: bar.tuck)
-        grow.move(cover.panel, to: cover.restingSurface(in: coverSize))
+        cover.shape(to: cover.restingSurface(in: coverSize), on: grow)
         grow.round(cover.panel, to: 0)
         for window in windows { grow.fade(window, to: 1) }
         let focusing = Motion(duration: duration * 1.6, bounce: 0, delay: duration * 0.6)
-        focusing.fade(replicas, to: 1)
-        focusing.blur(replicas, to: 0)
+        focusing.focusIn([replicas, cover.pageSwitch])
         await grow.finished()
         await focusing.finished()
-        // A blur of nothing still renders the replicas offscreen on every capture.
-        replicas.contentFilters = []
+        Motion.unfocus([replicas, cover.pageSwitch])
     }
 
     /// Blurs the replicas out while `putAway` takes the section off the display, then takes the
@@ -74,140 +66,23 @@ enum NotchSlide {
               let gatheredCover = cover.surfaceGathered(into: notch)
         else { return await putAway() }
         let replicas = bar.replicas
-        focus(replicas, blurredBy: 0)
-        let fade = Motion(duration: duration * 0.6, bounce: 0)
-        fade.fade(replicas, to: 0)
-        fade.blur(replicas, to: focusBlur)
+        Motion(duration: duration * 0.6, bounce: 0).focusOut([replicas, cover.pageSwitch])
         await putAway()
         let gather = Motion(duration: duration * 1.6, bounce: 0)
         gather.move(hanger, to: CGPoint(x: 0, y: bar.tuck))
         gather.round(cover.panel, to: ReplicaBar.cornerRadius)
         gather.move(shelf, to: gatheredShelf)
         gather.move(replicas, to: CGRect(origin: centred(replicas, in: gatheredShelf), size: replicas.frame.size))
-        gather.move(cover.panel, to: gatheredCover)
+        cover.shape(to: gatheredCover, on: gather)
         if !notch.isReal {
             for window in [bar.window?.contentView, cover.window?.contentView] { gather.fade(window, to: 0) }
         }
         await gather.finished()
-        await fade.finished()
     }
 
     /// Where the replicas sit centred in a shelf of `shelf`'s size. Moved on the shelf's own spring,
     /// so they grow out of the middle with it rather than riding its left edge.
     private static func centred(_ replicas: NSView, in shelf: CGRect) -> CGPoint {
         CGPoint(x: ((shelf.width - replicas.frame.width) / 2).rounded(), y: replicas.frame.minY)
-    }
-
-    /// How out of focus the replicas are while the panel is still taking shape.
-    private static let focusBlur: CGFloat = 8
-
-    /// One spring, started after `delay`, that every property it moves rides as a Core Animation
-    /// spring from the same start time. Not AppKit's spring: that steps each view's frame from the
-    /// main thread, so the two windows and the layer properties it cannot reach each kept their own
-    /// clock, and the halves of the panel visibly came apart.
-    @MainActor
-    private struct Motion {
-        let duration: TimeInterval
-        let bounce: CGFloat
-        let delay: TimeInterval
-        private let start: CFTimeInterval
-
-        /// - Parameter other: a motion to start at exactly the same moment as.
-        init(duration: TimeInterval, bounce: CGFloat, delay: TimeInterval = 0, startingWith other: Motion? = nil) {
-            self.duration = duration
-            self.bounce = bounce
-            self.delay = delay
-            start = other?.start ?? CACurrentMediaTime()
-        }
-
-        func move(_ view: NSView, to frame: CGRect) {
-            guard let layer = view.layer else { return view.frame = frame }
-            let position = shown(layer, "position")
-            let bounds = shown(layer, "bounds")
-            for key in layer.animationKeys() ?? [] where key.hasPrefix(Self.offsetKey) {
-                layer.removeAnimation(forKey: key)
-            }
-            change { view.frame = frame }
-            spring(layer, "position", from: position, to: layer.position)
-            spring(layer, "bounds", from: bounds, to: layer.bounds)
-        }
-
-        func move(_ view: NSView, to origin: CGPoint) {
-            move(view, to: CGRect(origin: origin, size: view.frame.size))
-        }
-
-        /// Moves `view` up by `distance` and back on top of whatever else moves it.
-        func offset(_ view: NSView, from distance: CGFloat) {
-            guard let layer = view.layer else { return }
-            spring(layer, "position.y", from: distance, to: 0, additiveAs: Self.offsetKey + "\(bounce)")
-        }
-
-        func fade(_ view: NSView?, to alpha: CGFloat) {
-            guard let view, let layer = view.layer else { return }
-            let opacity = shown(layer, "opacity")
-            change { view.alphaValue = alpha }
-            spring(layer, "opacity", from: opacity, to: layer.opacity)
-        }
-
-        func round(_ view: NSView, to radius: CGFloat) {
-            guard let layer = view.layer else { return }
-            let from = shown(layer, "cornerRadius")
-            change { layer.cornerRadius = radius }
-            spring(layer, "cornerRadius", from: from, to: radius)
-        }
-
-        /// Needs the filter `focus(_:blurredBy:)` puts on the view.
-        func blur(_ view: NSView, to radius: CGFloat) {
-            guard let layer = view.layer else { return }
-            let from = shown(layer, blurRadius)
-            change { layer.setValue(radius, forKeyPath: blurRadius) }
-            spring(layer, blurRadius, from: from, to: radius)
-        }
-
-        /// Returns once the motion has run its course, which is before the spring has finished
-        /// settling: the tail of it is too small to see.
-        func finished() async {
-            let remaining = start + delay + duration - CACurrentMediaTime()
-            guard remaining > 0 else { return }
-            try? await Task.sleep(for: .seconds(remaining))
-        }
-
-        private static let offsetKey = "offset"
-
-        /// Where the property is on screen: mid-flight if a spring is still carrying it.
-        private func shown(_ layer: CALayer, _ keyPath: String) -> Any? {
-            let moving = !(layer.animationKeys() ?? []).isEmpty
-            return (moving ? layer.presentation() ?? layer : layer).value(forKeyPath: keyPath)
-        }
-
-        private func change(_ apply: () -> Void) {
-            CATransaction.begin()
-            CATransaction.setDisableActions(true)
-            apply()
-            CATransaction.commit()
-        }
-
-        private func spring(_ layer: CALayer, _ keyPath: String, from: Any?, to: Any?, additiveAs key: String? = nil) {
-            let animation = CASpringAnimation(perceptualDuration: duration, bounce: bounce)
-            animation.keyPath = keyPath
-            animation.fromValue = from
-            animation.toValue = to
-            animation.duration = animation.settlingDuration
-            animation.beginTime = layer.convertTime(start + delay, from: nil)
-            animation.fillMode = .backwards
-            animation.isAdditive = key != nil
-            layer.add(animation, forKey: key ?? keyPath)
-        }
-    }
-
-    private static let blurRadius = "filters.blur.inputRadius"
-
-    /// Puts the blur the replicas come into focus from, and go out of focus to, on `view`.
-    private static func focus(_ view: NSView, blurredBy radius: CGFloat) {
-        guard let filter = CIFilter(name: "CIGaussianBlur") else { return }
-        filter.name = "blur"
-        filter.setValue(radius, forKey: kCIInputRadiusKey)
-        view.layerUsesCoreImageFilters = true
-        view.contentFilters = [filter]
     }
 }

@@ -61,6 +61,8 @@ targets:
       - package: BouncerModules
         product: StandaloneBar
       - package: BouncerModules
+        product: Todos
+      - package: BouncerModules
         product: Updates
       - package: Sparkle
     settings:

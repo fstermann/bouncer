@@ -3,10 +3,12 @@ import MenuBar
 import Settings
 import StandaloneBar
 import SwiftUI
+import Todos
+import UniformTypeIdentifiers
 
 /// A pane in the settings sidebar. The order here is the order they appear.
 enum Pane: String, CaseIterable, Identifiable, Hashable {
-    case general, revealing, standaloneBar, updates
+    case general, revealing, standaloneBar, todos, updates
 
     var id: Self { self }
 
@@ -15,6 +17,7 @@ enum Pane: String, CaseIterable, Identifiable, Hashable {
         case .general: "General"
         case .revealing: "Revealing"
         case .standaloneBar: "Standalone bar"
+        case .todos: "Todos"
         case .updates: "Updates"
         }
     }
@@ -24,6 +27,7 @@ enum Pane: String, CaseIterable, Identifiable, Hashable {
         case .general: "gearshape"
         case .revealing: "eye"
         case .standaloneBar: "menubar.rectangle"
+        case .todos: "checklist"
         case .updates: "arrow.down.circle"
         }
     }
@@ -193,5 +197,45 @@ struct HoverRevealOptions: View {
 
     private static func label(_ seconds: TimeInterval) -> String {
         "\(Int((seconds * 1000).rounded())) ms"
+    }
+}
+
+/// The todo file the notch panel's todo page reads and writes.
+struct TodoOptions: View {
+    @Binding var preferences: Preferences
+
+    var body: some View {
+        Section {
+            LabeledContent("File") {
+                HStack(spacing: 8) {
+                    Text(fileName)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Button("Choose…", action: choose)
+                    if preferences.todoFile != nil {
+                        Button("Remove") { preferences.todoFile = nil }
+                    }
+                }
+            }
+            Text("Bouncer shows the open `- [ ]` lines of this Markdown file under the notch, and adds new "
+                 + "ones at its end. Hover near the notch to open it, or use the switch in the bar.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var fileName: String {
+        guard let bookmark = preferences.todoFile else { return "None" }
+        return TodoController.url(of: bookmark)?.lastPathComponent ?? "Not found"
+    }
+
+    private func choose() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [UTType(filenameExtension: "md") ?? .plainText]
+        panel.prompt = "Choose"
+        guard panel.runModal() == .OK, let url = panel.url, let bookmark = TodoController.bookmark(for: url)
+        else { return }
+        preferences.todoFile = bookmark
     }
 }

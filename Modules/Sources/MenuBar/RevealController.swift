@@ -176,7 +176,7 @@ public final class RevealController {
 
 extension NSScreen {
     /// Menu bar height, accounting for the notch on displays that have one.
-    var menuBarHeight: CGFloat {
+    public var menuBarHeight: CGFloat {
         safeAreaInsets.top > 0 ? safeAreaInsets.top : frame.maxY - visibleFrame.maxY
     }
 }

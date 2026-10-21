@@ -10,10 +10,21 @@ import AppKit
 /// swallow them for every visible item and the app menus with them; it has to let everything
 /// through, and this takes back the one stretch that should not.
 ///
-/// Nothing is drawn. The window exists to be hit first and do nothing about it.
+/// Nothing is drawn. The window exists to be hit first and do nothing about it, but for the page
+/// switch the cover draws over the section's last item: an item hidden under the cover, whose
+/// clicks this swallows anyway, so the switch takes nothing from the user.
 @MainActor
 final class ClickShield {
     private var window: BarWindow?
+    private let view = ShieldView()
+    /// Kept invisible while the todo panel shrinks into its shape over the top, and shown once it has.
+    var isConcealed = false { didSet { window?.alphaValue = isConcealed ? 0 : 1 } }
+
+    /// Switches the notch panel to the todo page. `nil` hides the switch.
+    var onSwitchPage: (@MainActor () -> Void)? {
+        get { view.onSwitch }
+        set { view.onSwitch = newValue }
+    }
 
     /// The shield's own window, so a capture of the bar can leave it out.
     var windowID: UInt32? { window.map { UInt32($0.windowNumber) } }
@@ -91,6 +102,26 @@ final class ClickShield {
         // transparent is a target; at 1/255 over a strip that is already a picture of empty
         // bar, there is nothing to see.
         shield.backgroundColor = NSColor.black.withAlphaComponent(1.0 / 255.0)
+        shield.alphaValue = isConcealed ? 0 : 1
+        view.frame = CGRect(origin: .zero, size: rect.size)
+        view.autoresizingMask = [.width, .height]
+        shield.contentView = view
         return shield
+    }
+}
+
+/// Swallows every click except one on the page switch, which the cover draws underneath.
+@MainActor
+private final class ShieldView: NSView {
+    var onSwitch: (@MainActor () -> Void)?
+
+    override func mouseDown(with event: NSEvent) {
+        let size = PageSwitchGlyph.size
+        let glyph = CGRect(
+            x: bounds.maxX - size - PageSwitchGlyph.inset, y: (bounds.height - size) / 2, width: size, height: size
+        )
+        guard let onSwitch, glyph.insetBy(dx: -4, dy: -4).contains(convert(event.locationInWindow, from: nil))
+        else { return }
+        onSwitch()
     }
 }
