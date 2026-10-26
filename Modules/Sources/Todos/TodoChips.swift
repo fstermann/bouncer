@@ -97,7 +97,7 @@ struct Chip: View {
 
     /// Selected chips are filled solid; the rest are tinted, so a coloured tag never reads as chosen.
     private var foreground: Color {
-        if isSelected { return color == nil ? .black : .white }
+        if isSelected { return color == nil || color == .yellow ? .black : .white }
         return color ?? .white
     }
 
