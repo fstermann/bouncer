@@ -70,7 +70,8 @@ public struct Preferences: Codable, Hashable, Sendable {
     public var barAnimationDuration: TimeInterval
     /// What that bar's cover and shelf are painted with.
     public var barStyle: BarStyle
-    /// A bookmark to the Markdown file the todo page reads and writes; `nil` while the page is off.
+    /// A bookmark to the Markdown file the todo page reads and writes; `nil` for a local file in
+    /// Application Support.
     /// A bookmark rather than a path, so the file is found again after it is moved or renamed.
     public var todoFile: Data?
     /// The page the notch panel was last left on, which is the one hover opens next.

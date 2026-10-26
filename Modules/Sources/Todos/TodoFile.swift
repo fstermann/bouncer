@@ -3,8 +3,9 @@ import Foundation
 
 /// The Markdown file the todo page reads and writes, and the watch on it while the page is open.
 ///
-/// Found through a security-scoped bookmark made when the user picked it. Picking a file is
-/// consent to read it, so a file in a protected folder such as Documents needs no prompt.
+/// Either a local file Bouncer keeps itself, or one the user picked, found through a
+/// security-scoped bookmark made when they picked it. Picking a file is consent to read it, so a
+/// file in a protected folder such as Documents needs no prompt.
 @MainActor
 final class TodoFile {
     private let url: URL
@@ -18,6 +19,22 @@ final class TodoFile {
             resolvingBookmarkData: bookmark, options: .withSecurityScope, bookmarkDataIsStale: &isStale
         ) else { return nil }
         return (TodoFile(url: url), isStale ? try? Self.bookmark(for: url) : nil)
+    }
+
+    /// The file in Bouncer's Application Support folder used while no file is picked, created
+    /// empty on first use so there is a file to watch. Debug builds get their own, by bundle ID.
+    static func local() -> TodoFile? {
+        let folder = URL.applicationSupportDirectory
+            .appending(path: Bundle.main.bundleIdentifier ?? "com.bouncer.app", directoryHint: .isDirectory)
+        let url = folder.appending(path: "Todos.md")
+        do {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            if !FileManager.default.fileExists(atPath: url.path) { try Data().write(to: url) }
+        } catch {
+            Log.todos.error("Creating the local todo file failed: \(error, privacy: .public)")
+            return nil
+        }
+        return TodoFile(url: url)
     }
 
     static func bookmark(for url: URL) throws -> Data {

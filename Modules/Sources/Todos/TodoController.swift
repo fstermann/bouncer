@@ -74,9 +74,6 @@ public final class TodoController {
         }
     }
 
-    /// Whether a todo file has been picked.
-    public var isAvailable: Bool { settings.preferences.todoFile != nil }
-
     public func toggle() async {
         isOpen ? await close() : await open()
     }
@@ -88,19 +85,14 @@ public final class TodoController {
     public func open(
         from start: CGRect? = nil, closesOnLeave: Bool = true, onceCovered: @MainActor () async -> Void = {}
     ) async {
-        guard !isOpen, let bookmark = settings.preferences.todoFile else { return }
-        guard let resolved = TodoFile.resolve(bookmark) else {
-            Log.todos.error("Todo file: the bookmark no longer resolves")
-            return
-        }
-        if let refreshed = resolved.refreshed { settings.preferences.todoFile = refreshed }
+        guard !isOpen, let file = resolveFile() else { return }
         isOpen = true
         self.closesOnLeave = closesOnLeave
-        file = resolved.file
+        self.file = file
         page.showsSwitch = onSwitchPage != nil
         page.tagColors = settings.preferences.tagColors
         reload()
-        resolved.file.watch { [weak self] in self?.reload() }
+        file.watch { [weak self] in self?.reload() }
         duration = settings.preferences.animateBar ? settings.preferences.barAnimationDuration : nil
         await panel.open(page, over: duration, from: start, onceCovered: onceCovered)
     }
@@ -119,6 +111,17 @@ public final class TodoController {
         file?.stopWatching()
         file = nil
         await panel.close(over: duration, into: items)
+    }
+
+    /// The picked file, or the local one while none is picked.
+    private func resolveFile() -> TodoFile? {
+        guard let bookmark = settings.preferences.todoFile else { return TodoFile.local() }
+        guard let resolved = TodoFile.resolve(bookmark) else {
+            Log.todos.error("Todo file: the bookmark no longer resolves")
+            return nil
+        }
+        if let refreshed = resolved.refreshed { settings.preferences.todoFile = refreshed }
+        return resolved.file
     }
 
     private func reload() {
