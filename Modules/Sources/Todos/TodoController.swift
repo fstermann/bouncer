@@ -28,6 +28,8 @@ public final class TodoController {
     private var duration: TimeInterval?
     /// The wait before each just-ticked todo leaves the list.
     private var lingerings: [Todo: Task<Void, Never>] = [:]
+    /// The wait before the todos being deleted leave the file, all at once.
+    private var deletion: Task<Void, Never>?
     private var shortcut: TodoShortcut?
     /// Off for a page opened from the keyboard, with the pointer anywhere: only Escape or a click
     /// elsewhere closes that one.
@@ -41,16 +43,31 @@ public final class TodoController {
         page.onToggle = { [weak self] todo in self?.toggle(todo) }
         page.onAdd = { [weak self] text in self?.add(text) }
         page.onEdit = { [weak self] todo, text, note in self?.edit(todo, to: text, note: note) }
+        page.onDelete = { [weak self] todo in self?.delete(todo) }
+        page.onRestore = { [weak self] todo in self?.restore(todo) }
         page.onAddCategory = { [weak self] name in self?.addCategory(name) }
         page.onSwitch = { [weak self] in self?.onSwitchPage?() }
         page.onResize = { [weak self] in self.map { $0.panel.fit($0.page) } }
         page.onColor = { [weak self] tag, color in self?.settings.preferences.tagColors[tag] = color }
         panel.mayCloseOnLeave = { [weak self] in self.map { $0.closesOnLeave && $0.page.isIdle } ?? true }
         panel.onDismiss = { [weak self] in Task { await self?.close() } }
-        // Out of an edit first, and only then out of the page.
+        // Closes a menu the way a popover goes, spending the click; tag suggestions leave the field
+        // clickable.
+        panel.onClickOutsideMenu = { [weak self] in
+            guard let page = self?.page, let menu = page.menu, menu.kind != .suggestions else { return false }
+            page.menu = nil
+            return true
+        }
+        // Out of a row's menu or an edit first, and only then out of the page.
         panel.onEscape = { [weak self] in
             guard let self else { return }
-            if page.editing != nil { page.editing = nil } else { Task { await self.close() } }
+            if page.menu != nil {
+                page.menu = nil
+            } else if page.editing != nil {
+                page.editing = nil
+            } else {
+                Task { await self.close() }
+            }
         }
     }
 
@@ -93,7 +110,9 @@ public final class TodoController {
         lingerings.values.forEach { $0.cancel() }
         lingerings = [:]
         page.lingering = []
+        deleteNow()
         page.editing = nil
+        page.menu = nil
         file?.stopWatching()
         file = nil
         await panel.close(over: duration, into: items)
@@ -134,7 +153,7 @@ public final class TodoController {
 
     private func add(_ text: String) {
         guard let file else { return }
-        let task = TodoList.task(from: text, tag: page.filter, due: page.draftDue)
+        let task = TodoList.task(from: text, due: page.draftDue)
         file.write(TodoList.appending(task, to: file.read() ?? ""))
         reload()
     }
@@ -144,6 +163,32 @@ public final class TodoController {
               let edited = TodoList.replacing(todo, with: text, note: note, in: markdown)
         else { return reload() }
         file.write(edited)
+        reload()
+    }
+
+    /// Marks `todo` as deleted for a moment, so a mis-click can be taken back, before it leaves the file.
+    private func delete(_ todo: Todo) {
+        page.deleting.insert(todo)
+        deletion?.cancel()
+        deletion = Task { [weak self] in
+            try? await Task.sleep(for: Self.linger)
+            guard !Task.isCancelled else { return }
+            self?.deleteNow()
+        }
+    }
+
+    private func restore(_ todo: Todo) {
+        page.deleting.remove(todo)
+        if page.deleting.isEmpty { deletion?.cancel() }
+    }
+
+    private func deleteNow() {
+        deletion?.cancel()
+        deletion = nil
+        let todos = page.deleting
+        page.deleting = []
+        guard !todos.isEmpty, let file, let markdown = file.read() else { return }
+        file.write(TodoList.removing(todos, from: markdown))
         reload()
     }
 

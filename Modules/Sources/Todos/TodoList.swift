@@ -63,6 +63,16 @@ public enum TodoList {
         return lines.joined(separator: "\n")
     }
 
+    /// `markdown` without `todos` and their notes. A todo whose line no longer holds it stays.
+    public static func removing(_ todos: some Collection<Todo>, from markdown: String) -> String {
+        var lines = lines(of: markdown)
+        // Bottom up, so taking one out leaves the lines of those above where they were.
+        for todo in todos.sorted(by: { $0.line > $1.line }) where holds(todo, lines) {
+            lines.removeSubrange(todo.line...(todo.line + noteLines(under: todo.line, in: lines).count))
+        }
+        return lines.joined(separator: "\n")
+    }
+
     /// `markdown` with an open todo added at its end. Lines after the first become its note.
     public static func appending(_ text: String, to markdown: String) -> String {
         let lines = text.components(separatedBy: "\n")
@@ -74,11 +84,10 @@ public enum TodoList {
         return markdown + separator + "- [ ] \(first)\n" + note
     }
 
-    /// A todo's text from what was typed: tagged `tag` unless it already is, and due on `due`.
-    public static func task(from draft: String, tag: String?, due: String?) -> String {
+    /// A todo's text from what was typed, due on `due`.
+    public static func task(from draft: String, due: String?) -> String {
         var lines = draft.components(separatedBy: "\n")
         guard var first = lines.first?.trimmingCharacters(in: .whitespaces), !first.isEmpty else { return draft }
-        if let tag, !TaskText(first).tags.contains(tag) { first += " #\(tag)" }
         if let due { first += " 📅 \(due)" }
         lines[0] = first
         return lines.joined(separator: "\n")
