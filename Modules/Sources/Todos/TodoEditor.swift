@@ -86,9 +86,13 @@ struct DueLabel: View {
 struct DueChoices: View {
     @Binding var due: String?
     @Binding var isPickingDate: Bool
+    /// Vertical in a row's menu, which hangs under its icon.
+    var axis: Axis = .horizontal
 
     var body: some View {
-        HStack(spacing: 6) {
+        let layout = axis == .horizontal
+            ? AnyLayout(HStackLayout(spacing: 6)) : AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+        layout {
             choice("Today", .today)
             choice("Tomorrow", .tomorrow)
             choice("Friday", .thisWeek)
@@ -96,7 +100,7 @@ struct DueChoices: View {
                 Chip(text: pickedLabel ?? "Date…", isSelected: isPickingDate || pickedLabel != nil)
             }
             .buttonStyle(.plain)
-            Spacer()
+            if axis == .horizontal { Spacer() }
             if due != nil {
                 Button("Clear") {
                     due = nil

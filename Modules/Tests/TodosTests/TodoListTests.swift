@@ -64,6 +64,17 @@ import Testing
         #expect(TodoList.replacing(stale, with: "Buy milk", note: "", in: file) == nil)
     }
 
+    @Test func removingTakesTheTasksAndTheirNotesOut() {
+        let markdown = "# Inbox\n- [ ] Call bank\n    fee\n- [ ] Next\n- [x] Old\n"
+        let todos = TodoList.parse(markdown)
+        #expect(TodoList.removing([todos[0], todos[2]], from: markdown) == "# Inbox\n- [ ] Next\n")
+    }
+
+    @Test func removingLeavesALineThatChanged() {
+        let markdown = "- [ ] Call bank\n"
+        #expect(TodoList.removing([Todo(line: 0, text: "Call the bank", isDone: false)], from: markdown) == markdown)
+    }
+
     @Test func appendingAddsAnOpenTaskOnItsOwnLine() {
         #expect(TodoList.appending("Water plants", to: "- [ ] A") == "- [ ] A\n- [ ] Water plants\n")
         #expect(TodoList.appending("Water plants", to: "- [ ] A\n") == "- [ ] A\n- [ ] Water plants\n")
@@ -80,10 +91,9 @@ import Testing
         #expect(TodoList.appending("   ", to: "- [ ] A\n") == "- [ ] A\n")
     }
 
-    @Test func taskFromADraftTagsAndDatesItsFirstLine() {
-        #expect(TodoList.task(from: "Call bank\nnote", tag: "work", due: "2026-10-24")
-                == "Call bank #work 📅 2026-10-24\nnote")
-        #expect(TodoList.task(from: "Call bank #work", tag: "work", due: nil) == "Call bank #work")
+    @Test func taskFromADraftDatesItsFirstLine() {
+        #expect(TodoList.task(from: "Call bank #work\nnote", due: "2026-10-24") == "Call bank #work 📅 2026-10-24\nnote")
+        #expect(TodoList.task(from: "Call bank #work ", due: nil) == "Call bank #work")
     }
 }
 
