@@ -28,6 +28,15 @@ import Testing
         #expect(page.rows == todos)
     }
 
+    @Test func tagsOnlyDoneTodosCarryShowWithThem() {
+        let page = TodoPage()
+        page.categories = ["work"]
+        page.todos = [Todo(line: 0, text: "A #home", isDone: false), Todo(line: 1, text: "B #old", isDone: true)]
+        #expect(page.tags == ["work", "home"])
+        page.showsDone = true
+        #expect(page.tags == ["work", "home", "old"])
+    }
+
     @Test func settingTheDueDayKeepsTheRestOfTheTodo() {
         let page = TodoPage()
         var saved: (String, String)?

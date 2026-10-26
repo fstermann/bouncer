@@ -56,8 +56,8 @@ extension StandaloneBarController {
     }
 }
 
-/// The switch to the todo page: white on a dark disc, so it reads on black, on grey and on glass
-/// alike without knowing which the cover is painted with.
+/// The switch to the todo page: dimmed white on a dark disc, so it reads on black, on grey and on
+/// glass alike without knowing which the cover is painted with, and sits back like the todo page's.
 @MainActor
 enum PageSwitchGlyph {
     static let size: CGFloat = 20
@@ -67,8 +67,8 @@ enum PageSwitchGlyph {
     static func make() -> NSImageView {
         let glyph = NSImageView()
         glyph.image = NSImage(systemSymbolName: "checklist", accessibilityDescription: "Show todos")
-        glyph.symbolConfiguration = .init(pointSize: 11, weight: .medium)
-        glyph.contentTintColor = .white
+        glyph.symbolConfiguration = .init(pointSize: 11, weight: .regular)
+        glyph.contentTintColor = .white.withAlphaComponent(0.6)
         glyph.wantsLayer = true
         glyph.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.35).cgColor
         glyph.layer?.cornerRadius = size / 2

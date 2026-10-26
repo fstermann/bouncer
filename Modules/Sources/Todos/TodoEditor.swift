@@ -12,6 +12,7 @@ struct TodoEditor: View {
         // Laid out like the row it stands in for, so the text stays where it was.
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Image(systemName: todo.isDone ? "checkmark.circle.fill" : "circle")
+                .frame(width: TodoPage.markWidth)
                 .foregroundStyle(.tertiary)
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {

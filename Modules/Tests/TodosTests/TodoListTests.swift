@@ -159,6 +159,14 @@ import Testing
                 == "---\ncategories: [work, home]\n---\n")
     }
 
+    @Test func removingTakesItOutOfEitherList() {
+        #expect(Categories.removing("home", from: "---\ncategories:\n  - work\n  - \"home\"\n---\n- [ ] A #home")
+                == "---\ncategories:\n  - work\n---\n- [ ] A #home")
+        #expect(Categories.removing("#work", from: "---\ncategories: [work, home]\n---\n")
+                == "---\ncategories: [home]\n---\n")
+        #expect(Categories.removing("work", from: "- [ ] A #work\n") == "- [ ] A #work\n")
+    }
+
     @Test func addingAnExistingCategoryChangesNothing() {
         let file = "---\ncategories:\n  - work\n---\n"
         #expect(Categories.adding("#work", to: file) == file)

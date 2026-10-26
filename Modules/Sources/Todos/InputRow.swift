@@ -4,13 +4,16 @@ import SwiftUI
 /// one is typed after `#`.
 struct InputRow: View {
     @Bindable var page: TodoPage
-    @FocusState private var isTyping: Bool
+    let isTyping: FocusState<Bool>.Binding
 
     private var suggesting: RowMenu { RowMenu(line: nil, kind: .suggestions) }
     private var choosingDue: RowMenu { RowMenu(line: nil, kind: .due) }
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: "plus")
+                .frame(width: TodoPage.markWidth)
+                .foregroundStyle(.tertiary)
             field
             if !page.tags.isEmpty {
                 MenuButton(page: page, menu: RowMenu(line: nil, kind: .tags), help: "Set tags") {
@@ -24,9 +27,9 @@ struct InputRow: View {
             }
         }
         .padding(.horizontal, 14)
-        .padding(.top, 6)
+        .padding(.top, 8)
         .padding(.bottom, 12)
-        .onChange(of: page.focusRequests, initial: true) { isTyping = true }
+        .onChange(of: page.focusRequests, initial: true) { isTyping.wrappedValue = true }
         .onChange(of: page.draft) { suggest() }
     }
 
@@ -34,7 +37,7 @@ struct InputRow: View {
         TextField("Add a todo", text: $page.draft, axis: .vertical)
             .textFieldStyle(.plain)
             .lineLimit(1...6)
-            .focused($isTyping)
+            .focused(isTyping)
             .onSubmit(add)
             // Return adds the todo, or takes the highlighted tag; Shift-Return starts a new line, which
             // becomes its note.
