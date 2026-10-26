@@ -21,14 +21,19 @@ final class TodoPanel {
     var onEscape: (@MainActor () -> Void)?
     /// Whether the pointer leaving may close the panel: not while something is being typed into it.
     var mayCloseOnLeave: (@MainActor () -> Bool)?
+    /// A click landed outside the open menu; returns whether it closed the menu and so is spent.
+    var onClickOutsideMenu: (@MainActor () -> Bool)?
 
     private var window: TodoWindow?
     private var surface: SurfaceView?
     private var content: NSHostingView<TodoPageView>?
+    private var menuHost: NSHostingView<RowMenuHost>?
     private var resignObserver: NSObjectProtocol?
     /// Where the panel rests, and the notch it grows from, in AppKit screen coordinates.
     private var rest: CGRect = .zero
     private var notch: (rect: CGRect, isReal: Bool) = (.zero, true)
+    /// Where a row's open menu hangs, in AppKit screen coordinates, past the panel's edge if need be.
+    private var menu: CGRect?
     /// Set while the surface is springing, which a refit must not cut short.
     private var isMoving = false
     /// Installed only while the pointer is outside the panel, between leaving and coming back.
@@ -116,6 +121,8 @@ final class TodoPanel {
         self.window = nil
         self.surface = nil
         self.content = nil
+        menuHost = nil
+        menu = nil
         isMoving = false
         if let duration, let content { Motion(duration: duration * 0.6, bounce: 0).focusOut([content]) }
         var isShaped = false
@@ -147,6 +154,7 @@ final class TodoPanel {
     func fit(_ page: TodoPage) {
         guard let window else { return }
         rest = CGRect(x: rest.minX, y: rest.maxY - page.height, width: rest.width, height: page.height)
+        menu = page.menu.map { $0.frame(size: page.menuSize, under: page.menuIcon, in: rest) }
         if !isMoving { settle(window) }
     }
 
@@ -157,8 +165,9 @@ final class TodoPanel {
     private func settle(_ window: NSWindow) {
         window.contentView?.subviews.forEach { $0.layer?.removeAllAnimations() }
         content?.layer?.removeAllAnimations()
-        window.setFrame(frame(around: [rest]), display: true)
+        window.setFrame(frame(around: [rest] + [menu].compactMap(\.self)), display: true)
         place(at: rest, in: window)
+        menuHost?.frame = menu.map { local($0, in: window) } ?? .zero
     }
 
     /// Widens the window to take in `rect` as well as the panel, which stays where it is on screen.
@@ -205,6 +214,10 @@ final class TodoPanel {
         let frame = frame(around: [rest])
         let window = TodoWindow(frame: frame)
         window.onEscape = { [weak self] in self?.onEscape?() }
+        window.onMouseDown = { [weak self] hit in
+            guard let self, menu != nil, let menuHost, hit?.isDescendant(of: menuHost) != true else { return false }
+            return onClickOutsideMenu?() ?? false
+        }
 
         let root = NSView(frame: CGRect(origin: .zero, size: frame.size))
         root.wantsLayer = true
@@ -227,10 +240,14 @@ final class TodoPanel {
         // Kept at the panel's resting size and pinned to its top centre, the way the page sits.
         content.autoresizingMask = [.minXMargin, .maxXMargin, .minYMargin]
         surface.addSubview(content)
+        let menuHost = NSHostingView(rootView: RowMenuHost(page: page))
+        menuHost.sizingOptions = []
+        root.addSubview(menuHost)
         window.contentView = root
         self.window = window
         self.surface = surface
         self.content = content
+        self.menuHost = menuHost
         place(at: rest, in: window)
         resignObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didResignKeyNotification, object: window, queue: .main
@@ -286,6 +303,7 @@ final class TodoPanel {
         if let resignObserver { NotificationCenter.default.removeObserver(resignObserver) }
         resignObserver = nil
         window?.onEscape = nil
+        window?.onMouseDown = nil
         surface?.onExit = nil
         surface?.onEnter = nil
     }
@@ -335,6 +353,17 @@ private final class TodoWindow: NSPanel {
 
     override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
         frameRect
+    }
+
+    /// A click about to be handled, and the view it lands on; returning `true` swallows it.
+    var onMouseDown: (@MainActor (NSView?) -> Bool)?
+
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .leftMouseDown, let contentView,
+           onMouseDown?(contentView.hitTest(contentView.convert(event.locationInWindow, from: nil))) == true {
+            return
+        }
+        super.sendEvent(event)
     }
 
     override func cancelOperation(_ sender: Any?) {

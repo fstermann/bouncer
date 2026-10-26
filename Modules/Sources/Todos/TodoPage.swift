@@ -13,13 +13,13 @@ final class TodoPage {
     var draft = ""
     /// `yyyy-MM-dd` for the todo being typed.
     var draftDue: String?
-    var isChoosingDue = false
-    var isPickingDate = false
+    /// The highlighted one of the tags offered while one is typed.
+    var suggestion = 0
     var isAddingCategory = false
     var categoryDraft = ""
     /// The tag whose colour is being picked, in the palette under the categories.
     var coloringTag: String?
-    /// The category the list is narrowed to, and which a todo added meanwhile is tagged with.
+    /// The category the list is narrowed to.
     var filter: String?
     /// The row beside the notch, which the page starts below.
     var menuBarHeight: CGFloat = 24
@@ -27,6 +27,8 @@ final class TodoPage {
     var showsDone = false
     /// Just ticked, and kept in the list a moment so a mis-click can be taken back.
     var lingering: Set<Todo> = []
+    /// Deleted, and shown a moment longer so a mis-click can be taken back.
+    var deleting: Set<Todo> = []
     /// The lines of todos whose note is shown in full.
     var expanded: Set<Int> = []
     /// The list's natural height and the whole page's, as last laid out.
@@ -39,11 +41,18 @@ final class TodoPage {
     var editDraft = ""
     var editTags: [String] = []
     var editDue: String?
+    /// The choices open under one of a row's icons.
+    var menu: RowMenu?
+    /// The open menu's icon, in the page's coordinates, and the menu's size, for the panel to place it.
+    @ObservationIgnored var menuIcon: CGRect = .zero
+    @ObservationIgnored var menuSize: CGSize = .zero
 
     @ObservationIgnored var onToggle: (@MainActor (Todo) -> Void)?
     @ObservationIgnored var onAdd: (@MainActor (String) -> Void)?
     /// A todo, its new text and its new note.
     @ObservationIgnored var onEdit: (@MainActor (Todo, String, String) -> Void)?
+    @ObservationIgnored var onDelete: (@MainActor (Todo) -> Void)?
+    @ObservationIgnored var onRestore: (@MainActor (Todo) -> Void)?
     @ObservationIgnored var onAddCategory: (@MainActor (String) -> Void)?
     @ObservationIgnored var onColor: (@MainActor (String, String?) -> Void)?
     @ObservationIgnored var onSwitch: (@MainActor () -> Void)?
@@ -67,7 +76,7 @@ final class TodoPage {
 
     /// Nothing half-entered that the pointer leaving would throw away.
     var isIdle: Bool {
-        draft.isEmpty && !isChoosingDue && !isAddingCategory && coloringTag == nil && editing == nil
+        draft.isEmpty && !isAddingCategory && coloringTag == nil && editing == nil && menu == nil
     }
 
     private var filtered: [Todo] {
@@ -99,6 +108,25 @@ final class TodoPage {
         onEdit?(todo, text.text, lines.dropFirst().joined(separator: "\n"))
     }
 
+    func setDue(of todo: Todo, to due: String?) {
+        var text = TaskText(todo.text)
+        text.due = due
+        onEdit?(todo, text.text, todo.note)
+    }
+
+    func toggleTag(_ tag: String, of todo: Todo) {
+        var text = TaskText(todo.text)
+        if text.tags.contains(tag) { text.tags.removeAll { $0 == tag } } else { text.tags.append(tag) }
+        onEdit?(todo, text.text, todo.note)
+    }
+
+    /// The tags offered for the `#word` the draft ends in.
+    var suggestions: [String] { TagCompletion.suggestions(for: draft, from: tags) }
+
+    func complete(with tag: String) {
+        draft = TagCompletion.completing(draft, with: tag)
+    }
+
     func color(of tag: String) -> Color? {
         tagColors[tag].flatMap(TagColor.init(rawValue:))?.color
     }
@@ -126,6 +154,23 @@ struct TodoPageView: View {
             if let tag = page.coloringTag { Palette(page: page, tag: tag) }
             list
             InputRow(page: page)
+        }
+        .overlayPreferenceValue(MenuAnchor.self) { anchor in
+            GeometryReader { proxy in
+                if let anchor, page.menu != nil {
+                    Color.clear
+                        .onChange(of: proxy[anchor], initial: true) {
+                            page.menuIcon = $1
+                            page.onResize?()
+                        }
+                }
+            }
+            // Only measures; never in the way of the page's clicks and hovers.
+            .allowsHitTesting(false)
+        }
+        .onChange(of: page.menu) {
+            if $1 == nil { page.menuSize = .zero }
+            page.onResize?()
         }
         .fixedSize(horizontal: false, vertical: true)
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
@@ -176,19 +221,21 @@ struct TodoPageView: View {
 private struct TodoRow: View {
     let page: TodoPage
     let todo: Todo
+    @State private var isHovered = false
 
     var body: some View {
         let text = TaskText(todo.text)
+        let isDeleting = page.deleting.contains(todo)
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Image(systemName: todo.isDone ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(isDeleting ? .red : .secondary)
             VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(text.title)
                         .lineLimit(1)
                         .truncationMode(.tail)
-                        .strikethrough(todo.isDone)
-                        .foregroundStyle(todo.isDone ? .secondary : .primary)
+                        .strikethrough(todo.isDone || isDeleting)
+                        .foregroundStyle(isDeleting ? .red : todo.isDone ? .secondary : .primary)
                     ForEach(text.tags, id: \.self) { Chip(text: $0, color: page.color(of: $0)) }
                     Spacer(minLength: 0)
                     if let due = text.due {
@@ -196,6 +243,15 @@ private struct TodoRow: View {
                         Text(label.text)
                             .font(.caption)
                             .foregroundStyle(label.isOverdue && !todo.isDone ? .red : .secondary)
+                    }
+                    if isDeleting {
+                        Button { page.onRestore?(todo) } label: { Image(systemName: "arrow.uturn.backward") }
+                            .buttonStyle(.plain)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .help("Undo delete")
+                    } else if isHovered || page.menu?.line == todo.line {
+                        actions
                     }
                 }
                 if !todo.note.isEmpty {
@@ -215,9 +271,28 @@ private struct TodoRow: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 6)
         .contentShape(Rectangle())
-        .onTapGesture { page.onToggle?(todo) }
-        .overlay(RightClick { page.startEditing(todo) })
+        .onTapGesture { if !isDeleting { page.onToggle?(todo) } }
+        .onHover { isHovered = $0 }
+        .overlay(RightClick { if !isDeleting { page.startEditing(todo) } })
         .help("Right-click to edit")
+    }
+
+    private var actions: some View {
+        HStack(spacing: 8) {
+            MenuButton(page: page, menu: RowMenu(line: todo.line, kind: .due), help: "Set a due date") {
+                Image(systemName: "calendar")
+            }
+            if !page.tags.isEmpty {
+                MenuButton(page: page, menu: RowMenu(line: todo.line, kind: .tags), help: "Set tags") {
+                    Image(systemName: "tag")
+                }
+            }
+            Button { page.onDelete?(todo) } label: { Image(systemName: "trash") }
+                .help("Delete")
+        }
+        .buttonStyle(.plain)
+        .font(.caption)
+        .foregroundStyle(.secondary)
     }
 }
 
@@ -257,47 +332,5 @@ private struct TagRow: View {
         }
         .frame(height: 22)
         .padding(.bottom, 6)
-    }
-}
-
-/// The field a todo is typed into, and when it is due.
-private struct InputRow: View {
-    @Bindable var page: TodoPage
-    @FocusState private var isTyping: Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                TextField("Add a todo", text: $page.draft, axis: .vertical)
-                    .textFieldStyle(.plain)
-                    .lineLimit(1...6)
-                    .focused($isTyping)
-                    .onSubmit(add)
-                    // Return adds the todo; Shift-Return starts a new line, which becomes its note.
-                    .onKeyPress(.return, phases: .down) { press in
-                        guard press.modifiers.contains(.shift) else { return .ignored }
-                        page.draft += "\n"
-                        return .handled
-                    }
-                Button { page.isChoosingDue.toggle() } label: {
-                    DueLabel(due: page.draftDue, isChoosing: page.isChoosingDue)
-                }
-                    .buttonStyle(.plain)
-                    .help("Set a due date")
-            }
-            if page.isChoosingDue { DueChoices(due: $page.draftDue, isPickingDate: $page.isPickingDate) }
-        }
-        .padding(.horizontal, 14)
-        .padding(.top, 6)
-        .padding(.bottom, 12)
-        .onChange(of: page.focusRequests, initial: true) { isTyping = true }
-    }
-
-    private func add() {
-        page.onAdd?(page.draft)
-        page.draft = ""
-        page.draftDue = nil
-        page.isChoosingDue = false
-        page.isPickingDate = false
     }
 }
