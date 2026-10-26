@@ -235,11 +235,12 @@ Each of these came out of a spike rather than from first principles;
 
 ### The todo page
 
-The notch panel has a second page: the open `- [ ]` lines of a Markdown file the user picks, such
-as an inbox in an Obsidian vault, whose own sync carries edits between devices. It lives in
-`Todos`, apart from `StandaloneBar`, because it needs none of that module's permissions: the file is
-reached through a security-scoped bookmark made when the user picked it, so a vault in Documents
-asks for nothing. The panel is its own black window grown out of the notch, not the replica bar's
+The notch panel has a second page: the open `- [ ]` lines of a Markdown file. By default that is
+`Todos.md` in Bouncer's Application Support folder; the user can pick another instead, such as an
+inbox in an Obsidian vault, whose own sync carries edits between devices. It lives in
+`Todos`, apart from `StandaloneBar`, because it needs none of that module's permissions: a picked
+file is reached through a security-scoped bookmark made when the user picked it, so a vault in
+Documents asks for nothing. The panel is its own black window grown out of the notch, not the replica bar's
 shelf, since it has no section to cover.
 
 The file is read when the page opens and watched only while it is open, through a file system

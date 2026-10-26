@@ -37,6 +37,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // RevealController has no business knowing about the standalone bar.
         menuBar.onIconClick = { [weak self] in self?.handleIconClick() }
         reveal.onHoverReveal = { [weak self] in self?.handleHoverReveal() }
+        standaloneBar.onSwitchPage = { [weak self] in self?.switchPage(to: .todos) }
+        todos.onShortcut = { [weak self] in self?.handleTodoShortcut() }
         pageSwitches = ObservationLoop { [weak self] in self?.wirePageSwitches() }
         Log.app.info("Bouncer launched")
     }
@@ -115,8 +117,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// request for the bar, and prompting on it would put a dialog up for simply moving the
     /// mouse. The bar stays behind a click until both are granted.
     private func handleHoverReveal() {
+        // Only the items page can switch to the todo page, so without the items bar hover reveals.
         let preferences = settings.preferences
-        if todos.isAvailable, !preferences.showItemsInBar || preferences.notchPage == .todos {
+        if preferences.showItemsInBar, preferences.notchPage == .todos {
             Task { await todos.open() }
             return
         }
@@ -129,20 +132,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task { await standaloneBar.open(closingWhenLeft: !settings.preferences.revealOnHover) }
     }
 
-    /// Each page of the notch panel offers the other only while the other has something to show.
+    /// The todo page offers the items page only while the items bar is on; the items page always
+    /// offers the todo page.
     private func wirePageSwitches() {
         let preferences = settings.preferences
-        standaloneBar.onSwitchPage = nil
         todos.onSwitchPage = nil
-        if preferences.todoFile != nil {
-            standaloneBar.onSwitchPage = { [weak self] in self?.switchPage(to: .todos) }
-        }
-        // Only while there is a todo page to open, so ⌘⇧B is left to the apps otherwise.
-        if preferences.todoFile == nil {
-            if todos.onShortcut != nil { todos.onShortcut = nil }
-        } else if todos.onShortcut == nil {
-            todos.onShortcut = { [weak self] in self?.handleTodoShortcut() }
-        }
         if preferences.showItemsInBar {
             todos.onSwitchPage = { [weak self] in self?.switchPage(to: .items) }
         }

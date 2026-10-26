@@ -214,19 +214,20 @@ struct TodoOptions: View {
                         .truncationMode(.middle)
                     Button("Choose…", action: choose)
                     if preferences.todoFile != nil {
-                        Button("Remove") { preferences.todoFile = nil }
+                        Button("Use Local") { preferences.todoFile = nil }
                     }
                 }
             }
             Text("Bouncer shows the open `- [ ]` lines of this Markdown file under the notch, and adds new "
-                 + "ones at its end. Hover near the notch to open it, or use the switch in the bar.")
+                 + "ones at its end. Without a chosen file, it keeps them in a local one. Hover near the notch "
+                 + "to open it, or use the switch in the bar.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
         }
     }
 
     private var fileName: String {
-        guard let bookmark = preferences.todoFile else { return "None" }
+        guard let bookmark = preferences.todoFile else { return "Local" }
         return TodoController.url(of: bookmark)?.lastPathComponent ?? "Not found"
     }
 
