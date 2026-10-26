@@ -46,6 +46,7 @@ public final class TodoController {
         page.onDelete = { [weak self] todo in self?.delete(todo) }
         page.onRestore = { [weak self] todo in self?.restore(todo) }
         page.onAddCategory = { [weak self] name in self?.addCategory(name) }
+        page.onRemoveCategory = { [weak self] name in self?.removeCategory(name) }
         page.onSwitch = { [weak self] in self?.onSwitchPage?() }
         page.onResize = { [weak self] in self.map { $0.panel.fit($0.page) } }
         page.onColor = { [weak self] tag, color in self?.settings.preferences.tagColors[tag] = color }
@@ -58,11 +59,13 @@ public final class TodoController {
             page.menu = nil
             return true
         }
-        // Out of a row's menu or an edit first, and only then out of the page.
+        // Out of a row's menu, a category being named or an edit first, and only then out of the page.
         panel.onEscape = { [weak self] in
             guard let self else { return }
             if page.menu != nil {
                 page.menu = nil
+            } else if page.isAddingCategory {
+                page.isAddingCategory = false
             } else if page.editing != nil {
                 page.editing = nil
             } else {
@@ -195,6 +198,12 @@ public final class TodoController {
     private func addCategory(_ name: String) {
         guard let file else { return }
         file.write(Categories.adding(name, to: file.read() ?? ""))
+        reload()
+    }
+
+    private func removeCategory(_ name: String) {
+        guard let file, let markdown = file.read() else { return }
+        file.write(Categories.removing(name, from: markdown))
         reload()
     }
 }

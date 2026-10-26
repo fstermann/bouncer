@@ -17,8 +17,6 @@ final class TodoPage {
     var suggestion = 0
     var isAddingCategory = false
     var categoryDraft = ""
-    /// The tag whose colour is being picked, in the palette under the categories.
-    var coloringTag: String?
     /// The category the list is narrowed to.
     var filter: String?
     /// The row beside the notch, which the page starts below.
@@ -54,15 +52,18 @@ final class TodoPage {
     @ObservationIgnored var onDelete: (@MainActor (Todo) -> Void)?
     @ObservationIgnored var onRestore: (@MainActor (Todo) -> Void)?
     @ObservationIgnored var onAddCategory: (@MainActor (String) -> Void)?
+    @ObservationIgnored var onRemoveCategory: (@MainActor (String) -> Void)?
     @ObservationIgnored var onColor: (@MainActor (String, String?) -> Void)?
     @ObservationIgnored var onSwitch: (@MainActor () -> Void)?
     /// The page's height changed, so the panel has to refit.
     @ObservationIgnored var onResize: (@MainActor () -> Void)?
 
-    /// The categories, then any other tag a todo carries, each once.
+    /// The categories, then any other tag a listed todo carries, each once: a tag only done todos
+    /// carry shows while they do.
     var tags: [String] {
         var seen = Set(categories)
-        return categories + todos.flatMap { TaskText($0.text).tags }.filter { seen.insert($0).inserted }
+        let listed = showsDone ? todos : todos.filter { !$0.isDone || lingering.contains($0) }
+        return categories + listed.flatMap { TaskText($0.text).tags }.filter { seen.insert($0).inserted }
     }
 
     /// Open todos, and ticked ones still lingering: the soonest due first, the rest in file order.
@@ -76,7 +77,7 @@ final class TodoPage {
 
     /// Nothing half-entered that the pointer leaving would throw away.
     var isIdle: Bool {
-        draft.isEmpty && !isAddingCategory && coloringTag == nil && editing == nil && menu == nil
+        draft.isEmpty && !isAddingCategory && editing == nil && menu == nil
     }
 
     private var filtered: [Todo] {
@@ -90,7 +91,6 @@ final class TodoPage {
         editDraft = todo.note.isEmpty ? text.title : text.title + "\n" + todo.note
         editTags = text.tags
         editDue = text.due
-        coloringTag = nil
     }
 
     /// Tags typed into the title join the chosen ones; the day it was done is kept.
@@ -137,8 +137,10 @@ final class TodoPage {
         onColor?(tag, name)
     }
 
-    static let width: CGFloat = 380
+    static let width: CGFloat = 420
     static let maxListHeight: CGFloat = 320
+    /// The column the rows' circles stand in, which the field's plus and the editor's circle share.
+    static let markWidth: CGFloat = 16
 
     /// An estimate until the page has been laid out, and its laid-out height from then on.
     var height: CGFloat { contentHeight ?? menuBarHeight + 28 * CGFloat(rows.count + 2) }
@@ -146,14 +148,14 @@ final class TodoPage {
 
 struct TodoPageView: View {
     @Bindable var page: TodoPage
+    @FocusState private var isTyping: Bool
 
     var body: some View {
         VStack(spacing: 0) {
             topRow
-            TagRow(page: page)
-            if let tag = page.coloringTag { Palette(page: page, tag: tag) }
+            TagRow(page: page, isTyping: $isTyping)
             list
-            InputRow(page: page)
+            InputRow(page: page, isTyping: $isTyping)
         }
         .overlayPreferenceValue(MenuAnchor.self) { anchor in
             GeometryReader { proxy in
@@ -185,15 +187,17 @@ struct TodoPageView: View {
     private var topRow: some View {
         HStack {
             if !page.done.isEmpty || page.showsDone {
-                Button(page.showsDone ? "Hide done" : "\(page.done.count) done") { page.showsDone.toggle() }
+                Button(page.showsDone ? "Hide done" : "Show \(page.done.count) done") { page.showsDone.toggle() }
                     .buttonStyle(.plain)
-                    .font(.callout)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
             Spacer()
             if page.showsSwitch {
                 Button { page.onSwitch?() } label: { Image(systemName: "menubar.rectangle") }
                     .buttonStyle(.plain)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
                     .help("Show hidden items")
             }
         }
@@ -222,12 +226,15 @@ private struct TodoRow: View {
     let page: TodoPage
     let todo: Todo
     @State private var isHovered = false
+    @State private var accessoryWidth: CGFloat = 0
 
     var body: some View {
         let text = TaskText(todo.text)
         let isDeleting = page.deleting.contains(todo)
+        let showsAccessory = isDeleting || isHovered || page.menu?.line == todo.line
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Image(systemName: todo.isDone ? "checkmark.circle.fill" : "circle")
+                .frame(width: TodoPage.markWidth)
                 .foregroundStyle(isDeleting ? .red : .secondary)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -244,14 +251,13 @@ private struct TodoRow: View {
                             .font(.caption)
                             .foregroundStyle(label.isOverdue && !todo.isDone ? .red : .secondary)
                     }
-                    if isDeleting {
-                        Button { page.onRestore?(todo) } label: { Image(systemName: "arrow.uturn.backward") }
-                            .buttonStyle(.plain)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .help("Undo delete")
-                    } else if isHovered || page.menu?.line == todo.line {
-                        actions
+                }
+                // Laid over the line rather than in it, so showing them cannot change the row's height.
+                .padding(.trailing, showsAccessory ? accessoryWidth + 6 : 0)
+                .overlay(alignment: .trailing) {
+                    if showsAccessory {
+                        accessory(isDeleting: isDeleting)
+                            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { accessoryWidth = $0 }
                     }
                 }
                 if !todo.note.isEmpty {
@@ -270,6 +276,9 @@ private struct TodoRow: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 8).fill(.white.opacity(isHovered ? 0.06 : 0)).padding(.horizontal, 6)
+        )
         .contentShape(Rectangle())
         .onTapGesture { if !isDeleting { page.onToggle?(todo) } }
         .onHover { isHovered = $0 }
@@ -277,21 +286,34 @@ private struct TodoRow: View {
         .help("Right-click to edit")
     }
 
+    @ViewBuilder private func accessory(isDeleting: Bool) -> some View {
+        if isDeleting {
+            Button { page.onRestore?(todo) } label: { Image(systemName: "arrow.uturn.backward") }
+                .buttonStyle(.plain)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .help("Undo delete")
+        } else {
+            actions
+        }
+    }
+
     private var actions: some View {
-        HStack(spacing: 8) {
-            MenuButton(page: page, menu: RowMenu(line: todo.line, kind: .due), help: "Set a due date") {
-                Image(systemName: "calendar")
-            }
+        // In the input row's order, so tag and calendar sit where they do under the list.
+        HStack(spacing: 10) {
             if !page.tags.isEmpty {
                 MenuButton(page: page, menu: RowMenu(line: todo.line, kind: .tags), help: "Set tags") {
                     Image(systemName: "tag")
                 }
             }
+            MenuButton(page: page, menu: RowMenu(line: todo.line, kind: .due), help: "Set a due date") {
+                Image(systemName: "calendar")
+            }
             Button { page.onDelete?(todo) } label: { Image(systemName: "trash") }
                 .help("Delete")
         }
         .buttonStyle(.plain)
-        .font(.caption)
+        .font(.callout)
         .foregroundStyle(.secondary)
     }
 }
@@ -299,38 +321,58 @@ private struct TodoRow: View {
 /// The categories to filter by, and a way to add one. Right-clicking one opens its colours.
 private struct TagRow: View {
     @Bindable var page: TodoPage
+    /// The todo field's focus, which gets the cursor back once a category is named.
+    let isTyping: FocusState<Bool>.Binding
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                ForEach(page.tags, id: \.self) { tag in
-                    Button { page.filter = page.filter == tag ? nil : tag } label: {
-                        Chip(text: tag, color: page.color(of: tag), isSelected: page.filter == tag)
-                            // Ringed while its colours are open below it.
-                            .overlay(Capsule().stroke(.white, lineWidth: page.coloringTag == tag ? 1.5 : 0))
-                    }
-                    .buttonStyle(.plain)
-                    .overlay(RightClick { page.coloringTag = tag })
-                }
-                if page.isAddingCategory {
-                    TextField("Category", text: $page.categoryDraft)
-                        .textFieldStyle(.plain)
-                        .font(.caption)
-                        .frame(width: 90)
-                        .onSubmit {
-                            page.onAddCategory?(page.categoryDraft)
-                            page.categoryDraft = ""
-                            page.isAddingCategory = false
-                        }
-                } else {
-                    Button { page.isAddingCategory = true } label: { Chip(text: "+") }
-                        .buttonStyle(.plain)
-                        .help("Add a category")
-                }
+        HStack(spacing: 6) {
+            // Scrolled only once they overflow, with the plus kept in view after them.
+            ViewThatFits(in: .horizontal) {
+                chips
+                ScrollView(.horizontal, showsIndicators: false) { chips }
             }
-            .padding(.horizontal, 14)
+            if page.isAddingCategory {
+                CategoryField(text: $page.categoryDraft) {
+                    page.onAddCategory?(page.categoryDraft)
+                    page.isAddingCategory = false
+                } onEnd: {
+                    // Given up once the cursor goes elsewhere, so the plus comes back.
+                    page.isAddingCategory = false
+                }
+                .frame(width: 90)
+            } else {
+                Button { page.isAddingCategory = true } label: { Chip(text: "+") }
+                    .buttonStyle(.plain)
+                    .help("Add a category")
+            }
+            Spacer(minLength: 0)
         }
+        .padding(.horizontal, 14)
         .frame(height: 22)
+        .onChange(of: page.isAddingCategory) {
+            guard !$1 else { return }
+            page.categoryDraft = ""
+            isTyping.wrappedValue = true
+        }
+        .onChange(of: page.focusRequests) { page.isAddingCategory = false }
+        // A filter whose chip has gone would narrow the list with nothing to undo it by.
+        .onChange(of: page.tags) { if let filter = page.filter, !$1.contains(filter) { page.filter = nil } }
         .padding(.bottom, 6)
+    }
+
+    private var chips: some View {
+        HStack(spacing: 6) {
+            ForEach(page.tags, id: \.self) { tag in
+                let coloring = RowMenu(line: nil, kind: .colors(tag))
+                Button { page.filter = page.filter == tag ? nil : tag } label: {
+                    Chip(text: tag, color: page.color(of: tag), isSelected: page.filter == tag)
+                        // Ringed while its colours are open below it.
+                        .overlay(Capsule().stroke(.white, lineWidth: page.menu == coloring ? 1.5 : 0))
+                }
+                .buttonStyle(.plain)
+                .overlay(RightClick { page.menu = coloring })
+                .anchorPreference(key: MenuAnchor.self, value: .bounds) { page.menu == coloring ? $0 : nil }
+            }
+        }
     }
 }

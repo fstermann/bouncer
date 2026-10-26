@@ -19,37 +19,40 @@ enum TagColor: String, CaseIterable {
     }
 }
 
-/// The colours `tag` can be drawn in, as swatches inside the panel rather than a system menu: a
-/// menu shows the names in plain text, and the pointer reaching into it reads as leaving the panel.
+/// The colours `tag` can be drawn in, as swatches rather than a system menu: a system menu shows the
+/// names in plain text, and the pointer reaching into it reads as leaving the panel.
 struct Palette: View {
     let page: TodoPage
     let tag: String
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 2) {
             ForEach(TagColor.allCases, id: \.self) { color in
                 let isCurrent = (page.tagColors[tag] ?? TagColor.grey.rawValue) == color.rawValue
                 Button {
                     page.setColor(color, of: tag)
-                    page.coloringTag = nil
+                    page.menu = nil
                 } label: {
                     Circle()
                         .fill(color.color ?? .white.opacity(0.3))
-                        .frame(width: 14, height: 14)
+                        .frame(width: 10, height: 10)
                         .padding(3)
-                        .overlay(Circle().stroke(.white, lineWidth: isCurrent ? 1.5 : 0))
+                        .overlay(Circle().stroke(.white, lineWidth: isCurrent ? 1 : 0))
                 }
                 .buttonStyle(.plain)
                 .help(color.rawValue.capitalized)
             }
-            Spacer()
-            Button("Done") { page.coloringTag = nil }
+            if page.categories.contains(tag) {
+                Button {
+                    page.menu = nil
+                    page.onRemoveCategory?(tag)
+                } label: {
+                    Image(systemName: "trash").font(.caption).foregroundStyle(.secondary).padding(.leading, 6)
+                }
                 .buttonStyle(.plain)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .help("Delete category")
+            }
         }
-        .padding(.horizontal, 14)
-        .padding(.bottom, 6)
     }
 }
 
@@ -88,13 +91,18 @@ struct Chip: View {
             .font(.caption)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
-            .foregroundStyle(isSelected && color == nil ? .black : .white)
+            .foregroundStyle(foreground)
             .background(Capsule().fill(fill))
     }
 
+    /// Selected chips are filled solid; the rest are tinted, so a coloured tag never reads as chosen.
+    private var foreground: Color {
+        if isSelected { return color == nil ? .black : .white }
+        return color ?? .white
+    }
+
     private var fill: Color {
-        let base = color ?? .white
         if isSelected { return color ?? .white }
-        return base.opacity(color == nil ? 0.15 : 0.4)
+        return (color ?? .white).opacity(color == nil ? 0.15 : 0.2)
     }
 }

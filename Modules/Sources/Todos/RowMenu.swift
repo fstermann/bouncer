@@ -2,17 +2,21 @@ import SwiftUI
 
 /// Which choices are open, and for which todo. By line, so it stays open as the todo's text changes.
 struct RowMenu: Equatable, Hashable {
-    /// Suggestions hang under the field a tag is typed into; the others under the icon that opened them.
-    enum Kind { case due, tags, suggestions }
+    /// Suggestions hang under the field a tag is typed into, a tag's colours under its chip, and the
+    /// others under the icon that opened them.
+    enum Kind: Hashable { case due, tags, suggestions, colors(String) }
     /// `nil` for the todo being typed.
     let line: Int?
     let kind: Kind
 
-    /// Where the menu hangs, in screen coordinates: under `anchor`, left-aligned to the field or
-    /// right-aligned to an icon, and kept off the panel's left edge. The page's coordinates run down
+    /// Where the menu hangs, in screen coordinates: under `anchor`, left-aligned to the field or a
+    /// chip, or right-aligned to an icon, and kept off the panel's left edge. The page's coordinates run down
     /// from its top-left corner, the panel's top.
     func frame(size: CGSize, under anchor: CGRect, in panel: CGRect) -> CGRect {
-        let left = kind == .suggestions ? anchor.minX : anchor.maxX - size.width
+        let left = switch kind {
+        case .suggestions, .colors: anchor.minX
+        case .due, .tags: anchor.maxX - size.width
+        }
         let minX = max(panel.minX + 8, panel.minX + left)
         let maxY = panel.maxY - anchor.maxY - 4
         return CGRect(x: minX, y: maxY - size.height, width: size.width, height: size.height)
@@ -96,6 +100,8 @@ struct RowMenuView: View {
                     }
                     .buttonStyle(.plain)
                 }
+            case .colors(let tag):
+                Palette(page: page, tag: tag)
             }
         }
         .padding(8)

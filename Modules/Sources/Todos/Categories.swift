@@ -43,6 +43,22 @@ public enum Categories {
         return lines.joined(separator: "\n")
     }
 
+    /// `markdown` without `name` among its categories. Todos tagged with it keep their tag.
+    public static func removing(_ name: String, from markdown: String) -> String {
+        let name = clean(Substring(name))
+        var lines = TodoList.lines(of: markdown)
+        guard parse(markdown).contains(name), let block = frontmatter(of: lines),
+              let key = lines[block].firstIndex(where: { $0.hasPrefix("categories:") }) else { return markdown }
+        let inline = lines[key].dropFirst("categories:".count).trimmingCharacters(in: .whitespaces)
+        if inline.hasPrefix("[") {
+            lines[key] = "categories: [\(parse(markdown).filter { $0 != name }.joined(separator: ", "))]"
+        } else if let item = listItems(after: key, in: lines, before: block.upperBound)
+            .first(where: { clean(lines[$0].drop { $0 != "-" }.dropFirst()) == name }) {
+            lines.remove(at: item)
+        }
+        return lines.joined(separator: "\n")
+    }
+
     /// The lines between the opening `---` and the closing one, if the file starts with frontmatter.
     private static func frontmatter(of lines: [String]) -> Range<Int>? {
         guard lines.first == "---", let end = lines.dropFirst().firstIndex(of: "---") else { return nil }
