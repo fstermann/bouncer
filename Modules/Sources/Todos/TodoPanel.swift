@@ -215,7 +215,9 @@ final class TodoPanel {
         let window = TodoWindow(frame: frame)
         window.onEscape = { [weak self] in self?.onEscape?() }
         window.onMouseDown = { [weak self] hit in
-            guard let self, menu != nil, let menuHost, hit?.isDescendant(of: menuHost) != true else { return false }
+            guard let self, menu != nil, let host = self.menuHost, hit?.isDescendant(of: host) != true else {
+                return false
+            }
             return onClickOutsideMenu?() ?? false
         }
 
