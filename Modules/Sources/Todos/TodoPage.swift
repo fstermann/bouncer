@@ -273,25 +273,22 @@ private struct TodoRow: View {
                         .onTapGesture {
                             edit(at: NSApp.currentEvent?.locationInWindow)
                         }
-                    // Hidden under the icons, which would otherwise show a sliver of them.
-                    Group {
-                        ForEach(text.tags, id: \.self) { Chip(text: $0, color: page.color(of: $0)).fixedSize() }
-                        Spacer(minLength: 0)
-                        if let due = text.due {
-                            let label = TaskDay.label(for: due, today: Date())
-                            Text(label.text)
-                                .font(.caption)
-                                .foregroundStyle(label.isOverdue && !todo.isDone ? .red : .secondary)
-                        }
+                    ForEach(text.tags, id: \.self) { Chip(text: $0, color: page.color(of: $0)).fixedSize() }
+                    Spacer(minLength: 0)
+                    if let due = text.due {
+                        let label = TaskDay.label(for: due, today: Date())
+                        Text(label.text)
+                            .font(.caption)
+                            .foregroundStyle(label.isOverdue && !todo.isDone ? .red : .secondary)
                     }
-                    .opacity(showsAccessory ? 0 : 1)
                 }
                 // Laid over the first line rather than beside it, so showing them cannot rewrap the title.
                 .overlay(alignment: Alignment(horizontal: .trailing, vertical: .firstTextBaseline)) {
                     if showsAccessory {
                         accessory(isDeleting: isDeleting)
-                            .padding(.leading, 16)
-                            .background(backdrop)
+                            .padding(.leading, 28)
+                            // Taller than the icons, to cover a chip's capsule too.
+                            .background(backdrop.padding(.vertical, -4))
                     }
                 }
                 if !todo.note.isEmpty {
@@ -325,7 +322,8 @@ private struct TodoRow: View {
         page.editHeight = height
     }
 
-    /// The row's own fill, fading in from the left, so the icons hide what they lie over.
+    /// The row's own fill, fading in from the left and solid a little before the icons, so they
+    /// hide what they lie over.
     private var backdrop: some View {
         ZStack {
             Color.black
@@ -333,7 +331,7 @@ private struct TodoRow: View {
         }
         .mask {
             HStack(spacing: 0) {
-                LinearGradient(colors: [.clear, .black], startPoint: .leading, endPoint: .trailing).frame(width: 16)
+                LinearGradient(colors: [.clear, .black], startPoint: .leading, endPoint: .trailing).frame(width: 20)
                 Color.black
             }
         }
