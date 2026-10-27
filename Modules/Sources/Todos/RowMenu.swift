@@ -84,9 +84,9 @@ struct RowMenuView: View {
         VStack(alignment: .leading, spacing: 4) {
             switch kind {
             case .due:
-                DueChoices(due: due, isPickingDate: $isPickingDate, axis: .vertical)
+                DueChoices(due: due, isPickingDate: $isPickingDate)
             case .tags:
-                let carried = TaskText(todo?.text ?? page.draft).tags
+                let carried = isEditing ? page.editTags : TaskText(todo?.text ?? page.draft).tags
                 ForEach(page.tags, id: \.self) { tag in
                     Button { toggle(tag) } label: {
                         Chip(text: tag, color: page.color(of: tag), isSelected: carried.contains(tag))
@@ -109,16 +109,31 @@ struct RowMenuView: View {
         .overlay(RoundedRectangle(cornerRadius: 10).stroke(.white.opacity(0.12)))
     }
 
-    /// Written straight to the file, or to the todo being typed; one day is all a todo takes, so the
-    /// choices close on it.
+    /// Whether the todo is open in the editor, whose choices wait for it to be saved.
+    private var isEditing: Bool { todo != nil && page.editing == todo }
+
+    /// Written straight to the file, or to the todo being typed or edited; one day is all a todo
+    /// takes, so the choices close on it.
     private var due: Binding<String?> {
-        Binding { todo.map { TaskText($0.text).due } ?? page.draftDue } set: { day in
+        Binding { isEditing ? page.editDue : todo.map { TaskText($0.text).due } ?? page.draftDue } set: { day in
             page.menu = nil
-            if let todo { page.setDue(of: todo, to: day) } else { page.draftDue = day }
+            if isEditing {
+                page.editDue = day
+            } else if let todo {
+                page.setDue(of: todo, to: day)
+            } else {
+                page.draftDue = day
+            }
         }
     }
 
     private func toggle(_ tag: String) {
-        if let todo { page.toggleTag(tag, of: todo) } else { page.draft = TagCompletion.toggling(tag, in: page.draft) }
+        if isEditing {
+            if page.editTags.contains(tag) { page.editTags.removeAll { $0 == tag } } else { page.editTags.append(tag) }
+        } else if let todo {
+            page.toggleTag(tag, of: todo)
+        } else {
+            page.draft = TagCompletion.toggling(tag, in: page.draft)
+        }
     }
 }

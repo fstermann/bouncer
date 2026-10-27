@@ -20,6 +20,16 @@ import Testing
         #expect(page.open == [todos[0]])
     }
 
+    @Test func aDoneTodoBeingEditedStaysUntilTheEditEnds() {
+        let page = TodoPage()
+        page.todos = todos
+        page.startEditing(todos[1])
+        #expect(page.open == [todos[0], todos[1]])
+        #expect(page.done == [todos[2]])
+        page.editing = nil
+        #expect(page.open == [todos[0]])
+    }
+
     @Test func doneTodosAreListedOnlyOnRequest() {
         let page = TodoPage()
         page.todos = todos
@@ -35,6 +45,45 @@ import Testing
         #expect(page.tags == ["work", "home"])
         page.showsDone = true
         #expect(page.tags == ["work", "home", "old"])
+    }
+
+    @Test func filtersShowTodosCarryingAllOfThem() {
+        let page = TodoPage()
+        let both = Todo(line: 0, text: "A #work #urgent", isDone: false)
+        let work = Todo(line: 1, text: "B #work", isDone: false)
+        page.todos = [both, work, Todo(line: 2, text: "C", isDone: false)]
+        page.filters = ["work"]
+        #expect(page.rows == [both, work])
+        page.filters = ["work", "urgent"]
+        #expect(page.rows == [both])
+    }
+
+    @Test func editingAnotherTodoSavesTheFirst() {
+        let page = TodoPage()
+        var saved: String?
+        page.onEdit = { _, text, _ in saved = text }
+        page.startEditing(Todo(line: 0, text: "A", isDone: false))
+        page.editDraft = "A changed"
+        let other = Todo(line: 1, text: "B", isDone: false)
+        page.startEditing(other)
+        #expect(saved == "A changed")
+        #expect(page.editing == other)
+    }
+
+    @Test func tickingTheTodoBeingEditedSavesItFirst() {
+        let page = TodoPage()
+        var toggled: Todo?
+        page.onEdit = { todo, text, note in
+            page.todos = [Todo(line: todo.line, text: text, isDone: false, note: note)]
+        }
+        page.onToggle = { toggled = $0 }
+        let todo = Todo(line: 3, text: "A", isDone: false)
+        page.todos = [todo]
+        page.startEditing(todo)
+        page.editDraft = "A changed"
+        page.toggleEditing()
+        #expect(toggled?.text == "A changed")
+        #expect(page.editing == nil)
     }
 
     @Test func settingTheDueDayKeepsTheRestOfTheTodo() {

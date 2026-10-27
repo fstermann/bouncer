@@ -1,42 +1,69 @@
+import AppKit
 import SwiftUI
 
-/// A todo being changed, in place of its row: its title and note, its tags and when it is due.
+/// A todo being changed, in place of its row: its title and note, with its tags and due day behind
+/// the input row's icons. Return or clicking into another field saves it; Escape drops the change.
 struct TodoEditor: View {
     @Bindable var page: TodoPage
     let todo: Todo
-    @State private var isChoosingDue = false
-    @State private var isPickingDate = false
     @FocusState private var isTyping: Bool
+    @State private var iconsWidth: CGFloat = 0
+
+    private var choosingDue: RowMenu { RowMenu(line: todo.line, kind: .due) }
 
     var body: some View {
-        // Laid out like the row it stands in for, so the text stays where it was.
+        // Laid out like the row it stands in for, so the text stays where it was and the click that
+        // opened it lands on the same letter.
         HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Image(systemName: todo.isDone ? "checkmark.circle.fill" : "circle")
-                .frame(width: TodoPage.markWidth)
-                .foregroundStyle(.tertiary)
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    field
-                    Button { isChoosingDue.toggle() } label: { DueLabel(due: page.editDue, isChoosing: isChoosingDue) }
-                        .buttonStyle(.plain)
-                        .help("Set a due date")
-                }
-                if isChoosingDue { DueChoices(due: $page.editDue, isPickingDate: $isPickingDate) }
-                HStack(spacing: 10) {
-                    tags
-                    Button("Cancel") { page.editing = nil }
-                        .foregroundStyle(.secondary)
-                    Button("Save", action: page.saveEdit)
-                        .fontWeight(.medium)
-                }
-                .buttonStyle(.plain)
-                .font(.caption)
+            Button(action: page.toggleEditing) {
+                Image(systemName: todo.isDone ? "checkmark.circle.fill" : "circle")
+                    .frame(width: TodoPage.markWidth)
+                    .foregroundStyle(.secondary)
             }
+            .buttonStyle(.plain)
+            // Laid over the field's end rather than beside it, as the row lays them, so their height
+            // cannot add to the row's.
+            field
+                .padding(.trailing, iconsWidth + 8)
+                .overlay(alignment: Alignment(horizontal: .trailing, vertical: .firstTextBaseline)) {
+                    icons.onGeometryChange(for: CGFloat.self) { $0.size.width } action: { iconsWidth = $0 }
+                }
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 8)
+        .padding(.vertical, 6)
+        .frame(minHeight: page.editHeight, alignment: .top)
         .background(RoundedRectangle(cornerRadius: 10).fill(.white.opacity(0.08)).padding(.horizontal, 6))
-        .onAppear { isTyping = true }
+        .onAppear {
+            isTyping = true
+            guard let click = page.editClick else { return }
+            page.editClick = nil
+            // A turn later, once the field stands where the title was.
+            DispatchQueue.main.async { replayClick(at: click) }
+        }
+        .onChange(of: isTyping) { if !$1, page.editing == todo { page.saveEdit() } }
+    }
+
+    /// The row's icons, so none move or change as it opens.
+    private var icons: some View {
+        HStack(spacing: 10) {
+            if !page.tags.isEmpty {
+                MenuButton(page: page, menu: RowMenu(line: todo.line, kind: .tags), help: "Set tags") {
+                    Image(systemName: "tag").foregroundStyle(.secondary)
+                }
+            }
+            MenuButton(page: page, menu: choosingDue, help: "Set a due date") {
+                DueLabel(due: page.editDue, isChoosing: page.menu == choosingDue)
+            }
+            Button {
+                page.editing = nil
+                page.onDelete?(todo)
+            } label: {
+                Image(systemName: "trash").foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Delete")
+        }
+        .font(.callout)
     }
 
     private var field: some View {
@@ -51,21 +78,23 @@ struct TodoEditor: View {
                 return .handled
             }
     }
+}
 
-    private var tags: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                ForEach(page.tags, id: \.self) { tag in
-                    let isOn = page.editTags.contains(tag)
-                    Button {
-                        if isOn { page.editTags.removeAll { $0 == tag } } else { page.editTags.append(tag) }
-                    } label: {
-                        Chip(text: tag, color: page.color(of: tag), isSelected: isOn)
-                    }
-                }
-            }
-        }
+/// Clicks at `point` in the panel, now on the field standing in for the title, so the cursor goes
+/// where the title was clicked.
+@MainActor private func replayClick(at point: CGPoint) {
+    guard let window = NSApp.keyWindow else { return }
+    let events = [NSEvent.EventType.leftMouseDown, .leftMouseUp].compactMap { type in
+        NSEvent.mouseEvent(
+            with: type, location: point, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1,
+            pressure: type == .leftMouseDown ? 1 : 0
+        )
     }
+    guard events.count == 2 else { return }
+    // Queued first: the field tracks the mouse from its mouse-down until the up arrives.
+    NSApp.postEvent(events[1], atStart: false)
+    window.sendEvent(events[0])
 }
 
 /// The calendar a due date is set from, with the day once one is.
@@ -83,35 +112,21 @@ struct DueLabel: View {
     }
 }
 
-/// When a todo is due. Picking leaves the choices up, so a mis-click is put right with one more click.
+/// When a todo is due. Clicking the chosen day again clears it.
 struct DueChoices: View {
     @Binding var due: String?
     @Binding var isPickingDate: Bool
-    /// Vertical in a row's menu, which hangs under its icon.
-    var axis: Axis = .horizontal
 
     var body: some View {
-        let layout = axis == .horizontal
-            ? AnyLayout(HStackLayout(spacing: 6)) : AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
-        layout {
-            choice("Today", .today)
-            choice("Tomorrow", .tomorrow)
-            choice("Friday", .thisWeek)
-            Button { isPickingDate.toggle() } label: {
-                Chip(text: pickedLabel ?? "Date…", isSelected: isPickingDate || pickedLabel != nil)
-            }
-            .buttonStyle(.plain)
-            if axis == .horizontal { Spacer() }
-            if due != nil {
-                Button("Clear") {
-                    due = nil
-                    isPickingDate = false
-                }
-                .buttonStyle(.plain)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
+        choice("Today", .today)
+        choice("Tomorrow", .tomorrow)
+        choice("Friday", .thisWeek)
+        Button {
+            if pickedLabel != nil, !isPickingDate { due = nil } else { isPickingDate.toggle() }
+        } label: {
+            Chip(text: pickedLabel ?? "Date…", isSelected: isPickingDate || pickedLabel != nil)
         }
+        .buttonStyle(.plain)
         if isPickingDate {
             DatePicker("", selection: pickedDay, displayedComponents: .date)
                 .datePickerStyle(.graphical)
@@ -123,11 +138,12 @@ struct DueChoices: View {
 
     private func choice(_ title: String, _ choice: DueChoice) -> some View {
         let day = TaskDay.string(for: choice, today: Date())
+        let isChosen = due == day && !isPickingDate
         return Button {
-            due = day
+            due = isChosen ? nil : day
             isPickingDate = false
         } label: {
-            Chip(text: title, isSelected: due == day && !isPickingDate)
+            Chip(text: title, isSelected: isChosen)
         }
         .buttonStyle(.plain)
     }

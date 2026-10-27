@@ -17,8 +17,8 @@ final class TodoPage {
     var suggestion = 0
     var isAddingCategory = false
     var categoryDraft = ""
-    /// The category the list is narrowed to.
-    var filter: String?
+    /// The tags the list is narrowed to: it shows the todos carrying all of them.
+    var filters: Set<String> = []
     /// The row beside the notch, which the page starts below.
     var menuBarHeight: CGFloat = 24
     var showsSwitch = false
@@ -39,6 +39,10 @@ final class TodoPage {
     var editDraft = ""
     var editTags: [String] = []
     var editDue: String?
+    /// Where the click that opened the editor landed, in window coordinates, to put the cursor there.
+    @ObservationIgnored var editClick: CGPoint?
+    /// The height of the row the editor stands in for, which it keeps so the list does not shift.
+    @ObservationIgnored var editHeight: CGFloat = 0
     /// The choices open under one of a row's icons.
     var menu: RowMenu?
     /// The open menu's icon, in the page's coordinates, and the menu's size, for the panel to place it.
@@ -62,17 +66,18 @@ final class TodoPage {
     /// carry shows while they do.
     var tags: [String] {
         var seen = Set(categories)
-        let listed = showsDone ? todos : todos.filter { !$0.isDone || lingering.contains($0) }
+        let listed = showsDone ? todos : todos.filter(isListedOpen)
         return categories + listed.flatMap { TaskText($0.text).tags }.filter { seen.insert($0).inserted }
     }
 
-    /// Open todos, and ticked ones still lingering: the soonest due first, the rest in file order.
+    /// Open todos, and ticked ones still lingering or being edited: the soonest due first, the rest
+    /// in file order.
     var open: [Todo] {
-        filtered.filter { !$0.isDone || lingering.contains($0) }
+        filtered.filter(isListedOpen)
             .sorted { (TaskText($0.text).due ?? "~", $0.line) < (TaskText($1.text).due ?? "~", $1.line) }
     }
     /// Ticked todos stay in the file, as Obsidian keeps them, and are listed here on request.
-    var done: [Todo] { filtered.filter { $0.isDone && !lingering.contains($0) } }
+    var done: [Todo] { filtered.filter { !isListedOpen($0) } }
     var rows: [Todo] { showsDone ? open + done : open }
 
     /// Nothing half-entered that the pointer leaving would throw away.
@@ -80,12 +85,20 @@ final class TodoPage {
         draft.isEmpty && !isAddingCategory && editing == nil && menu == nil
     }
 
-    private var filtered: [Todo] {
-        guard let filter else { return todos }
-        return todos.filter { TaskText($0.text).tags.contains(filter) }
+    /// A todo ticked and then opened in the editor stays until the edit ends, rather than going
+    /// from under the cursor. Listed with the done ones, it stays where it is.
+    private func isListedOpen(_ todo: Todo) -> Bool {
+        !todo.isDone || lingering.contains(todo) || !showsDone && editing == todo
     }
 
-    func startEditing(_ todo: Todo) {
+    private var filtered: [Todo] {
+        todos.filter { filters.isSubset(of: TaskText($0.text).tags) }
+    }
+
+    /// Saves the todo being changed first, as a click elsewhere does.
+    func startEditing(_ todo: Todo, at click: CGPoint? = nil) {
+        saveEdit()
+        editClick = click
         let text = TaskText(todo.text)
         editing = todo
         editDraft = todo.note.isEmpty ? text.title : text.title + "\n" + todo.note
@@ -106,6 +119,15 @@ final class TodoPage {
         text.done = TaskText(todo.text).done
         editing = nil
         onEdit?(todo, text.text, lines.dropFirst().joined(separator: "\n"))
+    }
+
+    /// Ticks the todo being changed, saving the change first. Found again by its line, since saving
+    /// changed its text.
+    func toggleEditing() {
+        guard let todo = editing else { return }
+        saveEdit()
+        editing = nil
+        if let saved = todos.first(where: { $0.line == todo.line }) { onToggle?(saved) }
     }
 
     func setDue(of todo: Todo, to due: String?) {
@@ -217,6 +239,7 @@ struct TodoPageView: View {
                 }
             }
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { page.listHeight = $0 }
+            .background(OverlayScrollers())
         }
         .frame(height: min(page.listHeight, TodoPage.maxListHeight))
     }
@@ -226,42 +249,53 @@ private struct TodoRow: View {
     let page: TodoPage
     let todo: Todo
     @State private var isHovered = false
-    @State private var accessoryWidth: CGFloat = 0
+    @State private var height: CGFloat = 0
 
     var body: some View {
         let text = TaskText(todo.text)
         let isDeleting = page.deleting.contains(todo)
         let showsAccessory = isDeleting || isHovered || page.menu?.line == todo.line
         HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Image(systemName: todo.isDone ? "checkmark.circle.fill" : "circle")
-                .frame(width: TodoPage.markWidth)
-                .foregroundStyle(isDeleting ? .red : .secondary)
+            Button { if !isDeleting { page.onToggle?(todo) } } label: {
+                Image(systemName: todo.isDone ? "checkmark.circle.fill" : "circle")
+                    .frame(width: TodoPage.markWidth)
+                    .foregroundStyle(isDeleting ? .red : .secondary)
+            }
+            .buttonStyle(.plain)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(text.title)
-                        .lineLimit(1)
+                        .lineLimit(3)
                         .truncationMode(.tail)
                         .strikethrough(todo.isDone || isDeleting)
                         .foregroundStyle(isDeleting ? .red : todo.isDone ? .secondary : .primary)
-                    ForEach(text.tags, id: \.self) { Chip(text: $0, color: page.color(of: $0)) }
-                    Spacer(minLength: 0)
-                    if let due = text.due {
-                        let label = TaskDay.label(for: due, today: Date())
-                        Text(label.text)
-                            .font(.caption)
-                            .foregroundStyle(label.isOverdue && !todo.isDone ? .red : .secondary)
+                        // The cursor goes where the title was clicked; elsewhere on the row, to its end.
+                        .onTapGesture {
+                            edit(at: NSApp.currentEvent?.locationInWindow)
+                        }
+                    // Hidden under the icons, which would otherwise show a sliver of them.
+                    Group {
+                        ForEach(text.tags, id: \.self) { Chip(text: $0, color: page.color(of: $0)).fixedSize() }
+                        Spacer(minLength: 0)
+                        if let due = text.due {
+                            let label = TaskDay.label(for: due, today: Date())
+                            Text(label.text)
+                                .font(.caption)
+                                .foregroundStyle(label.isOverdue && !todo.isDone ? .red : .secondary)
+                        }
                     }
+                    .opacity(showsAccessory ? 0 : 1)
                 }
-                // Laid over the line rather than in it, so showing them cannot change the row's height.
-                .padding(.trailing, showsAccessory ? accessoryWidth + 6 : 0)
-                .overlay(alignment: .trailing) {
+                // Laid over the first line rather than beside it, so showing them cannot rewrap the title.
+                .overlay(alignment: Alignment(horizontal: .trailing, vertical: .firstTextBaseline)) {
                     if showsAccessory {
                         accessory(isDeleting: isDeleting)
-                            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { accessoryWidth = $0 }
+                            .padding(.leading, 16)
+                            .background(backdrop)
                     }
                 }
                 if !todo.note.isEmpty {
-                    // Its own tap, which wins over the row's, so reading a note does not tick it.
+                    // Its own tap, which wins over the row's, so reading a note does not edit it.
                     Text(todo.note)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -280,10 +314,29 @@ private struct TodoRow: View {
             RoundedRectangle(cornerRadius: 8).fill(.white.opacity(isHovered ? 0.06 : 0)).padding(.horizontal, 6)
         )
         .contentShape(Rectangle())
-        .onTapGesture { if !isDeleting { page.onToggle?(todo) } }
+        .onTapGesture { edit() }
         .onHover { isHovered = $0 }
-        .overlay(RightClick { if !isDeleting { page.startEditing(todo) } })
-        .help("Right-click to edit")
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
+    }
+
+    private func edit(at click: CGPoint? = nil) {
+        guard !page.deleting.contains(todo) else { return }
+        page.startEditing(todo, at: click)
+        page.editHeight = height
+    }
+
+    /// The row's own fill, fading in from the left, so the icons hide what they lie over.
+    private var backdrop: some View {
+        ZStack {
+            Color.black
+            Color.white.opacity(isHovered ? 0.06 : 0)
+        }
+        .mask {
+            HStack(spacing: 0) {
+                LinearGradient(colors: [.clear, .black], startPoint: .leading, endPoint: .trailing).frame(width: 16)
+                Color.black
+            }
+        }
     }
 
     @ViewBuilder private func accessory(isDeleting: Bool) -> some View {
@@ -315,64 +368,5 @@ private struct TodoRow: View {
         .buttonStyle(.plain)
         .font(.callout)
         .foregroundStyle(.secondary)
-    }
-}
-
-/// The categories to filter by, and a way to add one. Right-clicking one opens its colours.
-private struct TagRow: View {
-    @Bindable var page: TodoPage
-    /// The todo field's focus, which gets the cursor back once a category is named.
-    let isTyping: FocusState<Bool>.Binding
-
-    var body: some View {
-        HStack(spacing: 6) {
-            // Scrolled only once they overflow, with the plus kept in view after them.
-            ViewThatFits(in: .horizontal) {
-                chips
-                ScrollView(.horizontal, showsIndicators: false) { chips }
-            }
-            if page.isAddingCategory {
-                CategoryField(text: $page.categoryDraft) {
-                    page.onAddCategory?(page.categoryDraft)
-                    page.isAddingCategory = false
-                } onEnd: {
-                    // Given up once the cursor goes elsewhere, so the plus comes back.
-                    page.isAddingCategory = false
-                }
-                .frame(width: 90)
-            } else {
-                Button { page.isAddingCategory = true } label: { Chip(text: "+") }
-                    .buttonStyle(.plain)
-                    .help("Add a category")
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 14)
-        .frame(height: 22)
-        .onChange(of: page.isAddingCategory) {
-            guard !$1 else { return }
-            page.categoryDraft = ""
-            isTyping.wrappedValue = true
-        }
-        .onChange(of: page.focusRequests) { page.isAddingCategory = false }
-        // A filter whose chip has gone would narrow the list with nothing to undo it by.
-        .onChange(of: page.tags) { if let filter = page.filter, !$1.contains(filter) { page.filter = nil } }
-        .padding(.bottom, 6)
-    }
-
-    private var chips: some View {
-        HStack(spacing: 6) {
-            ForEach(page.tags, id: \.self) { tag in
-                let coloring = RowMenu(line: nil, kind: .colors(tag))
-                Button { page.filter = page.filter == tag ? nil : tag } label: {
-                    Chip(text: tag, color: page.color(of: tag), isSelected: page.filter == tag)
-                        // Ringed while its colours are open below it.
-                        .overlay(Capsule().stroke(.white, lineWidth: page.menu == coloring ? 1.5 : 0))
-                }
-                .buttonStyle(.plain)
-                .overlay(RightClick { page.menu = coloring })
-                .anchorPreference(key: MenuAnchor.self, value: .bounds) { page.menu == coloring ? $0 : nil }
-            }
-        }
     }
 }
