@@ -66,8 +66,9 @@ public final class TodoController {
                 page.menu = nil
             } else if page.isAddingCategory {
                 page.isAddingCategory = false
-            } else if page.editing != nil {
+            } else if let editing = page.editing {
                 page.editing = nil
+                lingerAfterEditing(editing)
             } else {
                 Task { await self.close() }
             }
@@ -106,6 +107,7 @@ public final class TodoController {
         lingerings = [:]
         page.lingering = []
         deleteNow()
+        page.saveEdit()
         page.editing = nil
         page.menu = nil
         file?.stopWatching()
@@ -170,6 +172,19 @@ public final class TodoController {
         else { return reload() }
         file.write(edited)
         reload()
+        if let saved = page.todos.first(where: { $0.line == todo.line && $0.isDone }) {
+            lingerings.removeValue(forKey: todo)?.cancel()
+            page.lingering.remove(todo)
+            lingerAfterEditing(saved)
+        }
+    }
+
+    /// Keeps a done todo listed a moment after it was changed, so a mistake can be put right; it
+    /// would otherwise leave the list at once.
+    private func lingerAfterEditing(_ todo: Todo) {
+        guard todo.isDone, !page.showsDone else { return }
+        lingerings.removeValue(forKey: todo)?.cancel()
+        linger(todo)
     }
 
     /// Marks `todo` as deleted for a moment, so a mis-click can be taken back, before it leaves the file.
