@@ -85,14 +85,18 @@ struct Chip: View {
     let text: String
     var color: Color?
     var isSelected = false
+    var count: Int?
 
     var body: some View {
-        Text(text)
-            .font(.caption)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .foregroundStyle(foreground)
-            .background(Capsule().fill(fill))
+        HStack(spacing: 4) {
+            Text(text)
+            if let count { Text("\(count)").opacity(0.55) }
+        }
+        .font(.caption)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .foregroundStyle(foreground)
+        .background(Capsule().fill(fill))
     }
 
     /// Selected chips are filled solid; the rest are tinted, so a coloured tag never reads as chosen.

@@ -39,6 +39,7 @@ struct TagRow: View {
         .onChange(of: page.focusRequests) { page.isAddingCategory = false }
         // A filter whose chip has gone would narrow the list with nothing to undo it by.
         .onChange(of: page.tags) { page.filters.formIntersection($1) }
+        .onChange(of: page.offersUntagged) { if !$1 { page.showsUntagged = false } }
         .padding(.bottom, 6)
     }
 
@@ -46,14 +47,23 @@ struct TagRow: View {
         HStack(spacing: 6) {
             ForEach(page.tags, id: \.self) { tag in
                 let coloring = RowMenu(line: nil, kind: .colors(tag))
-                Button { if page.filters.remove(tag) == nil { page.filters.insert(tag) } } label: {
-                    Chip(text: tag, color: page.color(of: tag), isSelected: page.filters.contains(tag))
+                Button { page.toggleFilter(tag) } label: {
+                    Chip(
+                        text: tag, color: page.color(of: tag), isSelected: page.filters.contains(tag),
+                        count: page.count(of: tag)
+                    )
                         // Ringed while its colours are open below it.
                         .overlay(Capsule().stroke(.white, lineWidth: page.menu == coloring ? 1.5 : 0))
                 }
                 .buttonStyle(.plain)
                 .overlay(RightClick { page.menu = coloring })
                 .anchorPreference(key: MenuAnchor.self, value: .bounds) { page.menu == coloring ? $0 : nil }
+            }
+            if page.offersUntagged {
+                Button { page.toggleUntagged() } label: {
+                    Chip(text: "untagged", isSelected: page.showsUntagged, count: page.untaggedCount)
+                }
+                .buttonStyle(.plain)
             }
         }
     }

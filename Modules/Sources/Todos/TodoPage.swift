@@ -19,6 +19,8 @@ final class TodoPage {
     var categoryDraft = ""
     /// The tags the list is narrowed to: it shows the todos carrying all of them.
     var filters: Set<String> = []
+    /// The list is narrowed to todos carrying no tag, which no tag filter can join.
+    var showsUntagged = false
     /// The row beside the notch, which the page starts below.
     var menuBarHeight: CGFloat = 24
     var showsSwitch = false
@@ -66,8 +68,27 @@ final class TodoPage {
     /// carry shows while they do.
     var tags: [String] {
         var seen = Set(categories)
-        let listed = showsDone ? todos : todos.filter(isListedOpen)
         return categories + listed.flatMap { TaskText($0.text).tags }.filter { seen.insert($0).inserted }
+    }
+
+    /// How many listed todos carry `tag`, whatever the filters.
+    func count(of tag: String) -> Int {
+        listed.filter { TaskText($0.text).tags.contains(tag) }.count
+    }
+
+    var untaggedCount: Int { listed.filter { TaskText($0.text).tags.isEmpty }.count }
+
+    /// Offered only beside tags, and while some todo has none.
+    var offersUntagged: Bool { !tags.isEmpty && untaggedCount > 0 }
+
+    func toggleFilter(_ tag: String) {
+        showsUntagged = false
+        if filters.remove(tag) == nil { filters.insert(tag) }
+    }
+
+    func toggleUntagged() {
+        filters = []
+        showsUntagged.toggle()
     }
 
     /// Open todos, and ticked ones still lingering or being edited: the soonest due first, the rest
@@ -91,8 +112,13 @@ final class TodoPage {
         !todo.isDone || lingering.contains(todo) || !showsDone && editing == todo
     }
 
+    private var listed: [Todo] { showsDone ? todos : todos.filter(isListedOpen) }
+
     private var filtered: [Todo] {
-        todos.filter { filters.isSubset(of: TaskText($0.text).tags) }
+        todos.filter {
+            let tags = TaskText($0.text).tags
+            return showsUntagged ? tags.isEmpty : filters.isSubset(of: tags)
+        }
     }
 
     /// Saves the todo being changed first, as a click elsewhere does.
