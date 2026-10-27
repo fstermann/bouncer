@@ -58,6 +58,44 @@ import Testing
         #expect(page.rows == [both])
     }
 
+    @Test func tagCountsCoverListedTodosWhateverTheFilters() {
+        let page = TodoPage()
+        page.todos = [
+            Todo(line: 0, text: "A #work #urgent", isDone: false),
+            Todo(line: 1, text: "B #work", isDone: false),
+            Todo(line: 2, text: "C", isDone: false),
+            Todo(line: 3, text: "D #work", isDone: true)
+        ]
+        page.filters = ["urgent"]
+        #expect(page.count(of: "work") == 2)
+        #expect(page.untaggedCount == 1)
+        page.showsDone = true
+        #expect(page.count(of: "work") == 3)
+    }
+
+    @Test func theUntaggedFilterExcludesTagFilters() {
+        let page = TodoPage()
+        let untagged = Todo(line: 1, text: "B", isDone: false)
+        page.todos = [Todo(line: 0, text: "A #work", isDone: false), untagged]
+        page.toggleFilter("work")
+        page.toggleUntagged()
+        #expect(page.filters.isEmpty)
+        #expect(page.rows == [untagged])
+        page.toggleFilter("work")
+        #expect(!page.showsUntagged)
+        #expect(page.filters == ["work"])
+    }
+
+    @Test func untaggedIsOfferedOnlyBesideTagsWhileATodoHasNone() {
+        let page = TodoPage()
+        page.todos = [Todo(line: 0, text: "A", isDone: false)]
+        #expect(!page.offersUntagged)
+        page.categories = ["work"]
+        #expect(page.offersUntagged)
+        page.todos = [Todo(line: 0, text: "A #work", isDone: false)]
+        #expect(!page.offersUntagged)
+    }
+
     @Test func editingAnotherTodoSavesTheFirst() {
         let page = TodoPage()
         var saved: String?
