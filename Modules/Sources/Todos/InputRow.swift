@@ -6,7 +6,6 @@ struct InputRow: View {
     @Bindable var page: TodoPage
     let isTyping: FocusState<Bool>.Binding
 
-    private var suggesting: RowMenu { RowMenu(line: nil, kind: .suggestions) }
     private var choosingDue: RowMenu { RowMenu(line: nil, kind: .due) }
 
     var body: some View {
@@ -30,7 +29,6 @@ struct InputRow: View {
         .padding(.top, 8)
         .padding(.bottom, 12)
         .onChange(of: page.focusRequests, initial: true) { isTyping.wrappedValue = true }
-        .onChange(of: page.draft) { suggest() }
     }
 
     private var field: some View {
@@ -42,19 +40,43 @@ struct InputRow: View {
             // Return adds the todo, or takes the highlighted tag; Shift-Return starts a new line, which
             // becomes its note.
             .onKeyPress(.return, phases: .down) { press in
-                if press.modifiers.contains(.shift) {
-                    page.draft += "\n"
-                    return .handled
-                }
-                return completeIfSuggesting()
+                guard press.modifiers.contains(.shift) else { return .ignored }
+                page.draft += "\n"
+                return .handled
+            }
+            .modifier(SuggestsTags(page: page, text: page.draft, line: nil))
+    }
+
+    private func add() {
+        page.onAdd?(page.draft)
+        page.draft = ""
+        page.draftDue = nil
+        page.menu = nil
+    }
+}
+
+/// Offers tags while one is typed after `#` into `text`, unless another of the field's menus is open,
+/// and takes the highlighted one on Return or Tab.
+struct SuggestsTags: ViewModifier {
+    let page: TodoPage
+    let text: String
+    /// The todo whose field it is; `nil` for the todo being typed.
+    let line: Int?
+
+    private var suggesting: RowMenu { RowMenu(line: line, kind: .suggestions) }
+
+    func body(content: Content) -> some View {
+        content
+            .onKeyPress(.return, phases: .down) { press in
+                press.modifiers.contains(.shift) ? .ignored : completeIfSuggesting()
             }
             .onKeyPress(.tab) { completeIfSuggesting() }
             .onKeyPress(.downArrow) { moveSuggestion(by: 1) }
             .onKeyPress(.upArrow) { moveSuggestion(by: -1) }
             .anchorPreference(key: MenuAnchor.self, value: .bounds) { page.menu == suggesting ? $0 : nil }
+            .onChange(of: text) { suggest() }
     }
 
-    /// Offers tags while one is typed, unless another of the field's menus is open.
     private func suggest() {
         page.suggestion = 0
         if !page.suggestions.isEmpty, page.menu == nil || page.menu == suggesting {
@@ -76,12 +98,5 @@ struct InputRow: View {
         guard page.menu == suggesting, count > 0 else { return .ignored }
         page.suggestion = (page.suggestion + step + count) % count
         return .handled
-    }
-
-    private func add() {
-        page.onAdd?(page.draft)
-        page.draft = ""
-        page.draftDue = nil
-        page.menu = nil
     }
 }

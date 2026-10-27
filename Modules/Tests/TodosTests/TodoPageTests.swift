@@ -145,19 +145,28 @@ import Testing
         #expect(saved == "Call bank 📅 2026-10-20")
     }
 
-    @Test func savingAnEditKeepsTheDoneDayAndAddsTypedTags() {
+    @Test func savingAnEditKeepsTheDoneDayAndTakesTypedTags() {
         let page = TodoPage()
         var saved: (String, String)?
         page.onEdit = { _, text, note in saved = (text, note) }
         page.startEditing(Todo(line: 0, text: "Call bank #work ✅ 2026-10-20", isDone: true, note: "fee"))
-        #expect(page.editDraft == "Call bank\nfee")
+        #expect(page.editDraft == "Call bank #work\nfee")
         page.editDraft = "Call the bank #home\nfee\ncard"
-        page.editTags = []
         page.editDue = "2026-10-24"
         page.saveEdit()
         #expect(saved?.0 == "Call the bank #home 📅 2026-10-24 ✅ 2026-10-20")
         #expect(saved?.1 == "fee\ncard")
         #expect(page.editing == nil)
+    }
+
+    @Test func tagsTypedIntoTheTitleBeingEditedAreCompleted() {
+        let page = TodoPage()
+        page.categories = ["work", "home"]
+        page.startEditing(Todo(line: 0, text: "Call bank #home", isDone: false, note: "fee"))
+        page.editDraft = "Call bank #home #wo\nfee"
+        #expect(page.suggestions == ["work"])
+        page.complete(with: "work")
+        #expect(page.editDraft == "Call bank #home #work \nfee")
     }
 
     @Test func aRowMenuHangsUnderItsIconAndStaysOnThePanel() {

@@ -86,7 +86,7 @@ struct RowMenuView: View {
             case .due:
                 DueChoices(due: due, isPickingDate: $isPickingDate)
             case .tags:
-                let carried = isEditing ? page.editTags : TaskText(todo?.text ?? page.draft).tags
+                let carried = TaskText(isEditing ? page.editTitle : todo?.text ?? page.draft).tags
                 ForEach(page.tags, id: \.self) { tag in
                     Button { toggle(tag) } label: {
                         Chip(text: tag, color: page.color(of: tag), isSelected: carried.contains(tag))
@@ -129,7 +129,7 @@ struct RowMenuView: View {
 
     private func toggle(_ tag: String) {
         if isEditing {
-            if page.editTags.contains(tag) { page.editTags.removeAll { $0 == tag } } else { page.editTags.append(tag) }
+            page.editDraft = TagCompletion.toggling(tag, in: page.editDraft)
         } else if let todo {
             page.toggleTag(tag, of: todo)
         } else {
