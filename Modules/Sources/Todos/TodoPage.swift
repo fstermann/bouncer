@@ -195,6 +195,7 @@ final class TodoPage {
 }
 
 struct TodoPageView: View {
+    private static let list = "list"
     @Bindable var page: TodoPage
     @FocusState private var isTyping: Bool
 
@@ -265,8 +266,13 @@ struct TodoPageView: View {
                 }
             }
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { page.listHeight = $0 }
+            // A row's menu closes on scrolling, as a popover does, rather than riding off with its icon.
+            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(Self.list)).minY } action: { _ in
+                if page.menu?.line != nil { page.menu = nil }
+            }
             .background(OverlayScrollers())
         }
+        .coordinateSpace(.named(Self.list))
         .frame(height: min(page.listHeight, TodoPage.maxListHeight))
     }
 }
