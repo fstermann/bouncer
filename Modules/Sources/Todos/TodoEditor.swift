@@ -77,6 +77,7 @@ struct TodoEditor: View {
                 page.editDraft += "\n"
                 return .handled
             }
+            .modifier(SuggestsTags(page: page, text: page.editDraft, line: todo.line))
     }
 }
 

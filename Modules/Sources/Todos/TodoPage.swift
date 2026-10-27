@@ -38,8 +38,8 @@ final class TodoPage {
     var focusRequests = 0
     /// The todo being changed, in place of its row, and what it is being changed to.
     var editing: Todo?
+    /// Its title and tags on the first line, as typed into the add field, and its note under them.
     var editDraft = ""
-    var editTags: [String] = []
     var editDue: String?
     /// Where the click that opened the editor landed, in window coordinates, to put the cursor there.
     @ObservationIgnored var editClick: CGPoint?
@@ -125,22 +125,23 @@ final class TodoPage {
     func startEditing(_ todo: Todo, at click: CGPoint? = nil) {
         saveEdit()
         editClick = click
-        let text = TaskText(todo.text)
-        editing = todo
-        editDraft = todo.note.isEmpty ? text.title : text.title + "\n" + todo.note
-        editTags = text.tags
+        var text = TaskText(todo.text)
         editDue = text.due
+        text.due = nil
+        text.done = nil
+        editing = todo
+        editDraft = todo.note.isEmpty ? text.text : text.text + "\n" + todo.note
     }
 
-    /// Tags typed into the title join the chosen ones; the day it was done is kept.
+    /// The day it was done is kept.
     func saveEdit() {
         guard let todo = editing else { return }
+        if menu?.kind == .suggestions { menu = nil }
         let lines = editDraft.components(separatedBy: "\n")
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
         guard let first = lines.first else { return }
         var text = TaskText(first)
-        text.tags = editTags + text.tags.filter { !editTags.contains($0) }
         text.due = editDue ?? text.due
         text.done = TaskText(todo.text).done
         editing = nil
@@ -168,12 +169,23 @@ final class TodoPage {
         onEdit?(todo, text.text, todo.note)
     }
 
-    /// The tags offered for the `#word` the draft ends in.
-    var suggestions: [String] { TagCompletion.suggestions(for: draft, from: tags) }
+    /// The tags offered for the `#word` the draft, or the title being edited, ends in.
+    var suggestions: [String] {
+        TagCompletion.suggestions(for: editing == nil ? draft : editTitle, from: tags)
+    }
 
     func complete(with tag: String) {
-        draft = TagCompletion.completing(draft, with: tag)
+        if editing == nil {
+            draft = TagCompletion.completing(draft, with: tag)
+        } else {
+            var lines = editDraft.components(separatedBy: "\n")
+            lines[0] = TagCompletion.completing(lines[0], with: tag)
+            editDraft = lines.joined(separator: "\n")
+        }
     }
+
+    /// The edited todo's first line, which holds its tags.
+    var editTitle: String { editDraft.components(separatedBy: "\n")[0] }
 
     func color(of tag: String) -> Color? {
         tagColors[tag].flatMap(TagColor.init(rawValue:))?.color
