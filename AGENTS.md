@@ -17,6 +17,11 @@ Command Line Tools' Swift, and its `Modules/.build` then fails to load under the
 with "module compiled with Swift X cannot be imported by Swift Y". On that error, `rm -rf
 Modules/.build`.
 
+`log show` fails inside Claude Code ("Could not open local log store: Operation not
+permitted"), with the sandbox disabled and through the user's `!` prefix alike. Don't use
+`Logger` to debug; have temporary debug lines append to a file in the scratchpad and read
+that. The app is not sandboxed, so it can write there.
+
 ## Rules
 
 Two principles decide every tradeoff — see README. In practice:
