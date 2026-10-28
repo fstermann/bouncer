@@ -61,6 +61,7 @@ import Testing
     @Test func selectedFiltersLeadTheChips() {
         let page = TodoPage()
         page.categories = ["a", "b", "c", "d"]
+        page.todos = [Todo(line: 0, text: "A #a #b #c #d", isDone: false)]
         page.filters = ["c", "b"]
         #expect(page.chipTags == ["b", "c", "a", "d"])
     }
@@ -76,7 +77,7 @@ import Testing
         #expect(page.draft.isEmpty)
     }
 
-    @Test func tagCountsCoverListedTodosWhateverTheFilters() {
+    @Test func tagCountsCoverListedTodos() {
         let page = TodoPage()
         page.todos = [
             Todo(line: 0, text: "A #work #urgent", isDone: false),
@@ -84,11 +85,28 @@ import Testing
             Todo(line: 2, text: "C", isDone: false),
             Todo(line: 3, text: "D #work", isDone: true)
         ]
-        page.filters = ["urgent"]
         #expect(page.count(of: "work") == 2)
         #expect(page.untaggedCount == 1)
         page.showsDone = true
         #expect(page.count(of: "work") == 3)
+    }
+
+    @Test func selectedFiltersNarrowTheOtherChipsAndTheirCounts() {
+        let page = TodoPage()
+        page.categories = ["work", "home", "urgent", "later"]
+        page.todos = [
+            Todo(line: 0, text: "A #work #urgent", isDone: false),
+            Todo(line: 1, text: "B #work", isDone: false),
+            Todo(line: 2, text: "C #home #urgent", isDone: false),
+            Todo(line: 3, text: "D", isDone: false)
+        ]
+        #expect(page.chipTags == ["work", "home", "urgent", "later"])
+        page.filters = ["urgent"]
+        #expect(page.chipTags == ["urgent", "work", "home"])
+        #expect(page.count(of: "work") == 1)
+        #expect(!page.offersUntagged)
+        page.filters = ["urgent", "work"]
+        #expect(page.chipTags == ["work", "urgent"])
     }
 
     @Test func theUntaggedFilterExcludesTagFilters() {

@@ -71,20 +71,23 @@ final class TodoPage {
         return categories + listed.flatMap { TaskText($0.text).tags }.filter { seen.insert($0).inserted }
     }
 
-    /// The tags in the order their chips show: the selected filters first.
+    /// The tags offered as chips, the selected filters first. Once some are selected, only those
+    /// that narrow the list further are offered with them.
     var chipTags: [String] {
-        tags.filter(filters.contains) + tags.filter { !filters.contains($0) }
+        let offered = filters.isEmpty ? tags : tags.filter { !filters.contains($0) && count(of: $0) > 0 }
+        return tags.filter(filters.contains) + offered.filter { !filters.contains($0) }
     }
 
-    /// How many listed todos carry `tag`, whatever the filters.
+    /// How many listed todos carry `tag` beside the selected filters.
     func count(of tag: String) -> Int {
-        listed.filter { TaskText($0.text).tags.contains(tag) }.count
+        narrowed.filter { TaskText($0.text).tags.contains(tag) }.count
     }
 
     var untaggedCount: Int { listed.filter { TaskText($0.text).tags.isEmpty }.count }
 
-    /// Offered only beside tags, and while some todo has none.
-    var offersUntagged: Bool { !tags.isEmpty && untaggedCount > 0 }
+    /// Offered only beside tags, while some todo has none, and while no tag is selected, which no
+    /// untagged todo could carry.
+    var offersUntagged: Bool { !tags.isEmpty && untaggedCount > 0 && filters.isEmpty }
 
     func toggleFilter(_ tag: String) {
         showsUntagged = false
@@ -118,6 +121,8 @@ final class TodoPage {
     }
 
     private var listed: [Todo] { showsDone ? todos : todos.filter(isListedOpen) }
+
+    private var narrowed: [Todo] { listed.filter { filters.isSubset(of: TaskText($0.text).tags) } }
 
     private var filtered: [Todo] {
         todos.filter {
