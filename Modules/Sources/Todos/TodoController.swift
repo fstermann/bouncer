@@ -1,6 +1,7 @@
 import AppKit
 import BouncerFoundation
 import Settings
+import SwiftUI
 
 /// Opens and closes the todo page, and keeps it in step with the file behind it.
 ///
@@ -158,7 +159,7 @@ public final class TodoController {
             try? await Task.sleep(for: Self.linger)
             guard let self, !Task.isCancelled else { return }
             lingerings[todo] = nil
-            page.lingering.remove(todo)
+            withAnimation(.snappy) { _ = page.lingering.remove(todo) }
         }
     }
 
@@ -197,7 +198,7 @@ public final class TodoController {
         deletion = Task { [weak self] in
             try? await Task.sleep(for: Self.linger)
             guard !Task.isCancelled else { return }
-            self?.deleteNow()
+            self?.deleteAnimated()
         }
     }
 
@@ -211,6 +212,23 @@ public final class TodoController {
         deletion = nil
         let todos = page.deleting
         page.deleting = []
+        remove(todos)
+    }
+
+    /// Takes the rows out before their lines: rows are known by their line, which removing lines shifts.
+    private func deleteAnimated() {
+        deletion = nil
+        let todos = page.deleting
+        withAnimation(.snappy) {
+            page.todos.removeAll(where: todos.contains)
+        } completion: { [weak self] in
+            guard let self else { return }
+            page.deleting.subtract(todos)
+            remove(todos)
+        }
+    }
+
+    private func remove(_ todos: Set<Todo>) {
         guard !todos.isEmpty, let file, let markdown = file.read() else { return }
         file.write(TodoList.removing(todos, from: markdown))
         reload()
