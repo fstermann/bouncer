@@ -48,11 +48,18 @@ final class TodoPanel {
     /// Transparent margin around the panel, so the spring's overshoot is drawn rather than clipped.
     private static let room = CGSize(width: 12, height: 4)
 
-    /// - Parameter start: what to grow out of instead of the notch, in screen coordinates.
+    private static var pointerScreen: NSScreen? {
+        NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main
+    }
+
+    /// - Parameters:
+    ///   - screen: whose notch to grow out of, the one under the pointer when `nil`.
+    ///   - start: what to grow out of instead of the notch, in screen coordinates.
     func open(
-        _ page: TodoPage, over duration: TimeInterval?, from start: CGRect?, onceCovered: () async -> Void
+        _ page: TodoPage, on screen: NSScreen?, over duration: TimeInterval?, from start: CGRect?,
+        onceCovered: () async -> Void
     ) async {
-        let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main
+        let screen = screen ?? Self.pointerScreen
         guard window == nil, let screen else { return }
         let range = DisplayNotch.range(
             left: screen.auxiliaryTopLeftArea, right: screen.auxiliaryTopRightArea, screen: screen.frame

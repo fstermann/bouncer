@@ -25,8 +25,14 @@ public enum DisplayNotch {
     public static func reveals(
         at point: CGPoint, notch: ClosedRange<CGFloat>, screen: CGRect, menuBarHeight: CGFloat
     ) -> Bool {
-        screen.maxY - point.y <= menuBarHeight
+        isInMenuBar(point, screen: screen, menuBarHeight: menuBarHeight)
             && (notch.lowerBound - reach)...(notch.upperBound + reach) ~= point.x
+    }
+
+    /// Whether `point`, in AppKit screen coordinates, is in the menu bar of `screen`. A point past
+    /// its top edge is on a display arranged above it.
+    public static func isInMenuBar(_ point: CGPoint, screen: CGRect, menuBarHeight: CGFloat) -> Bool {
+        (screen.maxY - menuBarHeight...screen.maxY) ~= point.y
     }
 
     /// How far either side of the notch still counts as reaching it.

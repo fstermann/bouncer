@@ -1,5 +1,5 @@
+import AppKit
 import BouncerFoundation
-import Foundation
 import Settings
 
 /// Opens and closes the todo page, and keeps it in step with the file behind it.
@@ -82,9 +82,12 @@ public final class TodoController {
     /// Grows the page out of the notch, or, given `start`, out of the panel already there, which
     /// `onceCovered` then takes away underneath it.
     ///
-    /// - Parameter start: in AppKit screen coordinates.
+    /// - Parameters:
+    ///   - screen: whose notch to open from, the one under the pointer when `nil`.
+    ///   - start: in AppKit screen coordinates.
     public func open(
-        from start: CGRect? = nil, closesOnLeave: Bool = true, onceCovered: @MainActor () async -> Void = {}
+        on screen: NSScreen? = nil, from start: CGRect? = nil, closesOnLeave: Bool = true,
+        onceCovered: @MainActor () async -> Void = {}
     ) async {
         guard !isOpen, let file = resolveFile() else { return }
         isOpen = true
@@ -95,7 +98,7 @@ public final class TodoController {
         reload()
         file.watch { [weak self] in self?.reload() }
         duration = settings.preferences.animateBar ? settings.preferences.barAnimationDuration : nil
-        await panel.open(page, over: duration, from: start, onceCovered: onceCovered)
+        await panel.open(page, on: screen, over: duration, from: start, onceCovered: onceCovered)
     }
 
     /// Takes the page back into the notch, or, given `items`, into the panel `items` brings up

@@ -11,8 +11,9 @@ public final class RevealController {
     /// What the pointer entering the menu bar reveals. Left alone it walks the menu bar open;
     /// the app layer replaces it where a reveal means something else, the way `onIconClick`
     /// is replaced — whether the hidden section shows in the bar or in one of Bouncer's own is
-    /// a preference this module has no business knowing about.
-    public var onHoverReveal: (@MainActor () -> Void)?
+    /// a preference this module has no business knowing about. It is handed the screen whose menu
+    /// bar was hovered, since the pointer may well have moved on to another by the time it shows.
+    public var onHoverReveal: (@MainActor (NSScreen) -> Void)?
 
     private let manager: MenuBarManager
     private let settings: SettingsStore
@@ -100,12 +101,12 @@ public final class RevealController {
             try? await Task.sleep(for: .seconds(delay))
             guard let self, !Task.isCancelled else { return }
             pendingReveal = nil
-            guard manager.visibility == .collapsed, isPointerRevealing else { return }
+            guard manager.visibility == .collapsed, let screen = NSScreen.main, isRevealing(on: screen) else { return }
             guard let onHoverReveal else {
                 manager.setVisibility(.revealed)
                 return
             }
-            onHoverReveal()
+            onHoverReveal(screen)
         }
     }
 
@@ -124,7 +125,7 @@ public final class RevealController {
     private func isRevealing(on screen: NSScreen) -> Bool {
         let point = NSEvent.mouseLocation
         guard !settings.preferences.revealOnHover else {
-            return screen.frame.maxY - point.y <= screen.menuBarHeight
+            return DisplayNotch.isInMenuBar(point, screen: screen.frame, menuBarHeight: screen.menuBarHeight)
         }
         let notch = DisplayNotch.range(
             left: screen.auxiliaryTopLeftArea, right: screen.auxiliaryTopRightArea, screen: screen.frame

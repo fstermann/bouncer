@@ -30,5 +30,11 @@ import Testing
         #expect(reveals(650, 960))
         #expect(!reveals(600, 981), "too far to the side")
         #expect(!reveals(755, 900), "below the menu bar")
+        #expect(!reveals(755, 1000), "on a display above")
+    }
+
+    @Test func menuBarEndsAtTheTopEdge() {
+        #expect(DisplayNotch.isInMenuBar(CGPoint(x: 100, y: 982), screen: screen, menuBarHeight: 32))
+        #expect(!DisplayNotch.isInMenuBar(CGPoint(x: 100, y: 1200), screen: screen, menuBarHeight: 32))
     }
 }
