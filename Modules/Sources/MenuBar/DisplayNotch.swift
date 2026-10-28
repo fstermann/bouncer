@@ -21,11 +21,12 @@ public enum DisplayNotch {
     }
 
     /// Whether `point`, in AppKit screen coordinates, is close enough to the notch to reveal:
-    /// in the menu bar, and over the notch or within `reach` of either side of it.
+    /// in the menu bar, and over the notch or within `reach` of either side of it. A stand-in
+    /// reveals only at the top edge, since what is under it is a window's, often a full screen one's.
     public static func reveals(
-        at point: CGPoint, notch: ClosedRange<CGFloat>, screen: CGRect, menuBarHeight: CGFloat
+        at point: CGPoint, notch: ClosedRange<CGFloat>, isReal: Bool, screen: CGRect, menuBarHeight: CGFloat
     ) -> Bool {
-        isInMenuBar(point, screen: screen, menuBarHeight: menuBarHeight)
+        isInMenuBar(point, screen: screen, menuBarHeight: isReal ? menuBarHeight : edge)
             && (notch.lowerBound - reach)...(notch.upperBound + reach) ~= point.x
     }
 
@@ -37,4 +38,6 @@ public enum DisplayNotch {
 
     /// How far either side of the notch still counts as reaching it.
     static let reach: CGFloat = 20
+    /// How close to the top a pointer pushed against it reads as.
+    static let edge: CGFloat = 1
 }

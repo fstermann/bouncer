@@ -129,8 +129,11 @@ public final class RevealController {
         }
         let notch = DisplayNotch.range(
             left: screen.auxiliaryTopLeftArea, right: screen.auxiliaryTopRightArea, screen: screen.frame
-        ).range
-        return DisplayNotch.reveals(at: point, notch: notch, screen: screen.frame, menuBarHeight: screen.menuBarHeight)
+        )
+        return DisplayNotch.reveals(
+            at: point, notch: notch.range, isReal: notch.isReal, screen: screen.frame,
+            menuBarHeight: screen.menuBarHeight
+        )
     }
 
     private func setActivationObserverEnabled(_ isEnabled: Bool) {
