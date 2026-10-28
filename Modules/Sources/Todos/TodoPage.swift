@@ -21,6 +21,11 @@ final class TodoPage {
     var filters: Set<String> = []
     /// The list is narrowed to todos carrying no tag, which no tag filter can join.
     var showsUntagged = false
+    /// The todos are being searched for `query`, which narrows the list and is marked in it.
+    var isSearching = false
+    var query = ""
+    /// Bumped to put the cursor back in the search field.
+    var searchFocusRequests = 0
     /// The row beside the notch, which the page starts below.
     var menuBarHeight: CGFloat = 24
     var showsSwitch = false
@@ -99,6 +104,30 @@ final class TodoPage {
         showsUntagged.toggle()
     }
 
+    func openSearch() {
+        isSearching = true
+        searchFocusRequests += 1
+    }
+
+    /// Forgets the search, and gives the cursor back to the todo field.
+    func closeSearch() {
+        guard isSearching else { return }
+        isSearching = false
+        query = ""
+        focusRequests += 1
+    }
+
+    /// `text` with what the search found in it marked.
+    func marked(_ text: String) -> AttributedString {
+        var marked = AttributedString(text)
+        guard isSearching else { return marked }
+        for range in TextSearch.ranges(of: query, in: text) {
+            guard let found = Range(range, in: marked) else { continue }
+            marked[found].backgroundColor = .yellow.opacity(0.4)
+        }
+        return marked
+    }
+
     /// Open todos, and ticked ones still lingering or being edited: the soonest due first, the rest
     /// in file order.
     var open: [Todo] {
@@ -111,7 +140,7 @@ final class TodoPage {
 
     /// Nothing half-entered that the pointer leaving would throw away.
     var isIdle: Bool {
-        draft.isEmpty && !isAddingCategory && editing == nil && menu == nil
+        draft.isEmpty && !isAddingCategory && editing == nil && menu == nil && query.isEmpty
     }
 
     /// A todo ticked and then opened in the editor stays until the edit ends, rather than going
@@ -127,8 +156,14 @@ final class TodoPage {
     private var filtered: [Todo] {
         todos.filter {
             let tags = TaskText($0.text).tags
-            return showsUntagged ? tags.isEmpty : filters.isSubset(of: tags)
+            return (showsUntagged ? tags.isEmpty : filters.isSubset(of: tags)) && isFound($0)
         }
+    }
+
+    /// In its title or its note; every todo while nothing is searched for.
+    private func isFound(_ todo: Todo) -> Bool {
+        guard isSearching, !query.trimmingCharacters(in: .whitespaces).isEmpty else { return true }
+        return [TaskText(todo.text).title, todo.note].contains { !TextSearch.ranges(of: query, in: $0).isEmpty }
     }
 
     /// Adds the todo typed, with the tags the list is narrowed to, so it shows in the list.

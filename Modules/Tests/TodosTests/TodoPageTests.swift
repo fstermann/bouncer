@@ -66,6 +66,26 @@ import Testing
         #expect(page.chipTags == ["b", "c", "a", "d"])
     }
 
+    @Test func searchNarrowsToTodosWithTheTextInTitleOrNote() {
+        let page = TodoPage()
+        let title = Todo(line: 0, text: "Call the Bänk #bank", isDone: false)
+        let note = Todo(line: 1, text: "Pay rent", isDone: false, note: "via bank transfer")
+        page.todos = [title, note, Todo(line: 2, text: "Banjo", isDone: false)]
+        page.query = "bank"
+        #expect(page.rows.count == 3, "not searching until the search is open")
+        page.openSearch()
+        #expect(page.rows == [title, note])
+        page.closeSearch()
+        #expect(page.query.isEmpty)
+        #expect(page.rows.count == 3)
+    }
+
+    @Test func searchFindsEveryMatchWhateverItsCase() {
+        let text = "Bank, bänk and BANK"
+        #expect(TextSearch.ranges(of: "bank", in: text).map { String(text[$0]) } == ["Bank", "bänk", "BANK"])
+        #expect(TextSearch.ranges(of: " ", in: text).isEmpty)
+    }
+
     @Test func anAddedTodoTakesTheFiltersItLacks() {
         let page = TodoPage()
         var added: String?

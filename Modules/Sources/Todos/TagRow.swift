@@ -36,7 +36,7 @@ struct TagRow: View {
                 }
             }
             if page.isAddingCategory {
-                CategoryField(text: $page.categoryDraft) {
+                PanelField(placeholder: "Category", text: $page.categoryDraft) {
                     page.onAddCategory?(page.categoryDraft)
                     page.isAddingCategory = false
                 } onEnd: {
@@ -50,6 +50,7 @@ struct TagRow: View {
                     .help("Add a category")
             }
             Spacer(minLength: 0)
+            SearchControl(page: page)
         }
         .padding(.horizontal, 14)
         .frame(height: 22)

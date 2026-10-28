@@ -19,6 +19,8 @@ final class TodoPanel {
     /// The pointer left for good, or the user clicked elsewhere.
     var onDismiss: (@MainActor () -> Void)?
     var onEscape: (@MainActor () -> Void)?
+    /// Command-F.
+    var onFind: (@MainActor () -> Void)?
     /// Whether the pointer leaving may close the panel: not while something is being typed into it.
     var mayCloseOnLeave: (@MainActor () -> Bool)?
     /// A click landed outside the open menu; returns whether it closed the menu and so is spent.
@@ -223,6 +225,7 @@ final class TodoPanel {
         let frame = frame(around: [rest])
         let window = TodoWindow(frame: frame)
         window.onEscape = { [weak self] in self?.onEscape?() }
+        window.onFind = { [weak self] in self?.onFind?() }
         window.onMouseDown = { [weak self] hit in
             guard let self, menu != nil, let host = self.menuHost, hit?.isDescendant(of: host) != true else {
                 return false
@@ -314,6 +317,7 @@ final class TodoPanel {
         if let resignObserver { NotificationCenter.default.removeObserver(resignObserver) }
         resignObserver = nil
         window?.onEscape = nil
+        window?.onFind = nil
         window?.onMouseDown = nil
         surface?.onExit = nil
         surface?.onEnter = nil

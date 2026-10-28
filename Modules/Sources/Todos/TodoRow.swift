@@ -40,7 +40,7 @@ struct TodoRow: View {
                 }
                 if !todo.note.isEmpty {
                     // Its own tap, which wins over the row's, so reading a note does not edit it.
-                    Text(todo.note)
+                    Text(page.marked(todo.note))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(page.expanded.contains(todo.line) ? nil : 1)
@@ -65,7 +65,7 @@ struct TodoRow: View {
 
     private func titleLine(_ text: TaskText, isDeleting: Bool, showsTags: Bool) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text(text.title)
+            Text(page.marked(text.title))
                 .lineLimit(3)
                 .truncationMode(.tail)
                 .strikethrough(todo.isDone || isDeleting)

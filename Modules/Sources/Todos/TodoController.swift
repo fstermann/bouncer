@@ -60,7 +60,9 @@ public final class TodoController {
             page.menu = nil
             return true
         }
-        // Out of a row's menu, a category being named or an edit first, and only then out of the page.
+        panel.onFind = { [weak self] in withAnimation(.snappy) { self?.page.openSearch() } }
+        // Out of a row's menu, a category being named, an edit or the search first, and only then out
+        // of the page.
         panel.onEscape = { [weak self] in
             guard let self else { return }
             if page.menu != nil {
@@ -70,6 +72,8 @@ public final class TodoController {
             } else if let editing = page.editing {
                 page.editing = nil
                 lingerAfterEditing(editing)
+            } else if page.isSearching {
+                withAnimation(.snappy) { page.closeSearch() }
             } else {
                 Task { await self.close() }
             }
@@ -114,6 +118,7 @@ public final class TodoController {
         page.saveEdit()
         page.editing = nil
         page.menu = nil
+        page.closeSearch()
         file?.stopWatching()
         file = nil
         await panel.close(over: duration, into: items)
