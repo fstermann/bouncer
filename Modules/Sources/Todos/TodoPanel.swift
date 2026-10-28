@@ -378,4 +378,20 @@ private final class TodoWindow: NSPanel {
     override func cancelOperation(_ sender: Any?) {
         onEscape?()
     }
+
+    /// Bouncer has no Edit menu to carry the editing shortcuts, so the panel maps them itself.
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        guard event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,
+              let action = Self.editActions[event.charactersIgnoringModifiers ?? ""],
+              let firstResponder, firstResponder.tryToPerform(action, with: self)
+        else { return super.performKeyEquivalent(with: event) }
+        return true
+    }
+
+    private static let editActions: [String: Selector] = [
+        "x": #selector(NSText.cut(_:)),
+        "c": #selector(NSText.copy(_:)),
+        "v": #selector(NSText.paste(_:)),
+        "a": #selector(NSText.selectAll(_:))
+    ]
 }
