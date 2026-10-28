@@ -228,6 +228,9 @@ struct TodoPageView: View {
     private static let list = "list"
     @Bindable var page: TodoPage
     @FocusState private var isTyping: Bool
+    /// How far rows run on past the list's top and bottom, which fade out to show it.
+    @State private var aboveTop: CGFloat = 0
+    @State private var belowBottom: CGFloat = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -300,9 +303,17 @@ struct TodoPageView: View {
             .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(Self.list)).minY } action: { _ in
                 if page.menu?.line != nil { page.menu = nil }
             }
+            .onGeometryChange(for: CGFloat.self) { -$0.frame(in: .named(Self.list)).minY } action: {
+                aboveTop = $0
+            }
+            .onGeometryChange(for: CGFloat.self) { geometry in
+                let visible = geometry.bounds(of: .named(Self.list))?.height ?? .infinity
+                return geometry.frame(in: .named(Self.list)).maxY - visible
+            } action: { belowBottom = $0 }
             .background(OverlayScrollers())
         }
         .coordinateSpace(.named(Self.list))
+        .mask(EdgeFade(axis: .vertical, beforeStart: aboveTop, pastEnd: belowBottom, ramp: TodoRow.verticalPadding))
         .frame(height: min(page.listHeight, TodoPage.maxListHeight))
     }
 }

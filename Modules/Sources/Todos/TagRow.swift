@@ -6,9 +6,9 @@ struct TagRow: View {
     @Bindable var page: TodoPage
     /// The todo field's focus, which gets the cursor back once a category is named.
     let isTyping: FocusState<Bool>.Binding
-    /// Chips run on past the strip's ends, which fade out to show it.
-    @State private var overflowsStart = false
-    @State private var overflowsEnd = false
+    /// How far chips run on past the strip's ends, which fade out to show it.
+    @State private var beforeStart: CGFloat = 0
+    @State private var pastEnd: CGFloat = 0
 
     var body: some View {
         HStack(spacing: 6) {
@@ -18,16 +18,16 @@ struct TagRow: View {
                 ScrollViewReader { proxy in
                     ScrollView(.horizontal, showsIndicators: false) {
                         chips
-                            .onGeometryChange(for: Bool.self) { geometry in
-                                geometry.frame(in: .named(Self.strip)).minX < -1
-                            } action: { overflowsStart = $0 }
-                            .onGeometryChange(for: Bool.self) { geometry in
+                            .onGeometryChange(for: CGFloat.self) { -$0.frame(in: .named(Self.strip)).minX } action: {
+                                beforeStart = $0
+                            }
+                            .onGeometryChange(for: CGFloat.self) { geometry in
                                 let visible = geometry.bounds(of: .named(Self.strip))?.width ?? .infinity
-                                return geometry.frame(in: .named(Self.strip)).maxX > visible + 1
-                            } action: { overflowsEnd = $0 }
+                                return geometry.frame(in: .named(Self.strip)).maxX - visible
+                            } action: { pastEnd = $0 }
                     }
                     .coordinateSpace(.named(Self.strip))
-                    .mask(fade)
+                    .mask(EdgeFade(axis: .horizontal, beforeStart: beforeStart, pastEnd: pastEnd))
                     // A chip just selected has moved to the front, which may be scrolled out of view.
                     .onChange(of: page.filters) {
                         guard let first = page.chipTags.first else { return }
@@ -63,19 +63,6 @@ struct TagRow: View {
         .onChange(of: page.tags) { page.filters.formIntersection($1) }
         .onChange(of: page.offersUntagged) { if !$1 { page.showsUntagged = false } }
         .padding(.bottom, 6)
-    }
-
-    private var fade: some View {
-        HStack(spacing: 0) {
-            edge(fading: overflowsStart, from: .trailing, to: .leading)
-            Color.black
-            edge(fading: overflowsEnd, from: .leading, to: .trailing)
-        }
-    }
-
-    private func edge(fading: Bool, from start: UnitPoint, to end: UnitPoint) -> some View {
-        LinearGradient(colors: [.black, fading ? .clear : .black], startPoint: start, endPoint: end)
-            .frame(width: 24)
     }
 
     private var chips: some View {

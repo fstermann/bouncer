@@ -6,6 +6,7 @@ struct TodoRow: View {
     let todo: Todo
     @State private var isHovered = false
     @State private var height: CGFloat = 0
+    static let verticalPadding: CGFloat = 6
 
     var body: some View {
         let text = TaskText(todo.text)
@@ -52,7 +53,7 @@ struct TodoRow: View {
             }
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 6)
+        .padding(.vertical, Self.verticalPadding)
         .background(
             RoundedRectangle(cornerRadius: 8).fill(.white.opacity(isHovered ? 0.06 : 0)).padding(.horizontal, 6)
         )
