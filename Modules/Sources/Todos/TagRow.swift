@@ -6,7 +6,8 @@ struct TagRow: View {
     @Bindable var page: TodoPage
     /// The todo field's focus, which gets the cursor back once a category is named.
     let isTyping: FocusState<Bool>.Binding
-    /// Chips run on past the strip's end, which fades out to show it.
+    /// Chips run on past the strip's ends, which fade out to show it.
+    @State private var overflowsStart = false
     @State private var overflowsEnd = false
 
     var body: some View {
@@ -17,6 +18,9 @@ struct TagRow: View {
                 ScrollViewReader { proxy in
                     ScrollView(.horizontal, showsIndicators: false) {
                         chips
+                            .onGeometryChange(for: Bool.self) { geometry in
+                                geometry.frame(in: .named(Self.strip)).minX < -1
+                            } action: { overflowsStart = $0 }
                             .onGeometryChange(for: Bool.self) { geometry in
                                 let visible = geometry.bounds(of: .named(Self.strip))?.width ?? .infinity
                                 return geometry.frame(in: .named(Self.strip)).maxX > visible + 1
@@ -63,10 +67,15 @@ struct TagRow: View {
 
     private var fade: some View {
         HStack(spacing: 0) {
+            edge(fading: overflowsStart, from: .trailing, to: .leading)
             Color.black
-            LinearGradient(colors: [.black, overflowsEnd ? .clear : .black], startPoint: .leading, endPoint: .trailing)
-                .frame(width: 24)
+            edge(fading: overflowsEnd, from: .leading, to: .trailing)
         }
+    }
+
+    private func edge(fading: Bool, from start: UnitPoint, to end: UnitPoint) -> some View {
+        LinearGradient(colors: [.black, fading ? .clear : .black], startPoint: start, endPoint: end)
+            .frame(width: 24)
     }
 
     private var chips: some View {
@@ -92,5 +101,8 @@ struct TagRow: View {
                 .buttonStyle(.plain)
             }
         }
+        // Tags come and go, and reorder, as todos change elsewhere too.
+        .animation(.snappy, value: page.chipTags)
+        .animation(.snappy, value: page.offersUntagged)
     }
 }
