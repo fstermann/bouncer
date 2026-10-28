@@ -136,6 +136,8 @@ final class TodoPage {
     }
     /// Ticked todos stay in the file, as Obsidian keeps them, and are listed here on request.
     var done: [Todo] { filtered.filter { !isListedOpen($0) } }
+    /// The listed todos still to do; one just ticked no longer counts while it lingers.
+    var openCount: Int { open.filter { !$0.isDone }.count }
     var rows: [Todo] { showsDone ? open + done : open }
 
     /// Nothing half-entered that the pointer leaving would throw away.
@@ -308,13 +310,17 @@ struct TodoPageView: View {
 
     private var topRow: some View {
         HStack {
+            Text("\(page.openCount) open")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            // The notch lies between the open count and the rest.
+            Spacer()
             if !page.done.isEmpty || page.showsDone {
                 Button(page.showsDone ? "Hide done" : "Show \(page.done.count) done") { page.showsDone.toggle() }
                     .buttonStyle(.plain)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            Spacer()
             if page.showsSwitch {
                 Button { page.onSwitch?() } label: { Image(systemName: "menubar.rectangle") }
                     .buttonStyle(.plain)

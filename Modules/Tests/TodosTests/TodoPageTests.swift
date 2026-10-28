@@ -20,6 +20,15 @@ import Testing
         #expect(page.open == [todos[0]])
     }
 
+    @Test func theOpenCountLeavesOutLingeringAndFilteredTodos() {
+        let page = TodoPage()
+        page.todos = todos + [Todo(line: 3, text: "D #work", isDone: false)]
+        page.lingering = [todos[1]]
+        #expect(page.openCount == 2)
+        page.filters = ["work"]
+        #expect(page.openCount == 1)
+    }
+
     @Test func aDoneTodoBeingEditedStaysUntilTheEditEnds() {
         let page = TodoPage()
         page.todos = todos
