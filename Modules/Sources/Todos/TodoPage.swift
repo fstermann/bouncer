@@ -121,6 +121,19 @@ final class TodoPage {
         }
     }
 
+    /// Adds the todo typed, with the tags the list is narrowed to, so it shows in the list.
+    func add() {
+        var lines = draft.components(separatedBy: "\n")
+        if !lines[0].trimmingCharacters(in: .whitespaces).isEmpty {
+            let typed = TaskText(lines[0]).tags
+            lines[0] += filters.sorted().filter { !typed.contains($0) }.map { " #\($0)" }.joined()
+        }
+        onAdd?(lines.joined(separator: "\n"))
+        draft = ""
+        draftDue = nil
+        menu = nil
+    }
+
     /// Saves the todo being changed first, as a click elsewhere does.
     func startEditing(_ todo: Todo, at click: CGPoint? = nil) {
         saveEdit()

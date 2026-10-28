@@ -36,7 +36,7 @@ struct InputRow: View {
             .textFieldStyle(.plain)
             .lineLimit(1...6)
             .focused(isTyping)
-            .onSubmit(add)
+            .onSubmit(page.add)
             // Return adds the todo, or takes the highlighted tag; Shift-Return starts a new line, which
             // becomes its note.
             .onKeyPress(.return, phases: .down) { press in
@@ -45,13 +45,6 @@ struct InputRow: View {
                 return .handled
             }
             .modifier(SuggestsTags(page: page, text: page.draft, line: nil))
-    }
-
-    private func add() {
-        page.onAdd?(page.draft)
-        page.draft = ""
-        page.draftDue = nil
-        page.menu = nil
     }
 }
 

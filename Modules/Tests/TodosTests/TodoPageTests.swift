@@ -58,6 +58,17 @@ import Testing
         #expect(page.rows == [both])
     }
 
+    @Test func anAddedTodoTakesTheFiltersItLacks() {
+        let page = TodoPage()
+        var added: String?
+        page.onAdd = { added = $0 }
+        page.filters = ["work", "urgent"]
+        page.draft = "Call bank #work\nfee"
+        page.add()
+        #expect(added == "Call bank #work #urgent\nfee")
+        #expect(page.draft.isEmpty)
+    }
+
     @Test func tagCountsCoverListedTodosWhateverTheFilters() {
         let page = TodoPage()
         page.todos = [
