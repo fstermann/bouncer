@@ -71,6 +71,11 @@ final class TodoPage {
         return categories + listed.flatMap { TaskText($0.text).tags }.filter { seen.insert($0).inserted }
     }
 
+    /// The tags in the order their chips show: the selected filters first.
+    var chipTags: [String] {
+        tags.filter(filters.contains) + tags.filter { !filters.contains($0) }
+    }
+
     /// How many listed todos carry `tag`, whatever the filters.
     func count(of tag: String) -> Int {
         listed.filter { TaskText($0.text).tags.contains(tag) }.count

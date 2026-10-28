@@ -58,6 +58,13 @@ import Testing
         #expect(page.rows == [both])
     }
 
+    @Test func selectedFiltersLeadTheChips() {
+        let page = TodoPage()
+        page.categories = ["a", "b", "c", "d"]
+        page.filters = ["c", "b"]
+        #expect(page.chipTags == ["b", "c", "a", "d"])
+    }
+
     @Test func anAddedTodoTakesTheFiltersItLacks() {
         let page = TodoPage()
         var added: String?
