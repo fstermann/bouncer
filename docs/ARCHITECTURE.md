@@ -13,7 +13,7 @@ to hide someone else's status item — but an item's width is ours to choose, an
 enough item pushes everything to its left past the edge of the display.
 
 Bouncer creates two status items and uses them as **dividers**. A divider is either
-**expanded** (10 000 pt — everything to its left is off screen) or a **boundary**: a glyph
+**expanded** (wide enough that everything to its left is hidden) or a **boundary**: a glyph
 on the divider's own button, clickable to walk the bar back. Only `.fullyRevealed` puts
 all three sections on screen at once, so that is the state drawn here:
 
@@ -62,6 +62,14 @@ simply runs off the edge of the display.
 The alwaysHidden divider exists only while the always-hidden section is enabled. A
 divider that is in the bar hides whatever is left of it, and a section the user cannot
 reveal must hide nothing.
+
+How wide is expanded depends on the OS. Up to macOS 26 it is 10 000 pt, and everything left of
+the divider runs off the display. macOS 27 draws every status item in one `MenuBarAgent` window
+and evicts an item whose left edge reaches past the notch into the app menus, so the divider is
+sized to end in the middle of the notch instead (`ExpandedDivider`). What is left of it then goes
+behind the system's overflow chevron, and the chevron with it, since it lands under the notch.
+The divider reads its right edge from its own frame while it is narrow, because the frame of an
+expanded one keeps a stale origin. [SPIKES.md](SPIKES.md#macos-27) has the measurements.
 
 That is the entire mechanism: two width assignments. It costs nothing at rest, needs no
 permissions, and survives OS updates that break screenshot-based approaches. It is what
@@ -273,6 +281,18 @@ The file is read the way the Tasks plugin writes it: `#tags` anywhere in a task,
 day and `✅` before the day it was done, which Bouncer stamps when ticking so the vault's queries
 count todos ticked here. Indented lines under a task are its note. Preset categories are a
 `categories` list in the file's frontmatter.
+
+### Checking the bar from a shell
+
+The bar's bugs are disagreements between where Bouncer draws something and where the real items
+are, which unit tests and log lines don't see. `DevHarness` lets a shell look: Bouncer Dev
+only, it observes the distributed notification `com.bouncer.dev.command`, runs the command and
+answers on `com.bouncer.dev.reply`. The observer is all it installs, and a recording stops
+itself. It reads items through Accessibility, because on macOS 27 the window list has none, and
+photographs the display through ScreenCaptureKit, so pictures include the bar's background and
+the pointer. `Tools/barctl.swift` is the sender. Commands are listed in `AGENTS.md`.
+
+It cannot rearrange items: macOS starts no status item drag from synthesised input.
 
 ## Modules
 

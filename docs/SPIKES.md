@@ -90,3 +90,56 @@ that repeats.
   *over* the real windows rather than behind them, because AppKit constrains normal-level
   windows out of the menu bar band. A backdrop that cannot reach the bar cannot be scored
   against it.
+
+## macOS 27
+
+Measured on macOS 27.2 (26B123), 14-inch MacBook Pro (notch at x 663.5 to 848.5, bar 1512 pt
+wide), 2026-10-29. A throwaway app created status items, set their widths and photographed the
+bar with `screencapture`. It ran as an app bundle signed with the development identity, so it
+held its own Screen Recording grant.
+
+| Question | Answer |
+| --- | --- |
+| Who draws status items | **`MenuBarAgent`**, a new process in `/System/Library/CoreServices`. One layer-25 window spans the bar and holds every item |
+| Item geometry from the window list | **Gone.** No item has a window of its own, so `CGWindowListCopyWindowInfo` sees only that one window |
+| An app's own item frame | Still readable from `button.window.frame`. It arrives with `NSWindow.didMoveNotification` once the item has slid in, x correct from the first move |
+| Frame of an item that does not fit | Stale: the width updates, the origin keeps its old value |
+| Slots | Still seeded from `NSStatusItem Preferred Position <autosaveName>`. `MenuBarAgent` logs it as "legacy" and no longer writes it back |
+| Too many items | The leftmost go behind a `«` chevron (`MenuBarOverflowComponent`). Nothing is pushed off the display |
+| Opening the chevron | Draws the overflowed items **left of the notch, over the app menus**, which shrink to make room. The button is `menu-bar-overflow-indicator` (`menu-bar-overflow-indicator-expanded` while open) in `MenuBarAgent`'s `AXExtrasMenuBar`, and `AXPress` toggles it |
+| Chevron while the divider hides it | **Not in the bar's list.** Revealing brings it back; collapsing while it is open hides the left side too |
+| Chevron state | **Persists** across a collapse and a reveal: left open, every reveal draws the overflow over the app menus |
+| Which chevron to press | The one in `MenuBarAgent`'s `AXExtrasMenuBar`. Its full tree holds stale copies, one per window, whose press flips the label and draws nothing |
+| Opening it, as drawn | The section right of the notch fades in; the overflow comes out of the notch leftwards, squeezed at first, pushing the app menus aside. Settled about 400 ms after the reveal. Closing the chevron removes the left side at once |
+| More items than both sides hold | **The rest are dropped.** 20 items of one app: 1 right of the notch, 12 left of it, 7 listed nowhere, their windows parked at y -33 |
+| An item wider than the bar | **Evicted.** Capped at 5016 pt and moved out of the bar; every item left of it stays |
+| Divider with its left edge right of the notch | Items left of it go behind the chevron, and the chevron stays on screen right of the notch |
+| Divider with its left edge inside the notch | **Hides everything left of it, chevron included.** 525 to 700 pt here, right edge at x 1376 |
+| Divider with its left edge past the notch | Evicted, and every item comes back. 750 pt and up here |
+| Display without a notch | Not measured. The limit is presumably where the app menus end, which moves with the front app |
+| Full screen space | Every capture of the bar is black. The window list cannot tell: the `MenuBarAgent` window is missing from it even while the bar is drawn |
+
+So hiding by width still works, but only within a band: the divider has to end inside the notch.
+Too narrow and the chevron offers the hidden items; too wide and the divider disappears.
+`ExpandedDivider` aims at the middle of the notch, which leaves about 90 pt either side, roughly
+three items appearing or vanishing right of the divider while it is collapsed.
+
+### The standalone bar on macOS 27
+
+Everything it found items by is gone: it read each item's own window from the window list, and
+photographed that window while it was parked off the display. Measured the same way, with
+Accessibility granted to the spike as well:
+
+| Question | Answer |
+| --- | --- |
+| Items through Accessibility | Each app's `AXExtrasMenuBar` lists its visible items, `AXMenuBarItem` with exact frames and `AXPress` |
+| Hidden items through Accessibility | **Gone from their app's list**, and an element held from before has no frame. `MenuBarAgent`'s own tree still lists them, by owning app, piled at the chevron |
+| Identity across a hide and a reveal | **Stable.** The element read after the reveal is `CFEqual` to the one read before the hide |
+| Reveal to readable frames | 34 ms, every item at once and at its final x |
+| Pictures of hidden items | None while the chevron is closed. Open, `MenuBarAgent`'s transparent window holds them left of the notch, app menus included |
+| Pictures under a cover | **Work.** `SCContentFilter(display:excludingWindows:)` with the cover excluded shows the items under it exactly |
+| `AXPress` on an item | Delivers the item's own action |
+
+So the order of an open has to change. The pictures cannot come first any more: the section is
+revealed under the cover, read through Accessibility, and photographed from a capture of the bar
+that leaves Bouncer's own windows out.
