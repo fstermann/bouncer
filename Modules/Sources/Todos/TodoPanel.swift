@@ -232,6 +232,10 @@ final class TodoPanel {
             }
             return onClickOutsideMenu?() ?? false
         }
+        window.cursorOverride = { [weak self] point in
+            guard let self, menu != nil, let host = menuHost, host.frame.contains(point) else { return nil }
+            return .arrow
+        }
 
         let root = NSView(frame: CGRect(origin: .zero, size: frame.size))
         root.wantsLayer = true
