@@ -26,6 +26,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let updates = UpdateController()
     private var settingsWindow: NSWindow?
     private var welcomeWindow: NSWindow?
+    #if DEBUG
+    private var harness: DebugHarness?
+    #endif
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Before the menu is built: whether it carries a "Check for Updates…" item depends on
@@ -40,6 +43,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         reveal.onHoverReveal = { [weak self] screen, atNotch in self?.handleHoverReveal(on: screen, atNotch: atNotch) }
         pageSwitches = ObservationLoop { [weak self] in self?.wirePageSwitches() }
         if settings.isFirstLaunch { showWelcome() }
+        #if DEBUG
+        harness = DebugHarness(controller: standaloneBar, menuBar: menuBar)
+        harness?.listen()
+        #endif
         Log.app.info("Bouncer launched")
     }
 

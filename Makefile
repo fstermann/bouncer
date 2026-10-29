@@ -28,7 +28,7 @@ RELEASE_SIGN_IDENTITY ?=
 # the default in project.yml; the release workflow passes the repository it is building.
 SU_FEED_URL ?=
 
-.PHONY: all generate build run release test lint format clean
+.PHONY: all generate build run ctl release test lint format clean
 
 all: build
 
@@ -46,6 +46,10 @@ run: build
 	@pkill -x "$(APP_NAME)" || true
 	@while pgrep -x "$(APP_NAME)" >/dev/null; do sleep 0.1; done
 	open "$(BUILD_DIR)/Build/Products/$(CONFIG)/$(APP_NAME).app"
+
+## Drive a running Bouncer Dev: make ctl CMD="shoot /tmp/bar.png" (see Tools/barctl.swift)
+ctl:
+	@swift Tools/barctl.swift $(CMD)
 
 ## Build the two artifacts a release is made of: the disk image a person downloads, and
 ## the archive Sparkle downloads. The release workflow runs this same target.

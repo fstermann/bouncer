@@ -18,7 +18,7 @@ import ApplicationServices
 /// replica that simply does nothing.
 /// One item's accessibility element, held for as long as the bar shows that item.
 public struct ItemElement: @unchecked Sendable {
-    fileprivate let element: AXUIElement
+    let element: AXUIElement
 }
 
 public enum ClickForwarder {
@@ -105,7 +105,7 @@ public enum ClickForwarder {
     }
 
     /// Every status item one app publishes, with where it sits.
-    private static func statusItems(of pid: pid_t) -> [(frame: CGRect, element: ItemElement)] {
+    static func statusItems(of pid: pid_t) -> [(frame: CGRect, element: ItemElement)] {
         let app = AXUIElementCreateApplication(pid)
         // An app that has stopped answering must not hold its own task up for long. A second
         // is generous: the apps that do answer take tens of milliseconds.
