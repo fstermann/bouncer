@@ -42,15 +42,15 @@ struct Palette: View {
                 .buttonStyle(.plain)
                 .help(color.rawValue.capitalized)
             }
-            if page.categories.contains(tag) {
+            if !page.categories(under: tag).isEmpty {
                 Button {
                     page.menu = nil
-                    page.onRemoveCategory?(tag)
+                    page.categories(under: tag).forEach { page.onRemoveCategory?($0) }
                 } label: {
                     Image(systemName: "trash").font(.caption).foregroundStyle(.secondary).padding(.leading, 6)
                 }
                 .buttonStyle(.plain)
-                .help("Delete category")
+                .help("Delete tag")
             }
         }
     }
@@ -83,13 +83,16 @@ final class RightClickView: NSView {
 
 struct Chip: View {
     let text: String
+    /// The tag a nested tag's chip sits under, shown dimmed before it.
+    var parent: String?
     var color: Color?
     var isSelected = false
     var count: Int?
 
     var body: some View {
         HStack(spacing: 4) {
-            Text(text)
+            Text(parent.map { "\($0) " } ?? "").font(.system(size: 8.5)).foregroundStyle(foreground.opacity(0.55))
+                + Text(text)
             if let count { Text("\(count)").opacity(0.55) }
         }
         .font(.caption)
@@ -108,5 +111,15 @@ struct Chip: View {
     private var fill: Color {
         if isSelected { return color ?? .white }
         return (color ?? .white).opacity(color == nil ? 0.15 : 0.2)
+    }
+}
+
+extension Chip {
+    /// A tag's chip: a nested tag shows its last part, after the tags above it.
+    init(tag: String, color: Color? = nil, isSelected: Bool = false, count: Int? = nil) {
+        self.init(
+            text: TagPath.leaf(of: tag), parent: TagPath.parent(of: tag), color: color, isSelected: isSelected,
+            count: count
+        )
     }
 }

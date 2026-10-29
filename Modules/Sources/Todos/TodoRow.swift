@@ -86,7 +86,7 @@ struct TodoRow: View {
     }
 
     private func tagChips(_ text: TaskText) -> some View {
-        ForEach(text.tags, id: \.self) { Chip(text: $0, color: page.color(of: $0)).fixedSize() }
+        ForEach(text.tags, id: \.self) { Chip(tag: $0, color: page.color(of: $0)).fixedSize() }
     }
 
     private func edit(at click: CGPoint? = nil) {

@@ -51,6 +51,7 @@ public final class TodoController {
         page.onSwitch = { [weak self] in self?.onSwitchPage?() }
         page.onResize = { [weak self] in self.map { $0.panel.fit($0.page) } }
         page.onColor = { [weak self] tag, color in self?.settings.preferences.tagColors[tag] = color }
+        page.onOrder = { [weak self] order in self?.settings.preferences.tagOrder = order }
         panel.mayCloseOnLeave = { [weak self] in self.map { $0.closesOnLeave && $0.page.isIdle } ?? true }
         panel.onDismiss = { [weak self] in Task { await self?.close() } }
         // Closes a menu the way a popover goes, spending the click; tag suggestions leave the field
@@ -100,6 +101,7 @@ public final class TodoController {
         self.file = file
         page.showsSwitch = onSwitchPage != nil
         page.tagColors = settings.preferences.tagColors
+        page.tagOrder = settings.preferences.tagOrder
         reload()
         file.watch { [weak self] in self?.reload() }
         duration = settings.preferences.animateBar ? settings.preferences.barAnimationDuration : nil

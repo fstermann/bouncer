@@ -69,6 +69,7 @@ private final class MemoryPersistence: PreferencesPersistence, @unchecked Sendab
         #expect(store.preferences.enableTodos)
         #expect(store.preferences.notchPage == .items)
         #expect(store.preferences.tagColors.isEmpty)
+        #expect(store.preferences.tagOrder.isEmpty)
     }
 
     @Test func todoPreferencesRoundTrip() throws {
@@ -77,12 +78,14 @@ private final class MemoryPersistence: PreferencesPersistence, @unchecked Sendab
         store.preferences.todoFile = Data([1, 2, 3])
         store.preferences.notchPage = .todos
         store.preferences.tagColors = ["work": "blue"]
+        store.preferences.tagOrder = ["home", "work"]
         store.flush()
 
         let reloaded = SettingsStore(persistence: persistence)
         #expect(reloaded.preferences.todoFile == Data([1, 2, 3]))
         #expect(reloaded.preferences.notchPage == .todos)
         #expect(reloaded.preferences.tagColors == ["work": "blue"])
+        #expect(reloaded.preferences.tagOrder == ["home", "work"])
     }
 
     @Test func onlyAnEmptyStoreIsAFirstLaunch() {
