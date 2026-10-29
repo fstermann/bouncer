@@ -22,6 +22,9 @@ permitted"), with the sandbox disabled and through the user's `!` prefix alike. 
 `Logger` to debug; have temporary debug lines append to a file in the scratchpad and read
 that. The app is not sandboxed, so it can write there.
 
+To check how a SwiftUI view looks without driving the app, render it in a temporary test with
+`ImageRenderer` (scale 4), write the PNG to the scratchpad, Read it, then delete the test.
+
 ## Checking it yourself
 
 Don't ask the user to try a bar change and report back; drive a running Bouncer Dev with
