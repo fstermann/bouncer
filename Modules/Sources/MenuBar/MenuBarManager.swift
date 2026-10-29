@@ -45,6 +45,7 @@ public final class MenuBarManager {
     /// nothing. Not being there also costs no width.
     private var alwaysHiddenDivider: ControlItem?
     private var observation: ObservationLoop?
+    private var iconMoves: NSObjectProtocol?
 
     /// - Parameters:
     ///   - iconImage: Bouncer's menu bar glyph, the button at the right end of the bar.
@@ -88,6 +89,11 @@ public final class MenuBarManager {
         get { hiddenDivider?.padding ?? 0 }
         set { hiddenDivider?.padding = newValue }
     }
+
+    /// Where the hidden section ends on the right, in window-server x: everything it holds lands
+    /// left of this when revealed. `nil` before the divider has been placed, and below macOS 27,
+    /// where nothing reads it.
+    public var hiddenSectionEnd: CGFloat? { hiddenDivider?.restingRightEdge }
 
     public func setVisibility(_ newValue: MenuBarVisibility) {
         guard newValue != visibility else { return }
@@ -148,6 +154,7 @@ public final class MenuBarManager {
             markerImage: dividerImage
         )
         divider.onClick = { [weak self] in self?.revealFurtherOrCollapse() }
+        divider.keepsVisible = { [weak self] in self?.iconItem?.button?.window?.frame }
         divider.isExpanded = !visibility.shows(.hidden)
         hiddenDivider = divider
     }
@@ -173,6 +180,8 @@ public final class MenuBarManager {
     private func setIconVisible(_ isVisible: Bool) {
         guard isVisible == (iconItem == nil) else { return }
         guard isVisible else {
+            iconMoves.map(NotificationCenter.default.removeObserver)
+            iconMoves = nil
             iconItem.map(NSStatusBar.system.removeStatusItem)
             iconItem = nil
             return
@@ -187,6 +196,15 @@ public final class MenuBarManager {
         item.button?.action = #selector(iconClicked)
         item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
         iconItem = item
+        // macOS 27 keeps the icon wherever the user drags it, left of the divider included, and
+        // overflows it when the bar is full. Either way the divider has to look again.
+        if #available(macOS 27, *) {
+            iconMoves = NotificationCenter.default.addObserver(
+                forName: NSWindow.didMoveNotification, object: item.button?.window, queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated { self?.hiddenDivider?.lookAgain() }
+            }
+        }
     }
 
     @objc private func iconClicked() {
