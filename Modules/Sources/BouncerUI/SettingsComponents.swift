@@ -19,6 +19,13 @@ enum Mode: CaseIterable, Identifiable {
         }
     }
 
+    var symbol: String {
+        switch self {
+        case .menuBarItems: "menubar.rectangle"
+        case .todos: "checklist"
+        }
+    }
+
     var detail: String {
         switch self {
         case .menuBarItems: "Hide menu bar items behind dividers and reveal them when you need them."
@@ -96,13 +103,40 @@ struct HoverRevealOptions: View {
     @Binding var preferences: Preferences
 
     var body: some View {
-        Toggle(isOn: $preferences.revealNearNotch) {
-            Text("Open when the pointer reaches the notch")
-            Text("Closes again when the pointer leaves. Without a notch, the top centre of the menu bar.")
+        Picker(selection: reach) {
+            Text("Off").tag(Reach.off)
+            Text("At the notch").tag(Reach.notch)
+            if preferences.enableMenuBarItems {
+                Text("Anywhere in the menu bar").tag(Reach.menuBar)
+            }
+        } label: {
+            Text("Reveal on hover")
+            Text(reachDetail)
         }
-        if preferences.revealNearNotch || (preferences.enableMenuBarItems && preferences.revealOnHover) {
+        if reach.wrappedValue != .off {
             delayPicker
         }
+    }
+
+    /// Where hover reveals. The whole menu bar takes in the notch, which still opens the todo page.
+    private enum Reach: Hashable {
+        case off, notch, menuBar
+    }
+
+    /// Hover over the whole menu bar means nothing without menu bar items, so it reads as the notch.
+    private var reach: Binding<Reach> {
+        Binding {
+            if preferences.enableMenuBarItems, preferences.revealOnHover { return .menuBar }
+            return preferences.revealNearNotch || preferences.revealOnHover ? .notch : .off
+        } set: { reach in
+            preferences.revealOnHover = reach == .menuBar
+            preferences.revealNearNotch = reach != .off
+        }
+    }
+
+    private var reachDetail: String {
+        let notch = preferences.enableTodos ? "The notch opens the todos" : "The notch reveals hidden items"
+        return "\(notch) and closes when the pointer leaves. Without a notch, the top centre of the menu bar."
     }
 
     @ViewBuilder private var delayPicker: some View {

@@ -28,14 +28,22 @@ struct SettingsForm: View {
             Section("Modes", systemImage: "switch.2") {
                 ForEach(Mode.allCases) { mode in
                     Toggle(isOn: mode.binding(in: $settings.preferences)) {
-                        Text(mode.title)
-                        Text(mode.detail)
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(mode.title)
+                                Text(mode.detail)
+                                    .font(.callout)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: mode.symbol)
+                        }
                     }
                     .disabled(mode.isLastOn(in: settings.preferences))
                 }
             }
             generalSection
-            notchSection
+            openingSection
             if settings.preferences.enableMenuBarItems { menuBarItemsSection }
             if settings.preferences.enableTodos { TodoOptions(preferences: $settings.preferences) }
             updatesSection
@@ -57,8 +65,8 @@ struct SettingsForm: View {
         }
     }
 
-    @ViewBuilder private var notchSection: some View {
-        Section("Notch", systemImage: "macbook") {
+    @ViewBuilder private var openingSection: some View {
+        Section("Opening", systemImage: "cursorarrow.motionlines") {
             HoverRevealOptions(preferences: $settings.preferences)
 
             Toggle("Animate the panel", isOn: $settings.preferences.animateBar)
@@ -77,7 +85,6 @@ struct SettingsForm: View {
     @ViewBuilder private var menuBarItemsSection: some View {
         Section("Menu bar items", systemImage: "menubar.rectangle") {
             Toggle("Enable an always-hidden section", isOn: $settings.preferences.enableAlwaysHiddenSection)
-            Toggle("Reveal when the pointer enters the menu bar", isOn: $settings.preferences.revealOnHover)
 
             Picker("Hide again", selection: rehideMode) {
                 ForEach(RehideMode.allCases, id: \.self) { mode in

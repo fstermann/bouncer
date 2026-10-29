@@ -13,7 +13,7 @@ public final class RevealController {
     /// is replaced — whether the hidden section shows in the bar or in one of Bouncer's own is
     /// a preference this module has no business knowing about. It is handed the screen whose menu
     /// bar was hovered, since the pointer may well have moved on to another by the time it shows,
-    /// and whether the pointer was at the notch with reveal near the notch on.
+    /// and whether the pointer was at the notch.
     public var onHoverReveal: (@MainActor (_ screen: NSScreen, _ atNotch: Bool) -> Void)?
 
     private let manager: MenuBarManager
@@ -107,7 +107,7 @@ public final class RevealController {
                 manager.setVisibility(.revealed)
                 return
             }
-            onHoverReveal(screen, settings.preferences.revealNearNotch && isAtNotch(on: screen))
+            onHoverReveal(screen, (revealsAnywhere || settings.preferences.revealNearNotch) && isAtNotch(on: screen))
         }
     }
 
