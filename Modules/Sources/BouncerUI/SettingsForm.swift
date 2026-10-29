@@ -4,7 +4,8 @@ import StandaloneBar
 import SwiftUI
 import Updates
 
-struct GeneralSettingsView: View {
+/// Every setting on one page: the modes first, then what they share, then each mode's own.
+struct SettingsForm: View {
     @Bindable var settings: SettingsStore
     let updates: UpdateController
     @Bindable var permissions: StandaloneBarPermissions
@@ -13,7 +14,6 @@ struct GeneralSettingsView: View {
     // writes them, so they are seeded here and re-read only where Sparkle moves them itself.
     @State private var checkForUpdates: Bool
     @State private var installUpdates: Bool
-    @State private var selection: Pane = .general
 
     init(settings: SettingsStore, updates: UpdateController, permissions: StandaloneBarPermissions) {
         _settings = Bindable(settings)
@@ -24,35 +24,23 @@ struct GeneralSettingsView: View {
     }
 
     var body: some View {
-        HStack(spacing: 0) {
-            VStack(spacing: 2) {
-                ForEach(Pane.allCases) { pane in
-                    SidebarRow(pane: pane, isSelected: selection == pane) { selection = pane }
-                }
-                Spacer()
-            }
-            .padding(.horizontal, 8)
-            .padding(.top, 38)
-            .padding(.bottom, 8)
-            .frame(minWidth: 200, maxWidth: 200, maxHeight: .infinity, alignment: .top)
-            .background(Color.primary.opacity(0.05))
-
-            Divider()
-
-            Form {
-                switch selection {
-                case .general: generalPane
-                case .revealing: revealingPane
-                case .standaloneBar: standaloneBarPane
-                case .todos: TodoOptions(preferences: $settings.preferences)
-                case .updates: updatesPane
+        Form {
+            Section("Modes") {
+                ForEach(Mode.allCases) { mode in
+                    Toggle(isOn: mode.binding(in: $settings.preferences)) {
+                        Text(mode.title)
+                        Text(mode.detail)
+                    }
+                    .disabled(mode.isLastOn(in: settings.preferences))
                 }
             }
-            .formStyle(.grouped)
-            .frame(maxWidth: .infinity)
-            .padding(.top, 30)
+            generalSection
+            notchSection
+            if settings.preferences.enableMenuBarItems { menuBarItemsSection }
+            if settings.preferences.enableTodos { TodoOptions(preferences: $settings.preferences) }
+            updatesSection
         }
-        .ignoresSafeArea()
+        .formStyle(.grouped)
         // The user grants a permission in System Settings and switches back: re-read then,
         // rather than on a timer.
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
@@ -60,19 +48,36 @@ struct GeneralSettingsView: View {
         }
     }
 
-    @ViewBuilder private var generalPane: some View {
-        Section {
+    @ViewBuilder private var generalSection: some View {
+        Section("General") {
             Toggle("Launch Bouncer at login", isOn: $launchAtLogin)
                 .onChange(of: launchAtLogin) { LaunchAtLogin.isEnabled = launchAtLogin }
 
             Toggle("Show Bouncer in the menu bar", isOn: $settings.preferences.showBouncerIcon)
-            Toggle("Enable an always-hidden section", isOn: $settings.preferences.enableAlwaysHiddenSection)
         }
     }
 
-    @ViewBuilder private var revealingPane: some View {
-        Section {
+    @ViewBuilder private var notchSection: some View {
+        Section("Notch") {
             HoverRevealOptions(preferences: $settings.preferences)
+
+            Toggle("Animate the panel", isOn: $settings.preferences.animateBar)
+            if settings.preferences.animateBar {
+                Slider(value: animationMilliseconds, in: 60...500, step: 20) {
+                    Text("Speed")
+                } minimumValueLabel: {
+                    Text("Fast")
+                } maximumValueLabel: {
+                    Text("Slow")
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private var menuBarItemsSection: some View {
+        Section("Menu bar items") {
+            Toggle("Enable an always-hidden section", isOn: $settings.preferences.enableAlwaysHiddenSection)
+            Toggle("Reveal when the pointer enters the menu bar", isOn: $settings.preferences.revealOnHover)
 
             Picker("Hide again", selection: rehideMode) {
                 ForEach(RehideMode.allCases, id: \.self) { mode in
@@ -89,25 +94,19 @@ struct GeneralSettingsView: View {
                     Text("10s")
                 }
             }
-        }
-    }
 
-    @ViewBuilder private var standaloneBarPane: some View {
-        Section {
-            Toggle("Show hidden items in a bar of their own", isOn: $settings.preferences.showItemsInBar)
-                .onChange(of: settings.preferences.showItemsInBar) {
-                    // Ask for both permissions the moment the feature is turned on, not
-                    // piecemeal on a later icon click.
-                    if settings.preferences.showItemsInBar { permissions.request() }
-                }
-            Text("Clicking Bouncer's icon opens the bar instead of revealing the menu bar. "
-                 + "Needs Screen Recording to read the items, and Accessibility to click them.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-        }
+            Toggle(isOn: $settings.preferences.showItemsInBar) {
+                Text("Show hidden items under the notch")
+                Text("Clicking Bouncer's icon opens them in a panel instead of revealing the menu bar. "
+                     + "Needs Screen Recording to read the items, and Accessibility to click them.")
+            }
+            .onChange(of: settings.preferences.showItemsInBar) {
+                // Ask for both permissions the moment the feature is turned on, not
+                // piecemeal on a later icon click.
+                if settings.preferences.showItemsInBar { permissions.request() }
+            }
 
-        if settings.preferences.showItemsInBar {
-            Section("Permissions") {
+            if settings.preferences.showItemsInBar {
                 PermissionRow(
                     name: "Screen Recording",
                     status: permissions.screenRecording,
@@ -120,25 +119,11 @@ struct GeneralSettingsView: View {
                     pane: "Privacy_Accessibility"
                 )
             }
-
-            Section("Appearance") {
-                Toggle("Animate the bar", isOn: $settings.preferences.animateBar)
-                if settings.preferences.animateBar {
-                    Slider(value: animationMilliseconds, in: 60...500, step: 20) {
-                        Text("Speed")
-                    } minimumValueLabel: {
-                        Text("Fast")
-                    } maximumValueLabel: {
-                        Text("Slow")
-                    }
-                }
-
-            }
         }
     }
 
-    @ViewBuilder private var updatesPane: some View {
-        Section {
+    @ViewBuilder private var updatesSection: some View {
+        Section("Updates") {
             // A dev build, or an updater that failed to start, updates nothing — so it does
             // not offer the choice either.
             if updates.isRunning {

@@ -25,6 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let permissions = StandaloneBarPermissions()
     private let updates = UpdateController()
     private var settingsWindow: NSWindow?
+    private var welcomeWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Before the menu is built: whether it carries a "Check for Updates…" item depends on
@@ -38,6 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menuBar.onIconClick = { [weak self] in self?.handleIconClick() }
         reveal.onHoverReveal = { [weak self] screen, atNotch in self?.handleHoverReveal(on: screen, atNotch: atNotch) }
         pageSwitches = ObservationLoop { [weak self] in self?.wirePageSwitches() }
+        if settings.isFirstLaunch { showWelcome() }
         Log.app.info("Bouncer launched")
     }
 
@@ -197,20 +199,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         hosting.sizingOptions = [.preferredContentSize]
         if settingsWindow == nil {
-            // The style mask has to be set at init; assigning it afterwards drops the
-            // layout the hosting controller established and the first tab renders empty.
-            let window = NSWindow(
-                contentRect: .zero,
-                styleMask: [.titled, .closable, .fullSizeContentView],
-                backing: .buffered,
-                defer: false
-            )
+            let window = Self.makeWindow(styleMask: [.titled, .closable])
             window.title = "\(Self.appName) Settings"
-            window.isReleasedWhenClosed = false
-            // Content runs under a transparent, title-less titlebar so the sidebar shade and the
-            // divider reach the very top; only the traffic lights sit on top.
-            window.titleVisibility = .hidden
-            window.titlebarAppearsTransparent = true
             settingsWindow = window
         }
         settingsWindow?.contentViewController = hosting
@@ -218,5 +208,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
         settingsWindow?.center()
         settingsWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    /// Picks the modes on first launch. Only Continue closes it, and it stores the choice even
+    /// when nothing was changed, so the window does not come back.
+    private func showWelcome() {
+        let hosting = NSHostingController(rootView: WelcomeView(settings: settings) { [weak self] in
+            self?.settings.flush()
+            self?.welcomeWindow?.close()
+            self?.welcomeWindow = nil
+        })
+        hosting.sizingOptions = [.preferredContentSize]
+        let window = Self.makeWindow(styleMask: [.titled])
+        window.title = Self.appName
+        window.contentViewController = hosting
+        window.setContentSize(hosting.view.fittingSize)
+        welcomeWindow = window
+        NSApp.activate(ignoringOtherApps: true)
+        window.center()
+        window.makeKeyAndOrderFront(nil)
+    }
+
+    /// The style mask has to be set at init; assigning it afterwards drops the layout the hosting
+    /// controller established and the content renders empty.
+    private static func makeWindow(styleMask: NSWindow.StyleMask) -> NSWindow {
+        let window = NSWindow(contentRect: .zero, styleMask: styleMask, backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        return window
     }
 }

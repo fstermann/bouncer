@@ -9,7 +9,8 @@
 
 bouncer splits the menu bar into three sections — **Visible**, **Hidden** and
 **Always Hidden** — and collapses the ones you are not using.<br>
-Reveal them with a click, or by moving the pointer into the menu bar.
+Reveal them with a click, or by moving the pointer into the menu bar.<br>
+It also keeps a todo list under the notch. Use either, or both.
 
 <sub>Requires macOS 14 or later · Apple Silicon and Intel</sub>
 

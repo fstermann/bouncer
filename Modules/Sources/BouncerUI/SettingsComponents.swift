@@ -6,55 +6,40 @@ import SwiftUI
 import Todos
 import UniformTypeIdentifiers
 
-/// A pane in the settings sidebar. The order here is the order they appear.
-enum Pane: String, CaseIterable, Identifiable, Hashable {
-    case general, revealing, standaloneBar, todos, updates
+/// What Bouncer does: hide menu bar items, show todos, or both. At least one is always on.
+enum Mode: CaseIterable, Identifiable {
+    case menuBarItems, todos
 
     var id: Self { self }
 
-    var label: String {
+    var title: String {
         switch self {
-        case .general: "General"
-        case .revealing: "Revealing"
-        case .standaloneBar: "Standalone bar"
+        case .menuBarItems: "Menu bar items"
         case .todos: "Todos"
-        case .updates: "Updates"
         }
     }
 
-    var symbol: String {
+    var detail: String {
         switch self {
-        case .general: "gearshape"
-        case .revealing: "eye"
-        case .standaloneBar: "menubar.rectangle"
-        case .todos: "checklist"
-        case .updates: "arrow.down.circle"
+        case .menuBarItems: "Hide menu bar items behind dividers and reveal them when you need them."
+        case .todos: "Keep a todo list from a Markdown file under the notch."
         }
     }
-}
 
-/// One selectable row in the settings sidebar: a filled pill when it is the current pane.
-struct SidebarRow: View {
-    let pane: Pane
-    let isSelected: Bool
-    let select: () -> Void
+    private var keyPath: WritableKeyPath<Preferences, Bool> {
+        switch self {
+        case .menuBarItems: \.enableMenuBarItems
+        case .todos: \.enableTodos
+        }
+    }
 
-    var body: some View {
-        Button(action: select) {
-            Label(pane.label, systemImage: pane.symbol)
-                .labelStyle(.titleAndIcon)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(isSelected ? Color.white : Color.primary)
-        .background {
-            if isSelected {
-                RoundedRectangle(cornerRadius: 6).fill(Color.accentColor)
-            }
-        }
+    func binding(in preferences: Binding<Preferences>) -> Binding<Bool> {
+        preferences[dynamicMember: keyPath]
+    }
+
+    /// Switching it off would leave Bouncer doing nothing.
+    func isLastOn(in preferences: Preferences) -> Bool {
+        preferences[keyPath: keyPath] && Self.allCases.allSatisfy { $0 == self || !preferences[keyPath: $0.keyPath] }
     }
 }
 
@@ -104,12 +89,11 @@ struct HoverRevealOptions: View {
     @Binding var preferences: Preferences
 
     var body: some View {
-        Toggle("Reveal when the pointer enters the menu bar", isOn: $preferences.revealOnHover)
         Toggle(isOn: $preferences.revealNearNotch) {
-            Text("Reveal when the pointer reaches the notch")
+            Text("Open when the pointer reaches the notch")
             Text("Closes again when the pointer leaves. Without a notch, the top centre of the menu bar.")
         }
-        if preferences.revealOnHover || preferences.revealNearNotch {
+        if preferences.revealNearNotch || (preferences.enableMenuBarItems && preferences.revealOnHover) {
             delayPicker
         }
     }
@@ -153,7 +137,7 @@ struct TodoOptions: View {
     @Binding var preferences: Preferences
 
     var body: some View {
-        Section {
+        Section("Todos") {
             LabeledContent("File") {
                 HStack(spacing: 8) {
                     Text(fileName)
@@ -168,7 +152,7 @@ struct TodoOptions: View {
             }
             Text("Bouncer shows the open `- [ ]` lines of this Markdown file under the notch, and adds new "
                  + "ones at its end. Without a chosen file, it keeps them in a local one. Hover near the notch "
-                 + "to open it, or use the switch in the bar.")
+                 + "or press ⌘⇧B to open it.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
         }
