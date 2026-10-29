@@ -36,9 +36,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // click reveals the menu bar or opens Bouncer's own bar is a preference, and
         // RevealController has no business knowing about the standalone bar.
         menuBar.onIconClick = { [weak self] in self?.handleIconClick() }
-        reveal.onHoverReveal = { [weak self] screen in self?.handleHoverReveal(on: screen) }
-        standaloneBar.onSwitchPage = { [weak self] in self?.switchPage(to: .todos) }
-        todos.onShortcut = { [weak self] in self?.handleTodoShortcut() }
+        reveal.onHoverReveal = { [weak self] screen, atNotch in self?.handleHoverReveal(on: screen, atNotch: atNotch) }
         pageSwitches = ObservationLoop { [weak self] in self?.wirePageSwitches() }
         Log.app.info("Bouncer launched")
     }
@@ -91,12 +89,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "Bouncer"
     }
 
-    /// A left click either walks the menu bar open, or opens Bouncer's own bar.
+    /// A left click either walks the menu bar open, or opens Bouncer's own bar, or, with menu bar
+    /// items off, the todo page.
     ///
     /// The permissions are normally asked for when the bar is turned on, in Settings; this
     /// re-asks only as a fallback for a user who dismissed those prompts. Accessibility
     /// missing still opens the bar — the items show, they are just not clickable yet.
     private func handleIconClick() {
+        guard settings.preferences.enableMenuBarItems else { return toggleTodos() }
         guard settings.preferences.showItemsInBar else {
             menuBar.toggle()
             return
@@ -116,14 +116,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Permissions are preflighted rather than requested: a pointer in the menu bar is not a
     /// request for the bar, and prompting on it would put a dialog up for simply moving the
     /// mouse. The bar stays behind a click until both are granted.
-    private func handleHoverReveal(on screen: NSScreen) {
-        // Only the items page can switch to the todo page, so without the items bar hover reveals.
+    ///
+    /// The notch opens the todo page unless the items bar is there to share it, in which case it
+    /// opens whichever page the switch last chose.
+    private func handleHoverReveal(on screen: NSScreen, atNotch: Bool) {
         let preferences = settings.preferences
-        if preferences.showItemsInBar, preferences.notchPage == .todos {
+        let showsItemsBar = preferences.enableMenuBarItems && preferences.showItemsInBar
+        let opensTodos = preferences.enableTodos
+            && (showsItemsBar ? preferences.notchPage == .todos : atNotch || !preferences.enableMenuBarItems)
+        if opensTodos {
             Task { await todos.open(on: screen) }
             return
         }
-        guard settings.preferences.showItemsInBar else {
+        guard showsItemsBar else {
             menuBar.setVisibility(.revealed)
             return
         }
@@ -132,14 +137,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task { await standaloneBar.open(closingWhenLeft: !settings.preferences.revealOnHover) }
     }
 
-    /// The todo page offers the items page only while the items bar is on; the items page always
-    /// offers the todo page.
+    /// Each page offers the other only while the other is on, and a page switched off closes.
     private func wirePageSwitches() {
         let preferences = settings.preferences
+        let showsItemsBar = preferences.enableMenuBarItems && preferences.showItemsInBar
         todos.onSwitchPage = nil
-        if preferences.showItemsInBar {
-            todos.onSwitchPage = { [weak self] in self?.switchPage(to: .items) }
+        if showsItemsBar { todos.onSwitchPage = { [weak self] in self?.switchPage(to: .items) } }
+        standaloneBar.onSwitchPage = nil
+        if preferences.enableTodos { standaloneBar.onSwitchPage = { [weak self] in self?.switchPage(to: .todos) } }
+        // Assigned only on a change, since assigning registers the shortcut again.
+        if preferences.enableTodos != (todos.onShortcut != nil) {
+            todos.onShortcut = nil
+            if preferences.enableTodos { todos.onShortcut = { [weak self] in self?.handleTodoShortcut() } }
         }
+        if !preferences.enableTodos { Task { [todos] in await todos.close() } }
+        if !showsItemsBar { Task { [standaloneBar] in await standaloneBar.close() } }
     }
 
     /// Turns one page into the other, which hover then opens next time. The todo panel does the
@@ -162,6 +174,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// ⌘⇧B opens the todo page, from the items page if that is up, and closes it again.
     private func handleTodoShortcut() {
         guard !standaloneBar.isOpen else { return switchPage(to: .todos) }
+        toggleTodos()
+    }
+
+    /// Opened from the keyboard or the icon, with the pointer anywhere, so leaving does not close it.
+    private func toggleTodos() {
         Task { [todos] in
             todos.isOpen ? await todos.close() : await todos.open(closesOnLeave: false)
         }

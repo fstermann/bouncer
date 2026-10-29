@@ -27,6 +27,10 @@ public enum NotchPage: Codable, Hashable, Sendable {
 /// The complete user-facing configuration. One value type so it round-trips as a
 /// single encode/decode and comparing two states is a plain `==`.
 public struct Preferences: Codable, Hashable, Sendable {
+    /// Hide menu bar items behind Bouncer's dividers. Off, Bouncer puts no divider in the bar.
+    public var enableMenuBarItems: Bool
+    /// The todo panel under the notch. At least one of the two is always on.
+    public var enableTodos: Bool
     public var autoRehide: AutoRehide
     public var enableAlwaysHiddenSection: Bool
     /// Reveal by moving the pointer into the menu bar, without a click.
@@ -56,6 +60,8 @@ public struct Preferences: Codable, Hashable, Sendable {
     public var tagColors: [String: String]
 
     public init(
+        enableMenuBarItems: Bool = true,
+        enableTodos: Bool = true,
         autoRehide: AutoRehide = .afterDelay(seconds: 10),
         enableAlwaysHiddenSection: Bool = false,
         revealOnHover: Bool = false,
@@ -69,6 +75,8 @@ public struct Preferences: Codable, Hashable, Sendable {
         notchPage: NotchPage = .items,
         tagColors: [String: String] = [:]
     ) {
+        self.enableMenuBarItems = enableMenuBarItems
+        self.enableTodos = enableTodos
         self.autoRehide = autoRehide
         self.enableAlwaysHiddenSection = enableAlwaysHiddenSection
         self.revealOnHover = revealOnHover
@@ -87,6 +95,9 @@ public struct Preferences: Codable, Hashable, Sendable {
     /// them away — so every key added after 0.1.0 decodes as optional with its default.
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        // Both, as every build before the choice offered.
+        enableMenuBarItems = try container.decodeIfPresent(Bool.self, forKey: .enableMenuBarItems) ?? true
+        enableTodos = try container.decodeIfPresent(Bool.self, forKey: .enableTodos) ?? true
         // Clamped to what the slider can ask for, the way the animation duration below is:
         // a longer delay stored by an older build leaves the bar open past what any setting
         // can now express.

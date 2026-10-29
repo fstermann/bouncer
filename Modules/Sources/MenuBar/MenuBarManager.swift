@@ -34,10 +34,12 @@ public final class MenuBarManager {
     private let settings: SettingsStore
     private let iconImage: NSImage?
     private let iconOpenImage: NSImage?
-    /// Held rather than passed straight through, because the always-hidden divider is
-    /// only built when its section is switched on.
+    /// Held rather than passed straight through, because the dividers are only built while
+    /// their sections are switched on.
+    private let dividerImage: NSImage?
     private let outerDividerImage: NSImage?
-    private let hiddenDivider: ControlItem
+    /// Exists only while menu bar items are enabled, for the same reason as the always-hidden one.
+    private var hiddenDivider: ControlItem?
     /// Exists only while the always-hidden section is enabled: a divider that is in the
     /// bar hides whatever is left of it, and a section the user cannot reveal must hide
     /// nothing. Not being there also costs no width.
@@ -65,15 +67,8 @@ public final class MenuBarManager {
         self.settings = settings
         self.iconImage = iconImage
         self.iconOpenImage = iconOpenImage
+        self.dividerImage = dividerImage
         self.outerDividerImage = outerDividerImage
-        hiddenDivider = ControlItem(
-            autosaveName: StatusItemPosition.hiddenDividerName,
-            position: StatusItemPosition.hiddenDivider,
-            markerImage: dividerImage
-        )
-
-        hiddenDivider.onClick = { [weak self] in self?.revealFurtherOrCollapse() }
-
         observation = ObservationLoop { [weak self] in
             self?.applyPreferences(self?.settings.preferences ?? Preferences())
         }
@@ -83,15 +78,15 @@ public final class MenuBarManager {
     /// Hides the boundary markers while the section is being shown somewhere other than
     /// the menu bar, where a boundary is a glyph that marks nothing.
     public func setBoundaryMarkersVisible(_ areVisible: Bool) {
-        hiddenDivider.showsMarker = areVisible
+        hiddenDivider?.showsMarker = areVisible
         alwaysHiddenDivider?.showsMarker = areVisible
     }
 
     /// How far further left the revealed hidden section is pushed, by widening its divider. Only
     /// takes effect while the boundary markers are hidden, and goes back to zero on a collapse.
     public var sectionShift: CGFloat {
-        get { hiddenDivider.padding }
-        set { hiddenDivider.padding = newValue }
+        get { hiddenDivider?.padding ?? 0 }
+        set { hiddenDivider?.padding = newValue }
     }
 
     public func setVisibility(_ newValue: MenuBarVisibility) {
@@ -114,8 +109,8 @@ public final class MenuBarManager {
     }
 
     private func apply(_ visibility: MenuBarVisibility) {
-        hiddenDivider.isExpanded = !visibility.shows(.hidden)
-        if hiddenDivider.isExpanded { hiddenDivider.padding = 0 }
+        hiddenDivider?.isExpanded = !visibility.shows(.hidden)
+        if !visibility.shows(.hidden) { hiddenDivider?.padding = 0 }
         alwaysHiddenDivider?.isExpanded = !visibility.shows(.alwaysHidden)
         iconItem?.button?.image = markImage(for: visibility)
     }
@@ -130,10 +125,31 @@ public final class MenuBarManager {
     private func applyPreferences(_ preferences: Preferences) {
         setIconVisible(preferences.showBouncerIcon)
 
-        setAlwaysHiddenSectionEnabled(preferences.enableAlwaysHiddenSection)
+        let hidesItems = preferences.enableMenuBarItems
+        if !hidesItems { setVisibility(.collapsed) }
+        setHiddenDividerEnabled(hidesItems)
+        setAlwaysHiddenSectionEnabled(hidesItems && preferences.enableAlwaysHiddenSection)
         if !preferences.enableAlwaysHiddenSection, visibility == .fullyRevealed {
             setVisibility(.revealed)
         }
+    }
+
+    private func setHiddenDividerEnabled(_ isEnabled: Bool) {
+        guard isEnabled == (hiddenDivider == nil) else { return }
+        guard isEnabled else {
+            hiddenDivider?.remove()
+            hiddenDivider = nil
+            return
+        }
+
+        let divider = ControlItem(
+            autosaveName: StatusItemPosition.hiddenDividerName,
+            position: StatusItemPosition.hiddenDivider,
+            markerImage: dividerImage
+        )
+        divider.onClick = { [weak self] in self?.revealFurtherOrCollapse() }
+        divider.isExpanded = !visibility.shows(.hidden)
+        hiddenDivider = divider
     }
 
     private func setAlwaysHiddenSectionEnabled(_ isEnabled: Bool) {

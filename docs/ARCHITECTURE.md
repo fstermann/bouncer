@@ -1,5 +1,11 @@
 # Architecture
 
+Bouncer has two modes, and the user picks one or both on first launch: **menu bar items**, which
+hides items behind dividers, and **todos**, the todo page under the notch. Each works without the
+other (`Preferences.enableMenuBarItems`, `Preferences.enableTodos`). With menu bar items off there
+is no divider in the bar, Bouncer's icon opens the todo page, and nothing of this section runs;
+with todos off there is no todo page, no switch to it and no ⌘⇧B.
+
 ## How hiding works
 
 macOS lays status items out right to left and gives each item a width. There is no API
@@ -243,7 +249,7 @@ event source; a change synced in while it is closed is read on the next open. Ed
 file as it is on disk at that moment, and a tick or edit whose line no longer holds the todo is dropped
 rather than landing on another line.
 
-Each page switches to the other from the top right of the panel. On the items page the
+Each page switches to the other from the top right of the panel, while both are on. On the items page the
 `ClickShield` takes its click, since it already swallows clicks over the section's last item, so the
 switch costs the user nothing; it follows the section through every open and rearrangement because
 the shield does. The cover draws it, so it rides the panel's edge and comes into focus with the
@@ -253,7 +259,8 @@ Both pages move alike, on the same `Motion` springs: the panel grows, and its co
 panel's shape and pinned to its top, so the panel reveals it rather than the content appearing
 beside a panel still on its way. The content comes into focus as the panel lands and goes out of
 focus as it leaves.
-Hover opens whichever page the switch last chose (`Preferences.notchPage`). Switching morphs
+With both pages on, hover opens whichever the switch last chose (`Preferences.notchPage`). Without
+the items page, the notch opens the todo page and the rest of the menu bar reveals the items. Switching morphs
 rather than closing one panel and opening the other, and the todo panel does all the moving: it
 fades in over the items panel, which is then taken down unanimated underneath it, and springs to
 its own shape. Going back, the items panel's windows are built invisible underneath it, the todo
