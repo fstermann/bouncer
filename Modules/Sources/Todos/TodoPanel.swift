@@ -251,8 +251,7 @@ final class TodoPanel {
         let content = NSHostingView(rootView: TodoPageView(page: page))
         // Sized by the panel, which follows the height the page measures for itself.
         content.sizingOptions = []
-        // Kept at the panel's resting size and pinned to its top centre, the way the page sits.
-        content.autoresizingMask = [.minXMargin, .maxXMargin, .minYMargin]
+        // Kept at the panel's resting size; the surface pins it to its top centre.
         surface.addSubview(content)
         let menuHost = NSHostingView(rootView: RowMenuHost(page: page))
         menuHost.sizingOptions = []
@@ -348,6 +347,14 @@ extension TodoPanel {
 private final class SurfaceView: NSView {
     var onExit: (@MainActor () -> Void)?
     var onEnter: (@MainActor () -> Void)?
+
+    /// Pins the content to the top centre. Autoresizing cannot: it splits the change between two
+    /// flexible margins by their size, and both are zero at rest.
+    override func resizeSubviews(withOldSize oldSize: NSSize) {
+        for view in subviews {
+            view.setFrameOrigin(CGPoint(x: (bounds.width - view.frame.width) / 2, y: bounds.height - view.frame.height))
+        }
+    }
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
