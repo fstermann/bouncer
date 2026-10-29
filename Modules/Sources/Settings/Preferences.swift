@@ -18,28 +18,6 @@ public enum HoverDelay: Codable, Hashable, Sendable {
     public static let longest: TimeInterval = 2
 }
 
-/// How the standalone bar's panel is painted.
-///
-/// Plain values rather than a colour type, so the choice encodes with the rest of the
-/// preferences and Settings stays free of AppKit. There is no opacity: the cover half of the
-/// panel exists to hide icons, and anything short of opaque leaves them ghosting through.
-public enum BarStyle: Codable, Hashable, Sendable {
-    /// A grey that follows a light or dark menu bar.
-    case automatic
-    /// Liquid Glass, on a macOS that has it; the automatic grey where it does not.
-    case glass
-    /// Black, grown out of the display's notch, or out of a notch-sized point at the top centre
-    /// of a display without one.
-    case notch
-    /// A flat colour of the user's choosing, in sRGB.
-    case custom(red: Double, green: Double, blue: Double)
-
-    /// The greys `automatic` resolves to, as white levels rather than colours so Settings
-    /// stays free of AppKit. Shared so the bar and the settings swatch cannot drift apart.
-    public static let automaticLight = 0.88
-    public static let automaticDark = 0.24
-}
-
 /// The notch panel's two pages: the hidden items, and the todo list.
 public enum NotchPage: Codable, Hashable, Sendable {
     case items
@@ -63,13 +41,11 @@ public struct Preferences: Codable, Hashable, Sendable {
     /// Off by default and the only feature that asks for permissions: it needs Screen
     /// Recording to read the items, and Accessibility to pass clicks back to them.
     public var showItemsInBar: Bool
-    /// Slide that bar out of the menu bar and back into it, rather than having it appear at
-    /// once.
+    /// Grow the notch panels out of the notch and back into it, rather than having them appear
+    /// at once.
     public var animateBar: Bool
-    /// How long that slide takes, in seconds.
+    /// How long that growth takes, in seconds.
     public var barAnimationDuration: TimeInterval
-    /// What that bar's cover and shelf are painted with.
-    public var barStyle: BarStyle
     /// A bookmark to the Markdown file the todo page reads and writes; `nil` for a local file in
     /// Application Support.
     /// A bookmark rather than a path, so the file is found again after it is moved or renamed.
@@ -89,7 +65,6 @@ public struct Preferences: Codable, Hashable, Sendable {
         showItemsInBar: Bool = false,
         animateBar: Bool = true,
         barAnimationDuration: TimeInterval = 0.18,
-        barStyle: BarStyle = .automatic,
         todoFile: Data? = nil,
         notchPage: NotchPage = .items,
         tagColors: [String: String] = [:]
@@ -103,7 +78,6 @@ public struct Preferences: Codable, Hashable, Sendable {
         self.showItemsInBar = showItemsInBar
         self.animateBar = animateBar
         self.barAnimationDuration = barAnimationDuration
-        self.barStyle = barStyle
         self.todoFile = todoFile
         self.notchPage = notchPage
         self.tagColors = tagColors
@@ -136,7 +110,6 @@ public struct Preferences: Codable, Hashable, Sendable {
             max(try container.decodeIfPresent(TimeInterval.self, forKey: .barAnimationDuration) ?? 0.18, 0.06),
             0.5
         )
-        barStyle = try container.decodeIfPresent(BarStyle.self, forKey: .barStyle) ?? .automatic
         todoFile = try container.decodeIfPresent(Data.self, forKey: .todoFile)
         notchPage = try container.decodeIfPresent(NotchPage.self, forKey: .notchPage) ?? .items
         tagColors = try container.decodeIfPresent([String: String].self, forKey: .tagColors) ?? [:]

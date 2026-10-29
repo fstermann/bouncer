@@ -58,58 +58,6 @@ struct SidebarRow: View {
     }
 }
 
-/// A colour offered as a swatch, kept in the same sRGB components the preference stores so
-/// selection is an exact comparison rather than a round-trip through `Color`.
-struct Swatch: Hashable {
-    let red: Double
-    let green: Double
-    let blue: Double
-
-    var colour: Color { Color(.sRGB, red: red, green: green, blue: blue) }
-    var style: BarStyle { .custom(red: red, green: green, blue: blue) }
-
-    func matches(_ style: BarStyle) -> Bool { style == self.style }
-}
-
-let swatches: [Swatch] = [
-    Swatch(red: 0.11, green: 0.11, blue: 0.12),
-    Swatch(red: 0.35, green: 0.35, blue: 0.37),
-    Swatch(red: 0.78, green: 0.78, blue: 0.80),
-    Swatch(red: 0.78, green: 0.24, blue: 0.24),
-    Swatch(red: 0.86, green: 0.53, blue: 0.18),
-    Swatch(red: 0.25, green: 0.56, blue: 0.31),
-    Swatch(red: 0.20, green: 0.45, blue: 0.78),
-    Swatch(red: 0.45, green: 0.32, blue: 0.68)
-]
-
-struct SwatchShape: View {
-    let colour: Color
-
-    var body: some View {
-        Circle()
-            .fill(colour)
-            .frame(width: 16, height: 16)
-            .overlay(Circle().strokeBorder(.separator, lineWidth: 0.5))
-    }
-}
-
-struct SwatchButton: View {
-    let colour: Color
-    let isSelected: Bool
-    let select: () -> Void
-
-    var body: some View {
-        Button(action: select) {
-            SwatchShape(colour: colour)
-                .padding(2)
-                .overlay {
-                    Circle().strokeBorder(.tint, lineWidth: isSelected ? 2 : 0)
-                }
-        }
-        .buttonStyle(.plain)
-    }
-}
-
 /// One permission's live status, with a shortcut to its System Settings pane while it is
 /// missing — the native prompt only re-shows the first time, so a denied permission is
 /// fixed there.

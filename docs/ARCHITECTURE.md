@@ -87,11 +87,8 @@ out there, so that call goes through SkyLight's private window capture, and a ma
 that drops it leaves the bar without pictures rather than crashing. The cover that hides
 the real items while they are revealed is a painted surface, not a picture of the bar: a still
 of the whole bar swapped in and out was visible as the bar twitching, and it knew nothing
-about the wallpaper moving under it or the shadow a menu casts over it. What the paint is —
-a flat colour, or dimmed Liquid Glass — is the user's choice, stored in `Preferences.barStyle`
-and resolved by `BarSurface`, which dresses both halves of the panel alike. Glass over the
-cover is dimmed rather than clear, a knowing trade of airtight hiding for a panel that reads
-as one material: clear glass would refract the very icons the cover exists to hide.
+about the wallpaper moving under it or the shadow a menu casts over it. Both halves of the
+panel are painted black, so it reads as the notch grown down into the bar.
 
 The reveal is for the menus alone. A status item anchors its menu to its own window, so an
 item left parked off the display opens its menu off the display too — measured, at x =
@@ -104,14 +101,12 @@ the items underneath a cover stay exactly as clickable as they were. So the sect
 revealed into its ordinary place, that stretch of bar is covered, and the items are drawn
 again a row lower. Hidden from the eye, fully alive to a click.
 
-The cover and the shelf are two windows and one panel: it slides out of the menu bar with the
-replicas leading and the cover behind them, and slides back in the same way. That is why the
-landing has to be *worked out* rather than measured — the panel is built and moving before the
-reveal, so it cannot wait to be told where the section went. It lands where the items pack
-edge to edge left of the visible run, one collapsed divider's width clear of it.
+The cover and the shelf are two windows and one panel, and the landing has to be *worked out*
+rather than measured: the panel is built and moving before the reveal, so it cannot wait to be
+told where the section went. It lands where the items pack edge to edge left of the visible run,
+one collapsed divider's width clear of it.
 
-The notch style (`BarStyle.notch`) takes another path out of the menu bar. The panel starts as
-the notch, black on black, and grows wider and taller at once on one spring, its lower corners
+The panel grows out of the notch. It starts as the notch, black on black, and grows wider and taller at once on one spring, its lower corners
 travelling diagonally out to where it rests, the replicas blurring into focus as it lands. The
 way back blurs them out, then lifts and gathers without bounce (`NotchSlide`), every property on
 Core Animation springs from one start time. A display without a notch gets a notch-sized

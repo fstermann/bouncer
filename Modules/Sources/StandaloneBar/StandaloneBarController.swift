@@ -103,8 +103,6 @@ public final class StandaloneBarController {
         // Read once per open, so the bar leaves the way it arrived even if the preference changes.
         slide = settings.preferences.animateBar ? settings.preferences.barAnimationDuration : nil
         closing.closesOnLeave = closingWhenLeft
-        cover.style = settings.preferences.barStyle
-        bar.style = settings.preferences.barStyle
 
         // Which items are hidden has to be settled *before* revealing them, because once
         // they are back on screen they are indistinguishable from the ones that were
@@ -136,7 +134,7 @@ public final class StandaloneBarController {
         // Nothing of the real bar is disturbed while it comes down. The section is still
         // parked off the display, so the replicas cross empty menu bar, and only once the
         // cover has landed over that stretch are the real items brought back underneath it.
-        let landing = NotchCentring(menuBar: menuBar).landing(for: parked, leftOf: section.run, as: cover.style)
+        let landing = NotchCentring(menuBar: menuBar).landing(for: parked, leftOf: section.run)
         cover.show(over: landing.insetBy(dx: -Self.coverBleed, dy: 0))
         bar.update(images: itemCapture.images)
         bar.show(MenuBarItemGeometry.packed(parked, into: landing, like: section.order), below: landing)
@@ -160,9 +158,6 @@ public final class StandaloneBarController {
         bar.show(revealed, below: strip)
         // The items under the cover are painted over, not moved, and so still take clicks.
         shield.show(over: strip)
-        // Not awaited: the bar is usable while the smudges ease in behind the glass. Given
-        // twice the slide, so the reveal reads unhurried rather than snapping clear.
-        Task { await BarSurface.fade([cover.veil, bar.veil], toDimmed: false, over: slide.map { $0 * 2 }) }
 
         finishOpening(of: hidden, from: PlacementWait.frames(of: hidden), over: strip)
     }
@@ -268,9 +263,7 @@ public final class StandaloneBarController {
         itemCapture.stop()
 
         // The section goes away underneath the panel, which only uncovers the bar once it has:
-        // the cover leaves with the panel it is half of. Awaited: dimmed first, or the glass shows
-        // the smudges vanishing in a frame.
-        await BarSurface.fade([cover.veil, bar.veil], toDimmed: true, over: animated ? slide : nil)
+        // the cover leaves with the panel it is half of.
         await Slide.panelIn(bar, cover, over: animated ? slide : nil) { [menuBar] in
             menuBar.setVisibility(.collapsed)
             await PlacementWait.removal(of: replicated)
