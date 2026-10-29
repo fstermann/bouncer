@@ -134,7 +134,7 @@ public enum ClickForwarder {
 
     /// Built from position and size rather than read whole: `AXFrame` is not part of the
     /// published attribute set, and these two are.
-    private static func itemFrame(of element: AXUIElement) -> CGRect? {
+    static func itemFrame(of element: AXUIElement) -> CGRect? {
         // Downcast only after the type ID checks: a plain cast between CF types is unchecked.
         guard let positionValue = attribute(of: element, named: kAXPositionAttribute),
               let sizeValue = attribute(of: element, named: kAXSizeAttribute),

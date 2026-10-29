@@ -26,4 +26,29 @@ import Testing
     @Test func aBarThatHasNotStartedFadingInIsNot() throws {
         #expect(!CapturedImage.isFullyDrawn(try icon(alpha: 0)))
     }
+
+    @Test func iconsOnNothingHaveAClearCorner() throws {
+        #expect(CapturedImage.hasClearCorner(try icon(alpha: 1)))
+    }
+
+    @Test func anOpaqueLayerDoesNot() throws {
+        let context = try #require(CGContext(
+            data: nil, width: 40, height: 20, bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        context.setFillColor(CGColor(red: 0, green: 0, blue: 0, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: 40, height: 20))
+        #expect(!CapturedImage.hasClearCorner(try #require(context.makeImage())))
+    }
+
+    @Test func onlyTheTopLeftCornerCounts() throws {
+        let context = try #require(CGContext(
+            data: nil, width: 40, height: 20, bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        context.setFillColor(CGColor(red: 0, green: 0, blue: 0, alpha: 1))
+        // Core Graphics puts y = 0 at the bottom, so the top-left pixel is at the top row.
+        context.fill(CGRect(x: 0, y: 19, width: 1, height: 1))
+        #expect(!CapturedImage.hasClearCorner(try #require(context.makeImage())))
+    }
 }

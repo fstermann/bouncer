@@ -35,6 +35,49 @@ public final class ItemCapture {
         cut(Self.composite(of: items), into: items)
     }
 
+    /// Photographs `items` where they sit in the bar, under whatever of Bouncer's is covering them.
+    ///
+    /// macOS 27's way: a hidden item is not drawn anywhere there, so there is nothing to photograph
+    /// before the reveal. Every item is drawn into one `MenuBarAgent` window, on a clear background,
+    /// and a window capture ignores what is on top of it, so the cover is no obstacle.
+    public func captureUnderCover(_ items: [MenuBarItem]) async {
+        var picture = Self.agentPicture(of: items)
+        for _ in 0..<Self.fadeLimit {
+            guard let drawn = picture, !CapturedImage.isFullyDrawn(drawn) else { break }
+            try? await Task.sleep(for: .milliseconds(16))
+            picture = Self.agentPicture(of: items)
+        }
+        cut(picture, into: items)
+    }
+
+    /// The stretch of `MenuBarAgent`'s item window that `items` occupy. It has several windows the
+    /// width of the bar, alike in every property the window list gives, so the items' one is told
+    /// apart by its picture.
+    private static func agentPicture(of items: [MenuBarItem]) -> CGImage? {
+        guard let first = items.first else { return nil }
+        let union = items.dropFirst().reduce(first.frame) { $0.union($1.frame) }
+        let windows = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] ?? []
+        for window in windows where window[kCGWindowOwnerName as String] as? String == "MenuBarAgent" {
+            guard let number = window[kCGWindowNumber as String] as? Int,
+                  let bounds = window[kCGWindowBounds as String] as? [String: Any],
+                  let frame = CGRect(dictionaryRepresentation: bounds as CFDictionary),
+                  frame.width > 0,
+                  let picture = SkyLightCapture.composite(
+                      of: [UInt32(number)], options: [.boundsIgnoreFraming, .bestResolution]
+                  ),
+                  CapturedImage.hasClearCorner(picture)
+            else { continue }
+            let scale = CGFloat(picture.width) / frame.width
+            let crop = CGRect(
+                x: (union.minX - frame.minX) * scale, y: (union.minY - frame.minY) * scale,
+                width: union.width * scale, height: union.height * scale
+            )
+            return picture.cropping(to: crop)
+        }
+        Log.menuBar.error("Standalone bar: MenuBarAgent's item window was not found")
+        return nil
+    }
+
     /// The same, once a menu bar that is fading in has finished: what the bar opens with, since
     /// in a full screen space the pointer arriving at the top is what starts the fade.
     public func captureOnceDrawn(_ items: [MenuBarItem]) async {
