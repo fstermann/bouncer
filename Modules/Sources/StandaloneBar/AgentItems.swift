@@ -55,17 +55,6 @@ enum AgentItems {
         return landed
     }
 
-    /// Waits for `elements` to leave the bar, so a cover lifting off them does not show them going.
-    /// A hidden item's element has no frame.
-    static func removal(of elements: [ItemElement]) async {
-        for _ in 0..<attemptLimit {
-            if elements.allSatisfy({ ClickForwarder.itemFrame(of: $0.element) == nil }) { return }
-            try? await Task.sleep(for: .milliseconds(8))
-        }
-        let left = elements.compactMap { ClickForwarder.itemFrame(of: $0.element) }.map { "\($0)" }
-        Log.menuBar.error("Standalone bar: still in the bar: \(left.joined(separator: ", "), privacy: .public)")
-    }
-
     private static func id(of element: ItemElement) -> UInt32 {
         UInt32(truncatingIfNeeded: CFHash(element.element))
     }

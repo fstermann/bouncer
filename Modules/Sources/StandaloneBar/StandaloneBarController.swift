@@ -55,11 +55,11 @@ public final class StandaloneBarController {
     /// is the best guide there is, and it is replaced by the truth on every open.
     private var orderLastTime: [UInt32] = []
     private let indicator = PrivacyIndicator()
-    let curtain = Curtain()
-    /// Whether this open went the macOS 27 way (`openUnderCurtain`), so closing it does too.
-    var isUnderCurtain = false
-    /// The elements of the items a macOS 27 open revealed, which closing waits to see leave.
-    var revealedElements: [ItemElement] = []
+    let tab = NotchTab()
+    /// Whether this open went the macOS 27 way (`openInTheBar`), so closing it does too.
+    var isInTheBar = false
+    /// What a todo page switching back hands the next open, to take the tab's shape before it shows.
+    var shapeOnOpen: (@MainActor (CGRect) async -> Void)?
 
     public init(menuBar: MenuBarManager, settings: SettingsStore) {
         self.menuBar = menuBar
@@ -67,7 +67,7 @@ public final class StandaloneBarController {
         handover = Handover(bar: bar, cover: cover, shield: shield, capture: itemCapture)
         bar.onClick = { [weak self] item in self?.forward(to: item) }
         bar.onHandoff = { [weak self] item in
-            guard self?.isUnderCurtain == false else { return }
+            guard self?.isInTheBar == false else { return }
             Task { await self?.handover.begin(on: item, from: self?.items ?? []) }
         }
         bar.onArm = { [weak self] in self?.shield.standDown() }
@@ -88,6 +88,12 @@ public final class StandaloneBarController {
     /// cover pulled down by the close still finishing.
     private var isClosing = false
 
+    /// Whether the bar photographs items: not on macOS 27, where they stay in the menu bar.
+    public static var needsScreenRecording: Bool {
+        if #available(macOS 27, *) { return false }
+        return true
+    }
+
     public func toggle() async {
         isOpen ? await close() : await open()
     }
@@ -97,12 +103,14 @@ public final class StandaloneBarController {
         guard !isOpen, !isOpening, !isClosing else { return }
         isOpening = true
         defer { isOpening = false }
+        if #available(macOS 27, *) {
+            let shape = shapeOnOpen
+            shapeOnOpen = nil
+            return await openInTheBar(closingWhenLeft: closingWhenLeft, takingShape: shape)
+        }
         guard CGPreflightScreenCaptureAccess() else {
             Log.menuBar.error("Standalone bar: Screen Recording not granted")
             return
-        }
-        if #available(macOS 27, *) {
-            return await openUnderCurtain(closingWhenLeft: closingWhenLeft, animated: animated)
         }
         guard ItemCapture.isAvailable else {
             Log.menuBar.error("Standalone bar: this macOS cannot photograph the items")
@@ -209,9 +217,9 @@ public final class StandaloneBarController {
             guard let self, isOpen, !isMenuOpen, !handover.isUnderway else { return }
             Task { await self.close() }
         }
-        // Not under a curtain yet: following the shift reads the window list, which macOS 27
-        // no longer fills.
-        if !isUnderCurtain {
+        // Following the shift reads the window list, which macOS 27 no longer fills, and there
+        // are no replicas to move there anyway.
+        if !isInTheBar {
             settling = Task { [weak self] in
                 await self?.followTheShift(of: hidden, from: before)
             }
@@ -269,24 +277,22 @@ public final class StandaloneBarController {
         menus.stop()
         isMenuOpen = false
         let replicated = indicator.parkable(items)
-        let wasUnderCurtain = isUnderCurtain
-        let leaving = revealedElements
-        isUnderCurtain = false
-        revealedElements = []
         items = []
         resolvingElements?.cancel()
         resolvingElements = nil
         itemCapture.stop()
+        if isInTheBar {
+            isInTheBar = false
+            await closeInTheBar(animated: animated)
+            menuBar.isRevealHeld = false
+            return
+        }
 
         // The section goes away underneath the panel, which only uncovers the bar once it has:
         // the cover leaves with the panel it is half of.
         await Slide.panelIn(bar, cover, over: animated ? slide : nil) { [menuBar] in
             menuBar.setVisibility(.collapsed)
-            if wasUnderCurtain {
-                await AgentItems.removal(of: leaving)
-            } else {
-                await PlacementWait.removal(of: replicated)
-            }
+            await PlacementWait.removal(of: replicated)
             // Before the panel goes: a marker widens the divider, shifting the items left of it.
             menuBar.setBoundaryMarkersVisible(true)
         }
@@ -337,12 +343,12 @@ public final class StandaloneBarController {
                 // A Cmd-drag up in the bar is the user rearranging it, whether or not it began on
                 // a replica. The panel follows either way, or it stands still through the drag and
                 // jumps once at the end of it.
-                case .leftMouseDragged where !self.isUnderCurtain && self.isRearranging(event):
+                case .leftMouseDragged where !self.isInTheBar && self.isRearranging(event):
                     self.handover.followAlong()
                 // Any release ends whatever drag the follow was following — Cmd or not, since Cmd
                 // let go before the mouse ends it just the same. The look stands itself down when
                 // no follow is up.
-                case .leftMouseUp where !self.isUnderCurtain:
+                case .leftMouseUp where !self.isInTheBar:
                     self.handover.lookAgain(around: self.items, over: self.slide)
                 default: break
                 }
@@ -356,7 +362,7 @@ public final class StandaloneBarController {
     /// in the bar. Anything else — a window dragged across the desktop — is none of Bouncer's
     /// business, and following it would be a poll running for nothing.
     private func isRearranging(_ event: NSEvent) -> Bool {
-        event.modifierFlags.contains(.command) && NSEvent.mouseLocation.y >= bar.bottomEdge
+        event.modifierFlags.contains(.command) && NSEvent.mouseLocation.y >= panelBottomEdge
     }
 
     /// A menu opened from the bar hangs below it, so reaching into one must not dismiss the
@@ -368,13 +374,23 @@ public final class StandaloneBarController {
     func closeIfThePointerHasLeft() {
         // Not mid-handoff: the pointer is up in the menu bar, where the user has taken it.
         let hasLeft = isOpen && !isMenuOpen && !handover.isUnderway
-            && NSEvent.mouseLocation.y < bar.bottomEdge
+            && NSEvent.mouseLocation.y < panelBottomEdge
         guard hasLeft else {
             closing.pointerReturned()
             return
         }
         closing.pointerLeft(for: settings.preferences.autoRehide) { [weak self] in
-            Task { await self?.close() }
+            guard let self else { return }
+            // On macOS 27 the user clicks the real items, whose menus hang below the bar, and the
+            // pointer reaching into one must not take the section away. The next move asks again.
+            if isInTheBar, ItemMenus.isShowing {
+                closing.pointerReturned()
+                return
+            }
+            Task { await self.close() }
         }
     }
+
+    /// The bottom of whatever the bar has drawn below the menu bar, in AppKit coordinates.
+    private var panelBottomEdge: CGFloat { isInTheBar ? tab.bottomEdge : bar.bottomEdge }
 }

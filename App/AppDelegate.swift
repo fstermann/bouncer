@@ -111,7 +111,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         permissions.refresh()
-        guard permissions.screenRecording == .granted else {
+        guard !StandaloneBarController.needsScreenRecording || permissions.screenRecording == .granted else {
             Log.app.error("Standalone bar: Screen Recording not granted; requesting")
             permissions.request()
             return
@@ -141,7 +141,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             menuBar.setVisibility(.revealed)
             return
         }
-        guard StandaloneBarPermissions.screenRecordingGranted else { return }
+        guard !StandaloneBarController.needsScreenRecording || StandaloneBarPermissions.screenRecordingGranted
+        else { return }
         // With hover over the whole menu bar off, only the notch could have opened it.
         Task { await standaloneBar.open(closingWhenLeft: !settings.preferences.revealOnHover) }
     }

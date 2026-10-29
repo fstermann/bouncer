@@ -7,6 +7,7 @@ extension StandaloneBarController {
         get { shield.onSwitchPage }
         set {
             shield.onSwitchPage = newValue
+            tab.onSwitch = newValue
             cover.pageSwitch.isHidden = newValue == nil
         }
     }
@@ -19,6 +20,10 @@ extension StandaloneBarController {
     /// revealed beneath them. Shown any sooner, they stick out past the panel still changing shape,
     /// and the section, revealed with them hidden, shows its real items in the menu bar.
     public func open(closingWhenLeft: Bool, takingShape shape: @escaping @MainActor (CGRect) async -> Void) async {
+        if #available(macOS 27, *) {
+            shapeOnOpen = shape
+            return await open(closingWhenLeft: closingWhenLeft, animated: false)
+        }
         isPanelConcealed = true
         cover.arrival = { [weak self] in
             guard let self, let outline else { return }
@@ -32,7 +37,7 @@ extension StandaloneBarController {
 
     /// The panel's outline, cover and shelf together, in AppKit screen coordinates: what the todo
     /// page grows out of when switched to.
-    public var panelFrame: CGRect? { isOpen ? outline : nil }
+    public var panelFrame: CGRect? { isOpen ? (isInTheBar ? tab.outline : outline) : nil }
 
     private var isPanelConcealed: Bool {
         get { cover.isConcealed }

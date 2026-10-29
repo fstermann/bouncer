@@ -57,6 +57,13 @@ final class ControlItem: NSObject {
     /// Frame in window-server coordinates, or `nil` before the item has a window.
     var frame: CGRect? { item.button?.window?.frame }
 
+    #if DEV
+    var devState: String {
+        "length \(item.length) wide \(isWide) settled \(hasSettled) expanded \(isExpanded) "
+            + "resting \(restingRightEdge.map { "\($0)" } ?? "nil") frame \(frame.map { "\($0)" } ?? "nil")"
+    }
+    #endif
+
     /// - Parameter markerImage: shown while the section is revealed, so the boundary is
     ///   drawn exactly where hiding starts. Supplied by the app layer so branding stays
     ///   out of this module; should be a template image. `nil` leaves the divider

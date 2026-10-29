@@ -95,6 +95,14 @@ public final class MenuBarManager {
     /// where nothing reads it.
     public var hiddenSectionEnd: CGFloat? { hiddenDivider?.restingRightEdge }
 
+    #if DEV
+    public var devState: String {
+        let icon = (iconItem?.button?.window?.frame).map { "\($0)" } ?? "nil"
+        return "hidden divider \(hiddenDivider?.devState ?? "none")\n"
+            + "always-hidden divider \(alwaysHiddenDivider?.devState ?? "none")\nicon \(icon)"
+    }
+    #endif
+
     public func setVisibility(_ newValue: MenuBarVisibility) {
         guard newValue != visibility else { return }
         visibility = newValue

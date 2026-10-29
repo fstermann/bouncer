@@ -95,6 +95,15 @@ permission-hungry, fragile subsystem next to two width assignments. So it is bui
 `StandaloneBar`, and it is opt-in: off by default, asking for its permissions only when the
 user switches it on, with the divider mechanism still doing the hiding.
 
+On macOS 27 none of the below applies: `openInTheBar` reveals the section into the menu bar and
+leaves it there. Items can only sit right of the notch, and those that do not fit go behind a
+chevron, which Bouncer opens through Accessibility so they show left of the notch. macOS slides
+both sides out of the notch itself, so nothing is photographed or replicated, clicks reach the real
+items, and Screen Recording is not needed. The bar adds only `NotchTab`, the notch grown taller
+with the switch to the todo page. Closing closes the chevron before collapsing: it stays open
+across a collapse, and left open, every later reveal draws the overflow over the app menus. Items
+that fit on neither side are dropped by macOS and cannot be shown. Rearranging is not built there.
+
 There is no capture pipeline. The section is photographed once per open, in a single call,
 while its items are still parked off the display — ScreenCaptureKit cannot reach a window
 out there, so that call goes through SkyLight's private window capture, and a macOS release

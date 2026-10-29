@@ -25,22 +25,6 @@ enum DevBarReader {
         return found.sorted { $0.frame.minX < $1.frame.minX }
     }
 
-    /// The overflow chevron macOS 27 draws when items do not fit: open, closed, or absent.
-    static func chevronState() -> String {
-        guard let agent = NSWorkspace.shared.runningApplications.first(where: {
-            $0.bundleIdentifier == "com.apple.MenuBarAgent"
-        }) else { return "absent (no MenuBarAgent)" }
-        let identifiers = ClickForwarder.statusItems(of: agent.processIdentifier).compactMap { item in
-            var value: CFTypeRef?
-            AXUIElementCopyAttributeValue(item.element.element, kAXIdentifierAttribute as CFString, &value)
-            return value as? String
-        }
-        guard let chevron = identifiers.first(where: { $0.hasPrefix("menu-bar-overflow-indicator") }) else {
-            return "absent"
-        }
-        return chevron.hasSuffix("expanded") ? "open" : "closed"
-    }
-
     /// Bouncer's own windows near the top of the screen, in window-server coordinates.
     static func bouncerWindows() -> [OwnWindow] {
         let pid = ProcessInfo.processInfo.processIdentifier

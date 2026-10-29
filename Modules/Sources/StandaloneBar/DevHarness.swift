@@ -102,7 +102,9 @@ public final class DevHarness {
                 lines.append("notch \(Self.text(notch.range)) \(notch.isReal ? "real" : "stand-in")")
             }
         }
-        lines.append("chevron \(DevBarReader.chevronState())")
+        lines.append("section ends at \(menuBar.hiddenSectionEnd.map { "\(Int($0))" } ?? "unknown")")
+        lines.append(menuBar.devState)
+        lines.append("chevron \(AgentOverflow.state)")
         for item in await DevBarReader.accessibilityItems() {
             lines.append("item \(Self.text(item.frame)) \(item.owner)")
         }
