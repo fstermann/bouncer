@@ -8,9 +8,19 @@ public struct Todo: Hashable, Sendable, Identifiable {
     public let text: String
     public let isDone: Bool
     /// The indented lines under it, which Obsidian shows as part of the task.
-    public var note = ""
+    public var note: String
+    /// Its `#tags`, read once rather than each time the list is filtered or counted.
+    public let tags: [String]
 
     public var id: Int { line }
+
+    public init(line: Int, text: String, isDone: Bool, note: String = "") {
+        self.line = line
+        self.text = text
+        self.isDone = isDone
+        self.note = note
+        tags = TaskText(text).tags
+    }
 }
 
 /// The todo file's checkboxes, read and edited as Markdown task lines (`- [ ] text`), the format

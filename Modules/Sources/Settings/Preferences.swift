@@ -58,6 +58,8 @@ public struct Preferences: Codable, Hashable, Sendable {
     public var notchPage: NotchPage
     /// The colour each todo tag's chip is drawn in, by name; a tag left out is grey.
     public var tagColors: [String: String]
+    /// The order todo tags' chips were dragged into; a tag left out follows those in it.
+    public var tagOrder: [String]
 
     public init(
         enableMenuBarItems: Bool = true,
@@ -73,7 +75,8 @@ public struct Preferences: Codable, Hashable, Sendable {
         barAnimationDuration: TimeInterval = 0.18,
         todoFile: Data? = nil,
         notchPage: NotchPage = .items,
-        tagColors: [String: String] = [:]
+        tagColors: [String: String] = [:],
+        tagOrder: [String] = []
     ) {
         self.enableMenuBarItems = enableMenuBarItems
         self.enableTodos = enableTodos
@@ -89,6 +92,7 @@ public struct Preferences: Codable, Hashable, Sendable {
         self.todoFile = todoFile
         self.notchPage = notchPage
         self.tagColors = tagColors
+        self.tagOrder = tagOrder
     }
 
     /// A blob stored before a key existed must keep the user's other settings, not throw
@@ -124,5 +128,6 @@ public struct Preferences: Codable, Hashable, Sendable {
         todoFile = try container.decodeIfPresent(Data.self, forKey: .todoFile)
         notchPage = try container.decodeIfPresent(NotchPage.self, forKey: .notchPage) ?? .items
         tagColors = try container.decodeIfPresent([String: String].self, forKey: .tagColors) ?? [:]
+        tagOrder = try container.decodeIfPresent([String].self, forKey: .tagOrder) ?? []
     }
 }

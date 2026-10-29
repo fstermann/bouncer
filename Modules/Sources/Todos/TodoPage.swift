@@ -10,6 +10,8 @@ final class TodoPage {
     var categories: [String] = []
     /// Tag to colour name, from the preferences.
     var tagColors: [String: String] = [:]
+    /// The order the tags' chips were dragged into, from the preferences.
+    var tagOrder: [String] = []
     var draft = ""
     /// `yyyy-MM-dd` for the todo being typed.
     var draftDue: String?
@@ -65,30 +67,55 @@ final class TodoPage {
     @ObservationIgnored var onAddCategory: (@MainActor (String) -> Void)?
     @ObservationIgnored var onRemoveCategory: (@MainActor (String) -> Void)?
     @ObservationIgnored var onColor: (@MainActor (String, String?) -> Void)?
+    /// The order the chips were dragged into, once the drag ends.
+    @ObservationIgnored var onOrder: (@MainActor ([String]) -> Void)?
     @ObservationIgnored var onSwitch: (@MainActor () -> Void)?
     /// The page's height changed, so the panel has to refit.
     @ObservationIgnored var onResize: (@MainActor () -> Void)?
 
-    /// The categories, then any other tag a listed todo carries, each once: a tag only done todos
-    /// carry shows while they do.
+    /// The categories and any other tag a listed todo carries, each once and after the tags it is
+    /// nested under, in the order they were dragged into: a tag only done todos carry shows while they do.
     var tags: [String] {
-        var seen = Set(categories)
-        return categories + listed.flatMap { TaskText($0.text).tags }.filter { seen.insert($0).inserted }
+        var seen = Set<String>()
+        let found = (categories + listed.flatMap { $0.tags })
+            .flatMap(TagPath.lineage).filter { seen.insert($0).inserted }
+        return TagPath.sorted(found, by: tagOrder)
     }
 
-    /// The tags offered as chips, the selected filters first. Once some are selected, only those
-    /// that narrow the list further are offered with them.
+    /// Moves `tag`'s chip to where `target`'s stands, if both sit under the same tag.
+    func moveTag(_ tag: String, onto target: String) {
+        tagOrder = TagPath.moving(tag, onto: target, in: tags, order: tagOrder)
+    }
+
+    /// The tags offered as chips, the selected filters first. Nested tags are offered once the tag
+    /// above them is selected, ahead of the rest; those under the deepest selected tag even before
+    /// any todo carries them. Once some are selected, only the other tags that narrow the list
+    /// further are offered with them.
     var chipTags: [String] {
-        let offered = filters.isEmpty ? tags : tags.filter { !filters.contains($0) && count(of: $0) > 0 }
-        return tags.filter(filters.contains) + offered.filter { !filters.contains($0) }
+        let shown = tags.filter { !filters.contains($0) && (TagPath.parent(of: $0).map(filters.contains) ?? true) }
+        let offered = shown.filter {
+            filters.isEmpty || count(of: $0) > 0 || TagPath.parent(of: $0).map(deepestFilters.contains) == true
+        }
+        let nested = offered.filter { TagPath.parent(of: $0) != nil }
+        return tags.filter(filters.contains) + nested + offered.filter { TagPath.parent(of: $0) == nil }
     }
 
-    /// How many listed todos carry `tag` beside the selected filters.
+    /// The categories that are `tag` or nested under it, which deleting its chip deletes.
+    func categories(under tag: String) -> [String] {
+        categories.filter { TagPath.matches($0, tag) }
+    }
+
+    /// The selected tags no other selected tag is nested under, which between them carry all the filters.
+    private var deepestFilters: Set<String> {
+        filters.filter { filter in !filters.contains { $0 != filter && TagPath.matches($0, filter) } }
+    }
+
+    /// How many listed todos carry `tag`, or a tag under it, beside the selected filters.
     func count(of tag: String) -> Int {
-        narrowed.filter { TaskText($0.text).tags.contains(tag) }.count
+        narrowed.filter { $0.tags.contains { TagPath.matches($0, tag) } }.count
     }
 
-    var untaggedCount: Int { listed.filter { TaskText($0.text).tags.isEmpty }.count }
+    var untaggedCount: Int { listed.filter { $0.tags.isEmpty }.count }
 
     /// Offered only beside tags, while some todo has none, and while no tag is selected, which no
     /// untagged todo could carry.
@@ -96,7 +123,8 @@ final class TodoPage {
 
     func toggleFilter(_ tag: String) {
         showsUntagged = false
-        if filters.remove(tag) == nil { filters.insert(tag) }
+        // The tags under it were offered only beside it, so they go with it.
+        if filters.contains(tag) { filters = filters.filter { !TagPath.matches($0, tag) } } else { filters.insert(tag) }
     }
 
     func toggleUntagged() {
@@ -153,13 +181,17 @@ final class TodoPage {
 
     private var listed: [Todo] { showsDone ? todos : todos.filter(isListedOpen) }
 
-    private var narrowed: [Todo] { listed.filter { filters.isSubset(of: TaskText($0.text).tags) } }
+    private var narrowed: [Todo] { listed.filter { carriesFilters($0.tags) } }
 
     private var filtered: [Todo] {
         todos.filter {
-            let tags = TaskText($0.text).tags
-            return (showsUntagged ? tags.isEmpty : filters.isSubset(of: tags)) && isFound($0)
+            let tags = $0.tags
+            return (showsUntagged ? tags.isEmpty : carriesFilters(tags)) && isFound($0)
         }
+    }
+
+    private func carriesFilters(_ tags: [String]) -> Bool {
+        filters.allSatisfy { filter in tags.contains { TagPath.matches($0, filter) } }
     }
 
     /// In its title or its note; every todo while nothing is searched for.
@@ -168,12 +200,14 @@ final class TodoPage {
         return [TaskText(todo.text).title, todo.note].contains { !TextSearch.ranges(of: query, in: $0).isEmpty }
     }
 
-    /// Adds the todo typed, with the tags the list is narrowed to, so it shows in the list.
+    /// Adds the todo typed, with the tags the list is narrowed to, so it shows in the list. Of a
+    /// filter and one nested under it, only the nested one is added, which carries both.
     func add() {
         var lines = draft.components(separatedBy: "\n")
         if !lines[0].trimmingCharacters(in: .whitespaces).isEmpty {
             let typed = TaskText(lines[0]).tags
-            lines[0] += filters.sorted().filter { !typed.contains($0) }.map { " #\($0)" }.joined()
+            let lacking = deepestFilters.filter { filter in !typed.contains { TagPath.matches($0, filter) } }
+            lines[0] += lacking.sorted().map { " #\($0)" }.joined()
         }
         onAdd?(lines.joined(separator: "\n"))
         draft = ""
@@ -247,8 +281,9 @@ final class TodoPage {
     /// The edited todo's first line, which holds its tags.
     var editTitle: String { editDraft.components(separatedBy: "\n")[0] }
 
+    /// A nested tag without a colour of its own takes the one of the tag above it.
     func color(of tag: String) -> Color? {
-        tagColors[tag].flatMap(TagColor.init(rawValue:))?.color
+        tagColors[tag].flatMap(TagColor.init(rawValue:))?.color ?? TagPath.parent(of: tag).flatMap(color)
     }
 
     func setColor(_ color: TagColor, of tag: String) {
