@@ -23,6 +23,9 @@ final class TodoWindow: NSPanel {
 
     /// A click about to be handled, and the view it lands on; returning `true` swallows it.
     var onMouseDown: (@MainActor (NSView?) -> Bool)?
+    /// The cursor for a point in the window, over whatever the views there set. A text field sets its
+    /// I-beam as the pointer enters it even under a view drawn on top of it.
+    var cursorOverride: (@MainActor (CGPoint) -> NSCursor?)?
 
     override func sendEvent(_ event: NSEvent) {
         if event.type == .leftMouseDown, let contentView,
@@ -30,7 +33,12 @@ final class TodoWindow: NSPanel {
             return
         }
         super.sendEvent(event)
+        if Self.pointerEvents.contains(event.type), let cursor = cursorOverride?(mouseLocationOutsideOfEventStream) {
+            cursor.set()
+        }
     }
+
+    private static let pointerEvents: Set<NSEvent.EventType> = [.mouseMoved, .mouseEntered, .mouseExited, .cursorUpdate]
 
     override func cancelOperation(_ sender: Any?) {
         onEscape?()
