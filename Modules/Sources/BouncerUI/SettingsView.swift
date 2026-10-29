@@ -15,7 +15,7 @@ public struct SettingsView: View {
     }
 
     public var body: some View {
-        GeneralSettingsView(settings: settings, updates: updates, permissions: permissions)
-            .frame(width: 640, height: 480)
+        SettingsForm(settings: settings, updates: updates, permissions: permissions)
+            .frame(width: 520, height: 640)
     }
 }

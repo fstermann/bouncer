@@ -1,7 +1,6 @@
 import AppKit
 import BouncerFoundation
 import MenuBar
-import Settings
 
 /// Hides the replicated items by covering them, without moving them.
 ///
@@ -10,14 +9,13 @@ import Settings
 /// capture ignores whatever is on top of it — so the section is revealed into its normal
 /// place and this is drawn over it.
 ///
-/// Dressed by `BarSurface`, the same as the shelf below, and only over the stretch the
-/// section occupies. It used to be a capture of the bar spanning the bar's whole width, which
-/// matched the real thing for exactly as long as the real thing held still: swapping the
-/// entire bar for a photograph and back was visible as the bar twitching, the still knew
-/// nothing about shadows cast over it afterwards, and taking it was what put the recording
-/// indicator in the bar to begin with.
+/// Black like the shelf below, and only over the stretch the section occupies. It used to be a
+/// capture of the bar spanning the bar's whole width, which matched the real thing for exactly
+/// as long as the real thing held still: swapping the entire bar for a photograph and back was
+/// visible as the bar twitching, the still knew nothing about shadows cast over it afterwards,
+/// and taking it was what put the recording indicator in the bar to begin with.
 ///
-/// It is also the trailing half of the panel that slides out of the menu bar, which is why the
+/// It is also the trailing half of the panel that grows out of the notch, which is why the
 /// surface is a view inside the window rather than the window itself: it arrives from above,
 /// clipped to the strip until it gets there.
 @MainActor
@@ -40,16 +38,8 @@ public final class CoverWindow {
     /// Drawn on the surface rather than on the shield, so it travels and comes into focus with the
     /// panel. The shield above it is what takes the click.
     let pageSwitch = PageSwitchGlyph.make()
-    /// The dimming layer over the cover's glass, worn while the section underneath is
-    /// moving. Faded through `BarSurface.fade`, together with the shelf's, so the dim never
-    /// shows as a step at the seam between them.
-    private(set) var veil: NSView?
-
-    /// How the cover is painted. Set by the controller before each open, with the shelf's,
-    /// so the two halves of the panel cannot disagree.
-    var style: BarStyle = .automatic
-    /// The notch a notch-style cover grows out of, found when it is shown. The cover reaches it
-    /// from wherever the section sits, and wears shoulders where it meets the top of the display.
+    /// The notch the cover grows out of, found when it is shown. The cover reaches it from
+    /// wherever the section sits, and wears shoulders where it meets the top of the display.
     private(set) var notch: Notch?
 
     public init() {
@@ -67,7 +57,7 @@ public final class CoverWindow {
     /// Sits one level above the status items so it hides them, and well below the pop-up
     /// menu level, so an item's menu still opens over the top when its replica is clicked.
     public func show(over rect: CGRect) {
-        if window == nil { notch = style == .notch ? Notch.on(displayOf: rect) : nil }
+        if window == nil { notch = Notch.on(displayOf: rect) }
         let frame = windowFrame(over: rect)
         let cover = window ?? make(frame)
         window = cover
@@ -101,11 +91,6 @@ public final class CoverWindow {
     }
 
     private static let aboveItems = NSWindow.Level(rawValue: BarWindow.statusLevel.rawValue + 1)
-
-    /// Lifts the cover clear of its window, ready to be run back down into it.
-    func park(by travel: CGFloat) {
-        surface.setFrameOrigin(CGPoint(x: 0, y: travel))
-    }
 
     /// Settles the cover onto the section as it now stands.
     ///
@@ -160,7 +145,7 @@ public final class CoverWindow {
         // `ClickShield` is what stops one reaching an icon nobody can see.
         cover.ignoresMouseEvents = true
         surface.frame = restingSurface(in: rect.size)
-        veil = BarSurface.dress(surface, in: style, coveringIcons: true)
+        surface.layer?.backgroundColor = NSColor.black.cgColor
         // Only a notch-style cover is ever rounded, and only while it stands alone in the bar.
         surface.layer?.cornerRadius = 0
         surface.layer?.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]

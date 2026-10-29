@@ -1,5 +1,4 @@
 import AppKit
-import Settings
 
 /// The standalone bar: the hidden section's items, drawn one row below the menu bar.
 ///
@@ -27,16 +26,9 @@ public final class ReplicaBar {
     /// it would show it is a window of its own rather than part of the bar.
     static let cornerRadius: CGFloat = 10
 
-    /// How the shelf is painted. Set by the controller before each open, so the shelf leaves
-    /// the way it arrived even if the preference changes while it is out.
-    var style: BarStyle = .automatic
-    /// The notch a notch-style shelf grows out of, found when it is shown. The shelf is widened
-    /// to reach it from wherever the section sits.
+    /// The notch the shelf grows out of, found when it is shown. The shelf is widened to reach
+    /// it from wherever the section sits.
     private var notch: Notch?
-    /// The dimming layer over the shelf's glass, faded through `BarSurface.fade` together
-    /// with the cover's, so the dim never shows as a step at the seam between them. The
-    /// replicas sit above it: they slide in plain view, only their background dims.
-    private(set) var veil: NSView?
 
     /// Kept invisible while the todo panel shrinks into its shape over the top, and shown once it has.
     var isConcealed = false { didSet { window?.alphaValue = isConcealed ? 0 : 1 } }
@@ -70,7 +62,7 @@ public final class ReplicaBar {
     public func show(_ items: [MenuBarItem], below menuBarFrame: CGRect) {
         let (positions, size) = MenuBarItemGeometry.layout(items)
         guard size.width > 0 else { takeDown(); return }
-        if window == nil { notch = style == .notch ? Notch.on(displayOf: menuBarFrame) : nil }
+        if window == nil { notch = Notch.on(displayOf: menuBarFrame) }
 
         // As wide as the stretch of bar it hangs under, not as wide as the replicas on it. The two
         // are the same at rest. Mid-drag they are not: the strip reaches to the divider, over the
@@ -96,10 +88,8 @@ public final class ReplicaBar {
         window = bar
     }
 
-    /// The part that moves, and how far it has to move: from above the menu bar down to the
-    /// shelf's own place. The cover's half of the panel is run the same distance.
+    /// The part that grows out of the notch, with the cover's half of the panel.
     var panel: NSView? { shelf }
-    var travel: CGFloat { window?.frame.height ?? 0 }
 
     /// The replicas, faded out while a notch-style shelf is still tucked up in the menu bar.
     var replicas: NSView { view }
@@ -123,11 +113,6 @@ public final class ReplicaBar {
 
     private var room: CGSize { notch == nil ? .zero : Notch.springRoom }
     private var overlap: CGFloat { notch == nil ? 0 : Notch.seamOverlap }
-
-    /// Lifts the shelf clear of the menu bar, ready to be run back down out of it.
-    func park(by travel: CGFloat) {
-        shelf?.setFrameOrigin(CGPoint(x: 0, y: travel))
-    }
 
     /// The shelf's own window, so a capture of the bar can leave it out.
     public var windowID: UInt32? { window.map { UInt32($0.windowNumber) } }
@@ -223,7 +208,6 @@ public final class ReplicaBar {
         shelf = nil
         hanger = nil
         hideNotice()
-        veil = nil
         // The view outlives the window, and a notch-style close leaves it faded out.
         view.alphaValue = 1
         view.contentFilters = []
@@ -240,9 +224,7 @@ public final class ReplicaBar {
         bar.alphaValue = isConcealed ? 0 : 1
         // Replicas are icons on nothing, so the bar has to bring its own surface or they sit
         // unreadable on whatever window is behind.
-        //
-        // Dressed by `BarSurface`, the same as the cover over the real section, so the
-        // two read as one panel rather than as a strip and a patch that nearly agree.
+        // Black, the same as the cover over the real section, so the two read as one panel.
         // The shelf comes down from above the window, so it is clipped to it: while it is up
         // there it must not be drawn over the screen it has not reached yet.
         let clip = NSView(frame: CGRect(origin: .zero, size: frame.size))
@@ -262,7 +244,7 @@ public final class ReplicaBar {
         backing.layer?.cornerRadius = Self.cornerRadius
         backing.layer?.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
         backing.layer?.masksToBounds = true
-        veil = BarSurface.dress(backing, in: style, coveringIcons: false)
+        backing.layer?.backgroundColor = NSColor.black.cgColor
         view.wantsLayer = true
         backing.addSubview(view)
         hanger.addSubview(backing)

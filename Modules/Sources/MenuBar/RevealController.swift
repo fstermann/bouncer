@@ -12,8 +12,9 @@ public final class RevealController {
     /// the app layer replaces it where a reveal means something else, the way `onIconClick`
     /// is replaced — whether the hidden section shows in the bar or in one of Bouncer's own is
     /// a preference this module has no business knowing about. It is handed the screen whose menu
-    /// bar was hovered, since the pointer may well have moved on to another by the time it shows.
-    public var onHoverReveal: (@MainActor (NSScreen) -> Void)?
+    /// bar was hovered, since the pointer may well have moved on to another by the time it shows,
+    /// and whether the pointer was at the notch.
+    public var onHoverReveal: (@MainActor (_ screen: NSScreen, _ atNotch: Bool) -> Void)?
 
     private let manager: MenuBarManager
     private let settings: SettingsStore
@@ -54,8 +55,8 @@ public final class RevealController {
     private func configureInputs() {
         let preferences = settings.preferences
 
-        setHoverMonitorEnabled(preferences.revealOnHover || preferences.revealNearNotch)
-        setActivationObserverEnabled(preferences.autoRehide == .onFocusedAppChange)
+        setHoverMonitorEnabled(revealsAnywhere || preferences.revealNearNotch)
+        setActivationObserverEnabled(preferences.enableMenuBarItems && preferences.autoRehide == .onFocusedAppChange)
     }
 
     private func setHoverMonitorEnabled(_ isEnabled: Bool) {
@@ -106,7 +107,7 @@ public final class RevealController {
                 manager.setVisibility(.revealed)
                 return
             }
-            onHoverReveal(screen)
+            onHoverReveal(screen, (revealsAnywhere || settings.preferences.revealNearNotch) && isAtNotch(on: screen))
         }
     }
 
@@ -121,12 +122,23 @@ public final class RevealController {
         NSScreen.main.map(isRevealing(on:)) ?? false
     }
 
+    /// Hover over the whole menu bar reveals hidden items, so it means nothing without them.
+    private var revealsAnywhere: Bool {
+        settings.preferences.enableMenuBarItems && settings.preferences.revealOnHover
+    }
+
     /// Anywhere in the menu bar, or only near the notch when that is the one switched on.
     private func isRevealing(on screen: NSScreen) -> Bool {
-        let point = NSEvent.mouseLocation
-        guard !settings.preferences.revealOnHover else {
-            return DisplayNotch.isInMenuBar(point, screen: screen.frame, menuBarHeight: screen.menuBarHeight)
+        guard !revealsAnywhere else {
+            return DisplayNotch.isInMenuBar(
+                NSEvent.mouseLocation, screen: screen.frame, menuBarHeight: screen.menuBarHeight
+            )
         }
+        return isAtNotch(on: screen)
+    }
+
+    private func isAtNotch(on screen: NSScreen) -> Bool {
+        let point = NSEvent.mouseLocation
         let notch = DisplayNotch.range(
             left: screen.auxiliaryTopLeftArea, right: screen.auxiliaryTopRightArea, screen: screen.frame
         )

@@ -35,6 +35,9 @@ public final class SettingsStore {
     /// How long edits are coalesced before hitting disk.
     @ObservationIgnored private let saveDebounce = Duration.milliseconds(250)
 
+    /// Nothing was stored yet: Bouncer has never run under this defaults domain.
+    @ObservationIgnored public let isFirstLaunch: Bool
+
     public var preferences: Preferences {
         get {
             access(keyPath: \.preferences)
@@ -49,7 +52,9 @@ public final class SettingsStore {
 
     public init(persistence: PreferencesPersistence = UserDefaultsPersistence()) {
         self.persistence = persistence
-        if let data = persistence.load(), let decoded = try? JSONDecoder().decode(Preferences.self, from: data) {
+        let stored = persistence.load()
+        isFirstLaunch = stored == nil
+        if let data = stored, let decoded = try? JSONDecoder().decode(Preferences.self, from: data) {
             storage = decoded
         } else {
             storage = Preferences()

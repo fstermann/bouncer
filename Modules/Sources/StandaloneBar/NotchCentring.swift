@@ -1,10 +1,8 @@
 import BouncerFoundation
 import CoreGraphics
 import MenuBar
-import Settings
 
-/// Centres the hidden section under the notch, so a notch-style panel grows evenly either side
-/// of it.
+/// Centres the hidden section under the notch, so the panel grows evenly either side of it.
 ///
 /// The section is pushed left by widening the divider on its right, which macOS does not always
 /// take quietly: measured, it reorders the items around a widened item whenever one would sit
@@ -14,11 +12,10 @@ struct NotchCentring {
     let menuBar: MenuBarManager
 
     /// Where `parked` lands when revealed, as `MenuBarItemGeometry.landingStrip` works it out, but
-    /// shifted to centre under the notch for the notch style.
-    func landing(for parked: [MenuBarItem], leftOf all: [MenuBarItem], as style: BarStyle) -> CGRect {
+    /// shifted to centre under the notch.
+    func landing(for parked: [MenuBarItem], leftOf all: [MenuBarItem]) -> CGRect {
         let landing = MenuBarItemGeometry.landingStrip(for: parked, leftOf: all)
-        let notch = style == .notch ? Notch.on(displayOf: landing) : nil
-        let shift = notch.map { MenuBarItemGeometry.shiftCentring(landing, on: $0.centre) } ?? 0
+        let shift = Notch.on(displayOf: landing).map { MenuBarItemGeometry.shiftCentring(landing, on: $0.centre) } ?? 0
         menuBar.sectionShift = shift
         return landing.offsetBy(dx: -shift, dy: 0)
     }

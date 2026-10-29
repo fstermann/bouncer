@@ -64,8 +64,9 @@ private final class MemoryPersistence: PreferencesPersistence, @unchecked Sendab
         #expect(!store.preferences.showItemsInBar)
         #expect(store.preferences.animateBar)
         #expect(store.preferences.barAnimationDuration == 0.18)
-        #expect(store.preferences.barStyle == .automatic)
         #expect(store.preferences.todoFile == nil)
+        #expect(store.preferences.enableMenuBarItems)
+        #expect(store.preferences.enableTodos)
         #expect(store.preferences.notchPage == .items)
         #expect(store.preferences.tagColors.isEmpty)
     }
@@ -84,14 +85,25 @@ private final class MemoryPersistence: PreferencesPersistence, @unchecked Sendab
         #expect(reloaded.preferences.tagColors == ["work": "blue"])
     }
 
-    @Test func barStyleRoundTrips() throws {
+    @Test func onlyAnEmptyStoreIsAFirstLaunch() {
         let persistence = MemoryPersistence()
+        #expect(SettingsStore(persistence: persistence).isFirstLaunch)
         let store = SettingsStore(persistence: persistence)
-        store.preferences.barStyle = .custom(red: 0.2, green: 0.4, blue: 0.6)
+        store.preferences.enableTodos = false
         store.flush()
-
         let reloaded = SettingsStore(persistence: persistence)
-        #expect(reloaded.preferences.barStyle == .custom(red: 0.2, green: 0.4, blue: 0.6))
+        #expect(!reloaded.isFirstLaunch)
+        #expect(!reloaded.preferences.enableTodos)
+        #expect(reloaded.preferences.enableMenuBarItems)
+    }
+
+    @Test func aStoredBarStyleFromBeforeTheNotchOnlyBarIsIgnored() {
+        let stored = Data("""
+        {"autoRehide":{"onFocusedAppChange":{}},"enableAlwaysHiddenSection":false,\
+        "revealOnHover":true,"showBouncerIcon":true,"barStyle":{"glass":{}}}
+        """.utf8)
+        let store = SettingsStore(persistence: MemoryPersistence(data: stored))
+        #expect(store.preferences.revealOnHover)
     }
 
     @Test func storedAnimationDurationIsClampedToTheSlidersRange() {

@@ -6,107 +6,54 @@ import SwiftUI
 import Todos
 import UniformTypeIdentifiers
 
-/// A pane in the settings sidebar. The order here is the order they appear.
-enum Pane: String, CaseIterable, Identifiable, Hashable {
-    case general, revealing, standaloneBar, todos, updates
+/// What Bouncer does: hide menu bar items, show todos, or both. At least one is always on.
+enum Mode: CaseIterable, Identifiable {
+    case menuBarItems, todos
 
     var id: Self { self }
 
-    var label: String {
+    var title: String {
         switch self {
-        case .general: "General"
-        case .revealing: "Revealing"
-        case .standaloneBar: "Standalone bar"
+        case .menuBarItems: "Menu bar items"
         case .todos: "Todos"
-        case .updates: "Updates"
         }
     }
 
     var symbol: String {
         switch self {
-        case .general: "gearshape"
-        case .revealing: "eye"
-        case .standaloneBar: "menubar.rectangle"
+        case .menuBarItems: "menubar.rectangle"
         case .todos: "checklist"
-        case .updates: "arrow.down.circle"
         }
+    }
+
+    var detail: String {
+        switch self {
+        case .menuBarItems: "Hide menu bar items behind dividers and reveal them when you need them."
+        case .todos: "Keep a todo list from a Markdown file under the notch."
+        }
+    }
+
+    private var keyPath: WritableKeyPath<Preferences, Bool> {
+        switch self {
+        case .menuBarItems: \.enableMenuBarItems
+        case .todos: \.enableTodos
+        }
+    }
+
+    func binding(in preferences: Binding<Preferences>) -> Binding<Bool> {
+        preferences[dynamicMember: keyPath]
+    }
+
+    /// Switching it off would leave Bouncer doing nothing.
+    func isLastOn(in preferences: Preferences) -> Bool {
+        preferences[keyPath: keyPath] && Self.allCases.allSatisfy { $0 == self || !preferences[keyPath: $0.keyPath] }
     }
 }
 
-/// One selectable row in the settings sidebar: a filled pill when it is the current pane.
-struct SidebarRow: View {
-    let pane: Pane
-    let isSelected: Bool
-    let select: () -> Void
-
-    var body: some View {
-        Button(action: select) {
-            Label(pane.label, systemImage: pane.symbol)
-                .labelStyle(.titleAndIcon)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(isSelected ? Color.white : Color.primary)
-        .background {
-            if isSelected {
-                RoundedRectangle(cornerRadius: 6).fill(Color.accentColor)
-            }
-        }
-    }
-}
-
-/// A colour offered as a swatch, kept in the same sRGB components the preference stores so
-/// selection is an exact comparison rather than a round-trip through `Color`.
-struct Swatch: Hashable {
-    let red: Double
-    let green: Double
-    let blue: Double
-
-    var colour: Color { Color(.sRGB, red: red, green: green, blue: blue) }
-    var style: BarStyle { .custom(red: red, green: green, blue: blue) }
-
-    func matches(_ style: BarStyle) -> Bool { style == self.style }
-}
-
-let swatches: [Swatch] = [
-    Swatch(red: 0.11, green: 0.11, blue: 0.12),
-    Swatch(red: 0.35, green: 0.35, blue: 0.37),
-    Swatch(red: 0.78, green: 0.78, blue: 0.80),
-    Swatch(red: 0.78, green: 0.24, blue: 0.24),
-    Swatch(red: 0.86, green: 0.53, blue: 0.18),
-    Swatch(red: 0.25, green: 0.56, blue: 0.31),
-    Swatch(red: 0.20, green: 0.45, blue: 0.78),
-    Swatch(red: 0.45, green: 0.32, blue: 0.68)
-]
-
-struct SwatchShape: View {
-    let colour: Color
-
-    var body: some View {
-        Circle()
-            .fill(colour)
-            .frame(width: 16, height: 16)
-            .overlay(Circle().strokeBorder(.separator, lineWidth: 0.5))
-    }
-}
-
-struct SwatchButton: View {
-    let colour: Color
-    let isSelected: Bool
-    let select: () -> Void
-
-    var body: some View {
-        Button(action: select) {
-            SwatchShape(colour: colour)
-                .padding(2)
-                .overlay {
-                    Circle().strokeBorder(.tint, lineWidth: isSelected ? 2 : 0)
-                }
-        }
-        .buttonStyle(.plain)
+extension Section where Parent == Label<Text, Image>, Footer == EmptyView, Content: View {
+    /// A section headed by its title and an SF Symbol.
+    init(_ title: String, systemImage: String, @ViewBuilder content: () -> Content) {
+        self.init(content: content) { Label(title, systemImage: systemImage) }
     }
 }
 
@@ -156,14 +103,40 @@ struct HoverRevealOptions: View {
     @Binding var preferences: Preferences
 
     var body: some View {
-        Toggle("Reveal when the pointer enters the menu bar", isOn: $preferences.revealOnHover)
-        Toggle(isOn: $preferences.revealNearNotch) {
-            Text("Reveal when the pointer reaches the notch")
-            Text("Closes again when the pointer leaves. Without a notch, the top centre of the menu bar.")
+        Picker(selection: reach) {
+            Text("Off").tag(Reach.off)
+            Text("At the notch").tag(Reach.notch)
+            if preferences.enableMenuBarItems {
+                Text("Anywhere in the menu bar").tag(Reach.menuBar)
+            }
+        } label: {
+            Text("Reveal on hover")
+            Text(reachDetail)
         }
-        if preferences.revealOnHover || preferences.revealNearNotch {
+        if reach.wrappedValue != .off {
             delayPicker
         }
+    }
+
+    /// Where hover reveals. The whole menu bar takes in the notch, which still opens the todo page.
+    private enum Reach: Hashable {
+        case off, notch, menuBar
+    }
+
+    /// Hover over the whole menu bar means nothing without menu bar items, so it reads as the notch.
+    private var reach: Binding<Reach> {
+        Binding {
+            if preferences.enableMenuBarItems, preferences.revealOnHover { return .menuBar }
+            return preferences.revealNearNotch || preferences.revealOnHover ? .notch : .off
+        } set: { reach in
+            preferences.revealOnHover = reach == .menuBar
+            preferences.revealNearNotch = reach != .off
+        }
+    }
+
+    private var reachDetail: String {
+        let notch = preferences.enableTodos ? "The notch opens the todos" : "The notch reveals hidden items"
+        return "\(notch) and closes when the pointer leaves. Without a notch, the top centre of the menu bar."
     }
 
     @ViewBuilder private var delayPicker: some View {
@@ -205,7 +178,7 @@ struct TodoOptions: View {
     @Binding var preferences: Preferences
 
     var body: some View {
-        Section {
+        Section("Todos", systemImage: "checklist") {
             LabeledContent("File") {
                 HStack(spacing: 8) {
                     Text(fileName)
@@ -220,7 +193,7 @@ struct TodoOptions: View {
             }
             Text("Bouncer shows the open `- [ ]` lines of this Markdown file under the notch, and adds new "
                  + "ones at its end. Without a chosen file, it keeps them in a local one. Hover near the notch "
-                 + "to open it, or use the switch in the bar.")
+                 + "or press ⌘⇧B to open it.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
         }

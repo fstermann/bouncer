@@ -1,5 +1,11 @@
 # Architecture
 
+Bouncer has two modes, and the user picks one or both on first launch: **menu bar items**, which
+hides items behind dividers, and **todos**, the todo page under the notch. Each works without the
+other (`Preferences.enableMenuBarItems`, `Preferences.enableTodos`). With menu bar items off there
+is no divider in the bar, Bouncer's icon opens the todo page, and nothing of this section runs;
+with todos off there is no todo page, no switch to it and no ⌘⇧B.
+
 ## How hiding works
 
 macOS lays status items out right to left and gives each item a width. There is no API
@@ -87,11 +93,8 @@ out there, so that call goes through SkyLight's private window capture, and a ma
 that drops it leaves the bar without pictures rather than crashing. The cover that hides
 the real items while they are revealed is a painted surface, not a picture of the bar: a still
 of the whole bar swapped in and out was visible as the bar twitching, and it knew nothing
-about the wallpaper moving under it or the shadow a menu casts over it. What the paint is —
-a flat colour, or dimmed Liquid Glass — is the user's choice, stored in `Preferences.barStyle`
-and resolved by `BarSurface`, which dresses both halves of the panel alike. Glass over the
-cover is dimmed rather than clear, a knowing trade of airtight hiding for a panel that reads
-as one material: clear glass would refract the very icons the cover exists to hide.
+about the wallpaper moving under it or the shadow a menu casts over it. Both halves of the
+panel are painted black, so it reads as the notch grown down into the bar.
 
 The reveal is for the menus alone. A status item anchors its menu to its own window, so an
 item left parked off the display opens its menu off the display too — measured, at x =
@@ -104,14 +107,12 @@ the items underneath a cover stay exactly as clickable as they were. So the sect
 revealed into its ordinary place, that stretch of bar is covered, and the items are drawn
 again a row lower. Hidden from the eye, fully alive to a click.
 
-The cover and the shelf are two windows and one panel: it slides out of the menu bar with the
-replicas leading and the cover behind them, and slides back in the same way. That is why the
-landing has to be *worked out* rather than measured — the panel is built and moving before the
-reveal, so it cannot wait to be told where the section went. It lands where the items pack
-edge to edge left of the visible run, one collapsed divider's width clear of it.
+The cover and the shelf are two windows and one panel, and the landing has to be *worked out*
+rather than measured: the panel is built and moving before the reveal, so it cannot wait to be
+told where the section went. It lands where the items pack edge to edge left of the visible run,
+one collapsed divider's width clear of it.
 
-The notch style (`BarStyle.notch`) takes another path out of the menu bar. The panel starts as
-the notch, black on black, and grows wider and taller at once on one spring, its lower corners
+The panel grows out of the notch. It starts as the notch, black on black, and grows wider and taller at once on one spring, its lower corners
 travelling diagonally out to where it rests, the replicas blurring into focus as it lands. The
 way back blurs them out, then lifts and gathers without bounce (`NotchSlide`), every property on
 Core Animation springs from one start time. A display without a notch gets a notch-sized
@@ -248,7 +249,7 @@ event source; a change synced in while it is closed is read on the next open. Ed
 file as it is on disk at that moment, and a tick or edit whose line no longer holds the todo is dropped
 rather than landing on another line.
 
-Each page switches to the other from the top right of the panel. On the items page the
+Each page switches to the other from the top right of the panel, while both are on. On the items page the
 `ClickShield` takes its click, since it already swallows clicks over the section's last item, so the
 switch costs the user nothing; it follows the section through every open and rearrangement because
 the shield does. The cover draws it, so it rides the panel's edge and comes into focus with the
@@ -258,7 +259,8 @@ Both pages move alike, on the same `Motion` springs: the panel grows, and its co
 panel's shape and pinned to its top, so the panel reveals it rather than the content appearing
 beside a panel still on its way. The content comes into focus as the panel lands and goes out of
 focus as it leaves.
-Hover opens whichever page the switch last chose (`Preferences.notchPage`). Switching morphs
+With both pages on, hover opens whichever the switch last chose (`Preferences.notchPage`). Without
+the items page, the notch opens the todo page and the rest of the menu bar reveals the items. Switching morphs
 rather than closing one panel and opening the other, and the todo panel does all the moving: it
 fades in over the items panel, which is then taken down unanimated underneath it, and springs to
 its own shape. Going back, the items panel's windows are built invisible underneath it, the todo
