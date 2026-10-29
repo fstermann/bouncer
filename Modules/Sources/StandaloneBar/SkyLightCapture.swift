@@ -9,7 +9,7 @@ import Darwin
 /// that drops it leaves the bar without pictures rather than crashing.
 ///
 /// It photographs status items, not the bar they sit in: the window server's own menu bar
-/// windows come back nil. Nothing needs them — the cover is a flat colour.
+/// windows come back nil. Nothing needs them: the cover is painted black.
 enum SkyLightCapture {
     private typealias CreateImageFromArray = @convention(c) (
         CGRect, CFArray, CGWindowImageOption
