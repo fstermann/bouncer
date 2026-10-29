@@ -25,7 +25,7 @@ struct SettingsForm: View {
 
     var body: some View {
         Form {
-            Section("Modes") {
+            Section("Modes", systemImage: "switch.2") {
                 ForEach(Mode.allCases) { mode in
                     Toggle(isOn: mode.binding(in: $settings.preferences)) {
                         Text(mode.title)
@@ -49,7 +49,7 @@ struct SettingsForm: View {
     }
 
     @ViewBuilder private var generalSection: some View {
-        Section("General") {
+        Section("General", systemImage: "gearshape") {
             Toggle("Launch Bouncer at login", isOn: $launchAtLogin)
                 .onChange(of: launchAtLogin) { LaunchAtLogin.isEnabled = launchAtLogin }
 
@@ -58,7 +58,7 @@ struct SettingsForm: View {
     }
 
     @ViewBuilder private var notchSection: some View {
-        Section("Notch") {
+        Section("Notch", systemImage: "macbook") {
             HoverRevealOptions(preferences: $settings.preferences)
 
             Toggle("Animate the panel", isOn: $settings.preferences.animateBar)
@@ -75,7 +75,7 @@ struct SettingsForm: View {
     }
 
     @ViewBuilder private var menuBarItemsSection: some View {
-        Section("Menu bar items") {
+        Section("Menu bar items", systemImage: "menubar.rectangle") {
             Toggle("Enable an always-hidden section", isOn: $settings.preferences.enableAlwaysHiddenSection)
             Toggle("Reveal when the pointer enters the menu bar", isOn: $settings.preferences.revealOnHover)
 
@@ -123,7 +123,7 @@ struct SettingsForm: View {
     }
 
     @ViewBuilder private var updatesSection: some View {
-        Section("Updates") {
+        Section("Updates", systemImage: "arrow.down.circle") {
             // A dev build, or an updater that failed to start, updates nothing — so it does
             // not offer the choice either.
             if updates.isRunning {

@@ -43,6 +43,13 @@ enum Mode: CaseIterable, Identifiable {
     }
 }
 
+extension Section where Parent == Label<Text, Image>, Footer == EmptyView, Content: View {
+    /// A section headed by its title and an SF Symbol.
+    init(_ title: String, systemImage: String, @ViewBuilder content: () -> Content) {
+        self.init(content: content) { Label(title, systemImage: systemImage) }
+    }
+}
+
 /// One permission's live status, with a shortcut to its System Settings pane while it is
 /// missing — the native prompt only re-shows the first time, so a denied permission is
 /// fixed there.
@@ -137,7 +144,7 @@ struct TodoOptions: View {
     @Binding var preferences: Preferences
 
     var body: some View {
-        Section("Todos") {
+        Section("Todos", systemImage: "checklist") {
             LabeledContent("File") {
                 HStack(spacing: 8) {
                     Text(fileName)
