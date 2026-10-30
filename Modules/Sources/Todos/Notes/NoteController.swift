@@ -146,9 +146,7 @@ public final class NoteController {
         note.name = folder.free(NoteName.make(title: title, start: start))
         folder.write(note.markdown(over: ""), to: note.name)
         reload()
-        let draft = NoteDraft(note)
-        draft.bodyFocusRequests += 1
-        page.editing = draft
+        page.editing = NoteDraft(note)
     }
 
     /// Opens `note` in the panel, or brings forward the window it is popped out into.
