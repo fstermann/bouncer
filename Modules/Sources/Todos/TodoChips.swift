@@ -21,8 +21,8 @@ enum TagColor: String, CaseIterable {
 
 /// The colours `tag` can be drawn in, as swatches rather than a system menu: a system menu shows the
 /// names in plain text, and the pointer reaching into it reads as leaving the panel.
-struct Palette: View {
-    let page: TodoPage
+struct Palette<Page: TagFiltering>: View {
+    let page: Page
     let tag: String
 
     var body: some View {

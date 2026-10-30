@@ -1,14 +1,14 @@
 import SwiftUI
 
-/// A magnifying glass that springs open into a field searching the todos, closed again by the
+/// A magnifying glass that springs open into a field searching the page, closed again by the
 /// cross at its end, which stays where the glass was.
-struct SearchControl: View {
-    @Bindable var page: TodoPage
+struct SearchControl<Page: TagFiltering>: View {
+    @Bindable var page: Page
 
     var body: some View {
         HStack(spacing: 0) {
             Button { withAnimation(.snappy) { page.openSearch() } } label: { Image(systemName: "magnifyingglass") }
-                .help("Search todos (⌘F)")
+                .help("Search (⌘F)")
             // Kept in place while closed, since SwiftUI takes an AppKit view out without its transition.
             PanelField(
                 placeholder: "Search", text: $page.query, focusRequests: page.searchFocusRequests,

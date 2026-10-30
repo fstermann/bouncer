@@ -37,6 +37,11 @@ final class NotchTab {
         set { switchView.onSwitch = newValue }
     }
 
+    var switchImage: NSImage? {
+        get { switchView.glyph.image }
+        set { switchView.glyph.image = newValue }
+    }
+
     /// The band in AppKit coordinates, the bar's height tall: what the todo page grows from.
     var outline: CGRect? {
         window.map { _ in BarWindow.appKitFrame(for: Self.frame(under: span, barHeight: tabFrame.height)) }
@@ -260,7 +265,7 @@ final class NotchTab {
 
 private final class SwitchView: NSView {
     var onSwitch: (@MainActor () -> Void)?
-    private let glyph = PageSwitchGlyph.make()
+    let glyph = PageSwitchGlyph.make()
 
     /// Over where the chevron sits, at the shade's right end.
     func placeGlyph() {

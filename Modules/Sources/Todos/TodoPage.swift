@@ -1,10 +1,11 @@
 import Observation
+import Settings
 import SwiftUI
 
 /// What the todo page shows, and what it does when used.
 @MainActor
 @Observable
-final class TodoPage {
+final class TodoPage: TagFiltering {
     var todos: [Todo] = []
     /// From the file's frontmatter; offered as filters even before any todo carries them.
     var categories: [String] = []
@@ -30,7 +31,8 @@ final class TodoPage {
     var searchFocusRequests = 0
     /// The row beside the notch, which the page starts below.
     var menuBarHeight: CGFloat = 24
-    var showsSwitch = false
+    /// The other pages, switched to from the top right.
+    var switches: [NotchPage] = []
     var showsDone = false
     /// Just ticked, and kept in the list a moment so a mis-click can be taken back.
     var lingering: Set<Todo> = []
@@ -69,92 +71,9 @@ final class TodoPage {
     @ObservationIgnored var onColor: (@MainActor (String, String?) -> Void)?
     /// The order the chips were dragged into, once the drag ends.
     @ObservationIgnored var onOrder: (@MainActor ([String]) -> Void)?
-    @ObservationIgnored var onSwitch: (@MainActor () -> Void)?
+    @ObservationIgnored var onSwitch: (@MainActor (NotchPage) -> Void)?
     /// The page's height changed, so the panel has to refit.
     @ObservationIgnored var onResize: (@MainActor () -> Void)?
-
-    /// The categories and any other tag a listed todo carries, each once and after the tags it is
-    /// nested under, in the order they were dragged into: a tag only done todos carry shows while they do.
-    var tags: [String] {
-        var seen = Set<String>()
-        let found = (categories + listed.flatMap { $0.tags })
-            .flatMap(TagPath.lineage).filter { seen.insert($0).inserted }
-        return TagPath.sorted(found, by: tagOrder)
-    }
-
-    /// Moves `tag`'s chip to where `target`'s stands, if both sit under the same tag.
-    func moveTag(_ tag: String, onto target: String) {
-        tagOrder = TagPath.moving(tag, onto: target, in: tags, order: tagOrder)
-    }
-
-    /// The tags offered as chips, the selected filters first. Nested tags are offered once the tag
-    /// above them is selected, ahead of the rest; those under the deepest selected tag even before
-    /// any todo carries them. Once some are selected, only the other tags that narrow the list
-    /// further are offered with them.
-    var chipTags: [String] {
-        let shown = tags.filter { !filters.contains($0) && (TagPath.parent(of: $0).map(filters.contains) ?? true) }
-        let offered = shown.filter {
-            filters.isEmpty || count(of: $0) > 0 || TagPath.parent(of: $0).map(deepestFilters.contains) == true
-        }
-        let nested = offered.filter { TagPath.parent(of: $0) != nil }
-        return tags.filter(filters.contains) + nested + offered.filter { TagPath.parent(of: $0) == nil }
-    }
-
-    /// The categories that are `tag` or nested under it, which deleting its chip deletes.
-    func categories(under tag: String) -> [String] {
-        categories.filter { TagPath.matches($0, tag) }
-    }
-
-    /// The selected tags no other selected tag is nested under, which between them carry all the filters.
-    private var deepestFilters: Set<String> {
-        filters.filter { filter in !filters.contains { $0 != filter && TagPath.matches($0, filter) } }
-    }
-
-    /// How many listed todos carry `tag`, or a tag under it, beside the selected filters.
-    func count(of tag: String) -> Int {
-        narrowed.filter { $0.tags.contains { TagPath.matches($0, tag) } }.count
-    }
-
-    var untaggedCount: Int { listed.filter { $0.tags.isEmpty }.count }
-
-    /// Offered only beside tags, while some todo has none, and while no tag is selected, which no
-    /// untagged todo could carry.
-    var offersUntagged: Bool { !tags.isEmpty && untaggedCount > 0 && filters.isEmpty }
-
-    func toggleFilter(_ tag: String) {
-        showsUntagged = false
-        // The tags under it were offered only beside it, so they go with it.
-        if filters.contains(tag) { filters = filters.filter { !TagPath.matches($0, tag) } } else { filters.insert(tag) }
-    }
-
-    func toggleUntagged() {
-        filters = []
-        showsUntagged.toggle()
-    }
-
-    func openSearch() {
-        isSearching = true
-        searchFocusRequests += 1
-    }
-
-    /// Forgets the search, and gives the cursor back to the todo field.
-    func closeSearch() {
-        guard isSearching else { return }
-        isSearching = false
-        query = ""
-        focusRequests += 1
-    }
-
-    /// `text` with what the search found in it marked.
-    func marked(_ text: String) -> AttributedString {
-        var marked = AttributedString(text)
-        guard isSearching else { return marked }
-        for range in TextSearch.ranges(of: query, in: text) {
-            guard let found = Range(range, in: marked) else { continue }
-            marked[found].backgroundColor = .yellow.opacity(0.4)
-        }
-        return marked
-    }
 
     /// Open todos, and ticked ones still lingering or being edited: the soonest due first, the rest
     /// in file order.
@@ -181,22 +100,18 @@ final class TodoPage {
 
     private var listed: [Todo] { showsDone ? todos : todos.filter(isListedOpen) }
 
-    private var narrowed: [Todo] { listed.filter { carriesFilters($0.tags) } }
+    /// A tag only done todos carry shows while they do.
+    var listedTags: [[String]] { listed.map(\.tags) }
 
     private var filtered: [Todo] {
         todos.filter {
-            let tags = $0.tags
-            return (showsUntagged ? tags.isEmpty : carriesFilters(tags)) && isFound($0)
+            isShown(carrying: $0.tags) && isFound($0)
         }
-    }
-
-    private func carriesFilters(_ tags: [String]) -> Bool {
-        filters.allSatisfy { filter in tags.contains { TagPath.matches($0, filter) } }
     }
 
     /// In its title or its note; every todo while nothing is searched for.
     private func isFound(_ todo: Todo) -> Bool {
-        guard isSearching, !query.trimmingCharacters(in: .whitespaces).isEmpty else { return true }
+        guard hasQuery else { return true }
         return [TaskText(todo.text).title, todo.note].contains { !TextSearch.ranges(of: query, in: $0).isEmpty }
     }
 
@@ -205,9 +120,7 @@ final class TodoPage {
     func add() {
         var lines = draft.components(separatedBy: "\n")
         if !lines[0].trimmingCharacters(in: .whitespaces).isEmpty {
-            let typed = TaskText(lines[0]).tags
-            let lacking = deepestFilters.filter { filter in !typed.contains { TagPath.matches($0, filter) } }
-            lines[0] += lacking.sorted().map { " #\($0)" }.joined()
+            lines[0] += lackingFilters(in: TaskText(lines[0]).tags).map { " #\($0)" }.joined()
         }
         onAdd?(lines.joined(separator: "\n"))
         draft = ""
@@ -281,17 +194,6 @@ final class TodoPage {
     /// The edited todo's first line, which holds its tags.
     var editTitle: String { editDraft.components(separatedBy: "\n")[0] }
 
-    /// A nested tag without a colour of its own takes the one of the tag above it.
-    func color(of tag: String) -> Color? {
-        tagColors[tag].flatMap(TagColor.init(rawValue:))?.color ?? TagPath.parent(of: tag).flatMap(color)
-    }
-
-    func setColor(_ color: TagColor, of tag: String) {
-        let name = color == .grey ? nil : color.rawValue
-        tagColors[tag] = name
-        onColor?(tag, name)
-    }
-
     static let width: CGFloat = 420
     static let maxListHeight: CGFloat = 320
     /// The column the rows' circles stand in, which the field's plus and the editor's circle share.
@@ -299,6 +201,17 @@ final class TodoPage {
 
     /// An estimate until the page has been laid out, and its laid-out height from then on.
     var height: CGFloat { contentHeight ?? menuBarHeight + 28 * CGFloat(rows.count + 2) }
+}
+
+extension TodoPage: PanelPage {
+    var width: CGFloat { Self.width }
+
+    func menuFrame(in panel: CGRect) -> CGRect? {
+        menu.map { $0.frame(size: menuSize, under: menuIcon, in: panel) }
+    }
+
+    var view: TodoPageView { TodoPageView(page: self) }
+    var menuView: RowMenuHost { RowMenuHost(page: self) }
 }
 
 struct TodoPageView: View {
@@ -356,13 +269,7 @@ struct TodoPageView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            if page.showsSwitch {
-                Button { page.onSwitch?() } label: { Image(systemName: "menubar.rectangle") }
-                    .buttonStyle(.plain)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .help("Show hidden items")
-            }
+            PageSwitches(pages: page.switches) { page.onSwitch?($0) }
         }
         .padding(.horizontal, 14)
         .frame(height: page.menuBarHeight)

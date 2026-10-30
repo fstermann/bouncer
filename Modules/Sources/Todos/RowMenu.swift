@@ -49,8 +49,8 @@ struct RowMenuHost: View {
 }
 
 /// Opens `menu` under itself, or closes it.
-struct MenuButton<Label: View>: View {
-    let page: TodoPage
+struct MenuButton<Page: TagFiltering, Label: View>: View {
+    let page: Page
     let menu: RowMenu
     let help: String
     @ViewBuilder let label: Label
