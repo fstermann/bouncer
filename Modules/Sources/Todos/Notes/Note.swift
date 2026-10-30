@@ -161,6 +161,11 @@ enum NoteTime {
         ))
     }
 
+    /// `hour`:`minute` on `day`.
+    static func at(hour: Int, minute: Int, on day: Date, calendar: Calendar = .current) -> Date {
+        calendar.date(bySettingHour: hour, minute: minute, second: 0, of: day) ?? day
+    }
+
     /// `date` on `day`, at the same time of day.
     static func moving(_ date: Date, to day: Date, calendar: Calendar = .current) -> Date {
         let time = calendar.dateComponents([.hour, .minute, .second], from: date)

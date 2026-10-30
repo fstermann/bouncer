@@ -35,46 +35,52 @@ struct NoteEditor: View {
     /// Fills its window rather than keeping the panel's height.
     var fillsHeight = false
     @FocusState private var isWritingBody: Bool
+    @FocusState private var isTypingLocation: Bool
+    /// Empty properties shown since their adder was clicked.
+    @State private var revealed: Set<Field> = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             header
             VStack(alignment: .leading, spacing: 6) {
                 times
-                MetaRow(symbol: "person.2", help: "People") {
-                    ChipField(
-                        placeholder: "People", items: $draft.people,
-                        offered: { ListCompletion.suggestions(for: $0, carrying: $1, from: known.people) },
-                        item: ListCompletion.name(from:)
-                    )
-                }
-                HStack(spacing: 12) {
-                    MetaRow(symbol: "folder", help: "Project") {
+                if shows(.people) {
+                    MetaRow(symbol: Field.people.symbol, help: "People") {
                         ChipField(
-                            placeholder: "Project", items: project,
-                            offered: { ListCompletion.suggestions(for: $0, carrying: $1, from: known.projects) },
-                            item: ListCompletion.name(from:), isSingle: true
+                            placeholder: "People", items: $draft.people,
+                            offered: { ListCompletion.suggestions(for: $0, carrying: $1, from: known.people) },
+                            item: ListCompletion.name(from:), focusesOnAppear: revealed.contains(.people)
                         )
                     }
-                    MetaRow(symbol: "link", help: "Room or call link") {
-                        HStack(spacing: 4) {
-                            TextField("Room or link", text: $draft.location).textFieldStyle(.plain)
-                            if let link = draft.link {
-                                Button { NSWorkspace.shared.open(link) } label: { Image(systemName: "arrow.up.right") }
-                                    .buttonStyle(.plain)
-                                    .foregroundStyle(.secondary)
-                                    .help("Open link")
+                }
+                if shows(.project) || shows(.link) {
+                    HStack(spacing: 12) {
+                        if shows(.project) {
+                            MetaRow(symbol: Field.project.symbol, help: "Project") {
+                                ChipField(
+                                    placeholder: "Project", items: project,
+                                    offered: {
+                                        ListCompletion.suggestions(for: $0, carrying: $1, from: known.projects)
+                                    },
+                                    item: ListCompletion.name(from:), isSingle: true,
+                                    focusesOnAppear: revealed.contains(.project)
+                                )
                             }
                         }
+                        if shows(.link) { location }
                     }
                 }
-                MetaRow(symbol: "tag", help: "Tags") {
-                    ChipField(
-                        placeholder: "Tags", items: $draft.tags,
-                        offered: { TagCompletion.suggestions(for: $0, carrying: $1, from: known.tags) },
-                        item: TagCompletion.tag(from:), breaks: " ,", color: known.color(of:)
-                    )
+                if shows(.tags) {
+                    MetaRow(symbol: Field.tags.symbol, help: "Tags") {
+                        ChipField(
+                            placeholder: "Tags", items: $draft.tags,
+                            offered: { TagCompletion.suggestions(for: $0, carrying: $1, from: known.tags) },
+                            item: TagCompletion.tag(from:), breaks: " ,", color: known.color(of:),
+                            focusesOnAppear: revealed.contains(.tags)
+                        )
+                    }
                 }
+                adders
             }
             .font(.callout)
             Divider().overlay(.white.opacity(0.1))
@@ -114,6 +120,77 @@ struct NoteEditor: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(.secondary)
+    }
+
+    /// The properties left out while empty, added from the row under the others.
+    private enum Field: CaseIterable {
+        case people, project, link, tags
+
+        var symbol: String {
+            switch self {
+            case .people: "person.2"
+            case .project: "folder"
+            case .link: "link"
+            case .tags: "tag"
+            }
+        }
+
+        var title: String {
+            switch self {
+            case .people: "People"
+            case .project: "Project"
+            case .link: "Room or link"
+            case .tags: "Tags"
+            }
+        }
+    }
+
+    private func shows(_ field: Field) -> Bool {
+        guard !revealed.contains(field) else { return true }
+        return switch field {
+        case .people: !draft.people.isEmpty
+        case .project: !draft.project.isEmpty
+        case .link: !draft.location.isEmpty
+        case .tags: !draft.tags.isEmpty
+        }
+    }
+
+    @ViewBuilder private var adders: some View {
+        let hidden = Field.allCases.filter { !shows($0) }
+        if !hidden.isEmpty {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Image(systemName: "plus")
+                    .frame(width: TodoPage.markWidth)
+                    .foregroundStyle(.tertiary)
+                ForEach(hidden, id: \.self) { field in
+                    Button {
+                        revealed.insert(field)
+                        // A turn later, once the field is in the window.
+                        if field == .link { Task { isTypingLocation = true } }
+                    } label: {
+                        Label(field.title, systemImage: field.symbol)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private var location: some View {
+        MetaRow(symbol: Field.link.symbol, help: "Room or call link") {
+            HStack(spacing: 4) {
+                TextField("Room or link", text: $draft.location)
+                    .textFieldStyle(.plain)
+                    .focused($isTypingLocation)
+                if let link = draft.link {
+                    Button { NSWorkspace.shared.open(link) } label: { Image(systemName: "arrow.up.right") }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                        .help("Open link")
+                }
+            }
+        }
     }
 
     private var times: some View {

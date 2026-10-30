@@ -188,5 +188,7 @@ import Testing
         let day = NoteTime.date(from: "2026-10-28", calendar: calendar) ?? Date()
         let moved = NoteTime.moving(start, to: day, calendar: calendar)
         #expect(NoteTime.string(for: moved, calendar: calendar) == "2026-10-28T14:06")
+        let half = NoteTime.at(hour: 9, minute: 30, on: start, calendar: calendar)
+        #expect(NoteTime.string(for: half, calendar: calendar) == "2026-10-30T09:30")
     }
 }
