@@ -42,14 +42,14 @@ extension StandaloneBarController {
         }
         reveal(shiftedFor: layout?.width, end: end, notch: notch.range)
         if layout == nil { _ = await AgentItems.revealed(in: notch.range.upperBound...end, height: height) }
-        let settled = await settleBothSides(notch: notch.range)
+        let settled = await settleBothSides(notch: notch.range, expectingOverflow: layout != nil)
         var frames = settled.frames
         // Read here only before the first close: a reading taken while the bar still moves would
         // split it differently from one open to the next.
         if layout == nil, let width = sectionWidth(in: frames, notch: notch.range, end: end) {
             menuBar.sectionShift = NotchSplit.shift(for: width, endingAt: end, notch: notch.range)
             await AgentItems.change(from: frames)
-            frames = await settleBothSides(notch: notch.range).frames
+            frames = await settleBothSides(notch: notch.range, expectingOverflow: true).frames
         }
         await showing?.value
         let reach = NotchSplit.band(over: frames, notch: notch.range, end: end)
@@ -60,9 +60,26 @@ extension StandaloneBarController {
             tab.extend(to: reach, over: duration)
             // Accessibility has the overflow's final frames well before it has finished sliding out.
             if duration != nil { try? await Task.sleep(until: settled.opened + .seconds(AgentOverflow.slide)) }
+            // Read again once the overflow is out: a batch can still arrive after it looked settled.
+            let landed = await AgentItems.frames()
+            tab.extend(to: NotchSplit.band(over: landed, notch: notch.range, end: end), over: duration)
             await tab.uncover(over: duration)
         }
         finishOpening(of: [], from: [:], over: tabFrame)
+        closeWhenTheOverflowCloses()
+    }
+
+    /// Another app coming to the front closes the chevron, taking the left side back into the notch
+    /// and leaving the band over the app menus, so the bar goes with it.
+    private func closeWhenTheOverflowCloses() {
+        appSwitches = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.isOpen, AgentOverflow.state != .open else { return }
+                Task { await self.close() }
+            }
+        }
     }
 
     /// How long the items take to go once collapsed: the overflow back into the notch, the rest fading.
@@ -81,7 +98,11 @@ extension StandaloneBarController {
     /// Closes the chevron before collapsing: left open, every later reveal, a plain click on the icon
     /// included, draws the overflow over the app menus.
     func closeInTheBar(animated: Bool) async {
-        if let end = menuBar.hiddenSectionEnd,
+        appSwitches.map(NSWorkspace.shared.notificationCenter.removeObserver)
+        appSwitches = nil
+        // Measured only with the chevron open: closed, it holds just the right side.
+        if AgentOverflow.state == .open,
+           let end = menuBar.hiddenSectionEnd,
            let notch = Notch.on(displayOf: CGRect(x: end, y: 0, width: 1, height: 1)) {
             let frames = await AgentItems.frames()
             if let width = sectionWidth(in: frames, notch: notch.range, end: end) {
@@ -104,10 +125,13 @@ extension StandaloneBarController {
 
     /// Opens the chevron, if the section overflowed, and returns every item once both sides have
     /// landed, with when it was opened.
+    ///
+    /// - Parameter expectingOverflow: whether to wait for the chevron. A split section always
+    ///   overflows, the shift or not: one wider than both sides gets none.
     private func settleBothSides(
-        notch: ClosedRange<CGFloat>
+        notch: ClosedRange<CGFloat>, expectingOverflow: Bool
     ) async -> (frames: [CGRect], opened: ContinuousClock.Instant) {
-        if menuBar.sectionShift > 0 { await AgentOverflow.appearance() }
+        if expectingOverflow { await AgentOverflow.appearance() }
         let opened = ContinuousClock.now
         AgentOverflow.open()
         let frames = AgentOverflow.state == .open

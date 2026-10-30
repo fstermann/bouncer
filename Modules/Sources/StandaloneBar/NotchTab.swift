@@ -32,6 +32,11 @@ final class NotchTab {
     /// The notch in AppKit coordinates, the bar's height tall: what the todo page grows from.
     var outline: CGRect? { window.map { _ in BarWindow.appKitFrame(for: tabFrame) } }
 
+    #if DEV
+    /// The band's ends, in window-server x, `nil` while it is not shown.
+    var devSpan: ClosedRange<CGFloat>? { window == nil ? nil : span }
+    #endif
+
     /// Where the pointer counts as having left it, in AppKit coordinates.
     var bottomEdge: CGFloat { window?.frame.minY ?? .infinity }
 
