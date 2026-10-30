@@ -25,7 +25,7 @@ that. The app is not sandboxed, so it can write there.
 ## Checking it yourself
 
 Don't ask the user to try a bar change and report back; drive a running Bouncer Dev with
-`make ctl`. It talks to `DebugHarness` (debug builds only), which holds the Screen Recording and
+`make ctl`. It talks to `DevHarness` (Bouncer Dev only), which holds the Screen Recording and
 Accessibility grants a shell lacks, and prints the app's reply:
 
 ```sh
@@ -57,12 +57,13 @@ Two principles decide every tradeoff — see README. In practice:
 - **Dependencies point one way** (`BouncerFoundation → Settings → MenuBar → BouncerUI`).
   Do not add a back edge; introduce a new module instead.
 - `Bouncer.xcodeproj` is generated — edit `project.yml`, never the project file.
-- **Debug is a different app.** `make run` builds `Bouncer Dev` / `com.bouncer.app.dev`, with its
+- **Dev is a different app.** `make run` builds `Bouncer Dev` / `com.bouncer.app.dev`, with its
   own defaults domain, permissions and no updater, so it can run beside an installed Bouncer.
   Never `pkill -x Bouncer` in a dev workflow — that kills the user's installed copy.
-- **Keep the Debug signature stable.** `.signing.mk` supplies the persistent `Bouncer Dev`
+  Code only Bouncer Dev should contain goes behind `#if DEV`; the release build never compiles it.
+- **Keep the Dev signature stable.** `.signing.mk` supplies the persistent `Bouncer Dev`
   identity through `make build` / `make run`. Never override it with
-  `CODE_SIGN_IDENTITY=-` or launch an ad-hoc-signed Debug build: its designated requirement is
+  `CODE_SIGN_IDENTITY=-` or launch an ad-hoc-signed Dev build: its designated requirement is
   tied to a changing code hash, so macOS invalidates its Accessibility and Screen Recording
   grants on every rebuild.
 - **Versions belong to release-please.** `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` in

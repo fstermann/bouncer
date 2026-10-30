@@ -1,8 +1,8 @@
-#if DEBUG
+#if DEV
 import AppKit
 
-/// What `DebugHarness` reads the bar with.
-enum DebugBarReader {
+/// What `DevHarness` reads the bar with.
+enum DevBarReader {
     struct OwnWindow {
         let id: UInt32
         let layer: Int

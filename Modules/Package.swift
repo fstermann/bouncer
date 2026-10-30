@@ -34,3 +34,9 @@ let package = Package(
     ],
     swiftLanguageModes: [.v6]
 )
+
+// `#if DEV` marks code that only Bouncer Dev contains. Xcode builds packages as debug only under a
+// configuration named Debug, so that name stays.
+for target in package.targets {
+    target.swiftSettings = [.define("DEV", .when(configuration: .debug))]
+}

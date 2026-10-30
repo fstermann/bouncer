@@ -1,4 +1,4 @@
-// Sends one command to the debug harness in a running Bouncer Dev and prints its reply.
+// Sends one command to the dev harness in a running Bouncer Dev and prints its reply.
 //
 // Run through the interpreter: `make ctl CMD="shoot /tmp/bar.png"`. Posting a distributed
 // notification needs no permission; the harness inside the app holds the ones that do.
@@ -19,11 +19,11 @@ guard !command.isEmpty else {
 let id = UUID().uuidString
 let center = DistributedNotificationCenter.default()
 var reply: String?
-let observer = center.addObserver(forName: Notification.Name("com.bouncer.debug.reply"), object: id, queue: .main) {
+let observer = center.addObserver(forName: Notification.Name("com.bouncer.dev.reply"), object: id, queue: .main) {
     reply = $0.userInfo?["result"] as? String ?? ""
 }
 center.postNotificationName(
-    Notification.Name("com.bouncer.debug.command"), object: command, userInfo: ["reply": id], deliverImmediately: true
+    Notification.Name("com.bouncer.dev.command"), object: command, userInfo: ["reply": id], deliverImmediately: true
 )
 
 let deadline = Date().addingTimeInterval(40)

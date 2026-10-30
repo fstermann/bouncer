@@ -26,8 +26,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let updates = UpdateController()
     private var settingsWindow: NSWindow?
     private var welcomeWindow: NSWindow?
-    #if DEBUG
-    private var harness: DebugHarness?
+    #if DEV
+    private var harness: DevHarness?
     #endif
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -43,8 +43,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         reveal.onHoverReveal = { [weak self] screen, atNotch in self?.handleHoverReveal(on: screen, atNotch: atNotch) }
         pageSwitches = ObservationLoop { [weak self] in self?.wirePageSwitches() }
         if settings.isFirstLaunch { showWelcome() }
-        #if DEBUG
-        harness = DebugHarness(controller: standaloneBar, menuBar: menuBar)
+        #if DEV
+        harness = DevHarness(controller: standaloneBar, menuBar: menuBar)
         harness?.listen()
         #endif
         Log.app.info("Bouncer launched")
@@ -91,7 +91,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return menu
     }
 
-    /// "Bouncer", or "Bouncer Dev" in a Debug build. A dev build sits in the menu bar beside an
+    /// "Bouncer", or "Bouncer Dev" in a Dev build. A dev build sits in the menu bar beside an
     /// installed Bouncer wearing the same glyph, so the words are the only way to tell whose
     /// menu and whose window you have in front of you.
     private static var appName: String {

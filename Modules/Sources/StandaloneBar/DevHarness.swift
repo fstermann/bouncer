@@ -1,18 +1,18 @@
-#if DEBUG
+#if DEV
 import AppKit
 import BouncerFoundation
 import MenuBar
 
 /// Drives and photographs the bar from a shell, so a change can be checked without a person
-/// watching it. Debug builds only.
+/// watching it. Bouncer Dev only.
 ///
 /// It lives in the app because the app holds the permissions: Screen Recording for pictures,
 /// Accessibility for the items. A shell has neither. The observer is the only thing installed;
 /// nothing runs until a command arrives. `Tools/barctl.swift` sends commands and prints replies.
 @MainActor
-public final class DebugHarness {
-    public static let commandName = Notification.Name("com.bouncer.debug.command")
-    public static let replyName = Notification.Name("com.bouncer.debug.reply")
+public final class DevHarness {
+    public static let commandName = Notification.Name("com.bouncer.dev.command")
+    public static let replyName = Notification.Name("com.bouncer.dev.reply")
 
     private let controller: StandaloneBarController
     private let menuBar: MenuBarManager
@@ -55,13 +55,13 @@ public final class DebugHarness {
         case "dump":
             return written(await state(), to: path)
         case "shoot":
-            let height = number.map { CGFloat($0) } ?? DebugCamera.defaultHeight
-            return await outcome { try await DebugCamera.shoot(height: height, to: URL(fileURLWithPath: path)) }
+            let height = number.map { CGFloat($0) } ?? DevCamera.defaultHeight
+            return await outcome { try await DevCamera.shoot(height: height, to: URL(fileURLWithPath: path)) }
         case "record":
-            let seconds = min(number ?? 3, DebugCamera.longestRecording)
+            let seconds = min(number ?? 3, DevCamera.longestRecording)
             return await outcome {
-                try await DebugCamera.record(
-                    seconds: seconds, height: height ?? DebugCamera.defaultHeight, to: URL(fileURLWithPath: path)
+                try await DevCamera.record(
+                    seconds: seconds, height: height ?? DevCamera.defaultHeight, to: URL(fileURLWithPath: path)
                 )
             }
         default:
@@ -102,15 +102,15 @@ public final class DebugHarness {
                 lines.append("notch \(Self.text(notch.range)) \(notch.isReal ? "real" : "stand-in")")
             }
         }
-        lines.append("chevron \(DebugBarReader.chevronState())")
-        for item in await DebugBarReader.accessibilityItems() {
+        lines.append("chevron \(DevBarReader.chevronState())")
+        for item in await DevBarReader.accessibilityItems() {
             lines.append("item \(Self.text(item.frame)) \(item.owner)")
         }
         let own = StatusItemScanner.bouncersOwn()
         for item in StatusItemScanner.scan() {
             lines.append("window item \(item.windowID) \(Self.text(item.frame)) \(own[item.windowID] ?? "")")
         }
-        for window in DebugBarReader.bouncerWindows() {
+        for window in DevBarReader.bouncerWindows() {
             lines.append("bouncer window \(window.id) level \(window.layer) \(Self.text(window.frame))")
         }
         return lines.joined(separator: "\n")

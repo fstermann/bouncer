@@ -6,7 +6,7 @@ CONFIG ?= Debug
 BUILD_DIR := .build/xcode
 RELEASE_DIR := .build/release
 RELEASE_APP := $(BUILD_DIR)/Build/Products/Release/Bouncer.app
-# Debug builds are a separate app ("Bouncer Dev", com.bouncer.app.dev — see project.yml), so
+# The Debug configuration builds a separate app ("Bouncer Dev", com.bouncer.app.dev — see project.yml), so
 # `make run` must not reach for an installed Bouncer when it restarts the one it just built.
 APP_NAME := $(if $(filter Release,$(CONFIG)),Bouncer,Bouncer Dev)
 

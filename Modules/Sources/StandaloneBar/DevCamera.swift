@@ -1,11 +1,11 @@
-#if DEBUG
+#if DEV
 import AppKit
 import ScreenCaptureKit
 
 /// Pictures and recordings of the top of the main display, as a person sees it: the bar, its
 /// background, Bouncer's windows and the pointer. Bounded: a recording stops itself.
 @MainActor
-enum DebugCamera {
+enum DevCamera {
     /// The bar plus room for the panel below it.
     static let defaultHeight: CGFloat = 120
     static let longestRecording: Double = 30
