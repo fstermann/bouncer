@@ -1,4 +1,5 @@
 import AppKit
+import MenuBar
 
 /// The notch grown sideways behind the section's items, with the switch to the todo page where the
 /// chevron sits.
@@ -17,6 +18,9 @@ final class NotchTab {
     private var coverWindow: BarWindow?
     private let content = NSView()
     private let band = CALayer()
+    /// Where the band meets the top of the display, curving into it as the notch does.
+    private let leftShoulder = CAShapeLayer()
+    private let rightShoulder = CAShapeLayer()
     /// The band again, above the items, in halves that meet over the notch: each side comes and
     /// goes behind its own.
     private let leftCover = CALayer()
@@ -116,8 +120,8 @@ final class NotchTab {
 
     /// Grows the window to take in `reach` as well, keeping everything in it where it is on screen.
     private func place(covering reach: ClosedRange<CGFloat>) {
-        let lower = min(reach.lowerBound, span.lowerBound, tabFrame.minX)
-        let upper = max(reach.upperBound, span.upperBound, tabFrame.maxX)
+        let lower = min(reach.lowerBound, span.lowerBound, tabFrame.minX) - NotchShoulder.radius
+        let upper = max(reach.upperBound, span.upperBound, tabFrame.maxX) + NotchShoulder.radius
         let needed = CGRect(x: lower, y: 0, width: upper - lower, height: tabFrame.height)
         let whole = windowFrame.isEmpty ? needed : needed.union(windowFrame)
         guard whole != windowFrame else { return }
@@ -129,7 +133,12 @@ final class NotchTab {
     }
 
     private func moveBand(over duration: TimeInterval?) {
-        move(band, to: local(span), over: duration)
+        let frame = local(span)
+        move(band, to: frame, over: duration)
+        let size = NotchShoulder.radius
+        let top = frame.maxY - size
+        move(leftShoulder, to: CGRect(x: frame.minX - size, y: top, width: size, height: size), over: duration)
+        move(rightShoulder, to: CGRect(x: frame.maxX, y: top, width: size, height: size), over: duration)
         if coverWindow != nil { moveCovers(over: duration) }
     }
 
@@ -217,6 +226,11 @@ final class NotchTab {
         content.wantsLayer = true
         Self.shape(band)
         content.layer?.addSublayer(band)
+        for (shoulder, left) in [(leftShoulder, true), (rightShoulder, false)] {
+            shoulder.path = NotchShoulder.path(left: left)
+            shoulder.fillColor = NSColor.black.cgColor
+            content.layer?.addSublayer(shoulder)
+        }
         tab.contentView = content
         return tab
     }
