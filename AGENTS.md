@@ -40,6 +40,9 @@ make ctl CMD="press 900 15"                 # a real left click there, the point
 make ctl CMD="drag 1209 960 1.5"            # Cmd-drag the item at x 1209 to x 960, held there 1.5 s
 make ctl CMD="shoot /path/bar.png"          # top 120 pt of the main display, then Read the PNG
 make ctl CMD="record /path/bar.mov 3"       # video, at most 30 s; run it in the background, then act
+make ctl CMD="key cmd+shift+n"              # a real key press: hot keys, focus and key equivalents
+make ctl CMD="type Weekly sync"             # text into whatever has focus
+make ctl CMD="tap 756 60"                   # like press, but the pointer stays, so a panel does not close
 ffmpeg -loglevel error -i bar.mov -vf "fps=5,scale=1512:-1,tile=1x15" -frames:v 1 sheet.png
 ```
 
@@ -52,6 +55,8 @@ For a glitch that lasts a frame, record at full rate (`record path secs height`:
 is the height in pt, not fps), split every frame with
 `ffmpeg -i bar.mov -fps_mode passthrough f/%04d.png`, and tile a crop of 6 to 15 consecutive
 frames. ffmpeg here has no drawtext and Python no PIL: count frames by position.
+
+`key`, `type` and `tap` move the user's pointer and type into their apps: ask before using them.
 
 ## Rules
 
