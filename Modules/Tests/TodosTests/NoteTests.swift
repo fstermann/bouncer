@@ -155,21 +155,16 @@ import Testing
 }
 
 @Suite struct ListCompletionTests {
-    @Test func readsTheListOnceEach() {
-        #expect(ListCompletion.items(of: " Anna, ben ,, Anna") == ["Anna", "ben"])
-    }
-
     @Test func offersKnownNamesForTheOneBeingTyped() {
         let known = ["Anna", "Ben", "Hannah", "Annika"]
-        #expect(ListCompletion.suggestions(for: "Ben, an", from: known) == ["Anna", "Annika", "Hannah"])
-        #expect(ListCompletion.suggestions(for: "Anna, an", from: known) == ["Annika", "Hannah"])
-        #expect(ListCompletion.suggestions(for: "Ben, ", from: known).isEmpty)
-        #expect(ListCompletion.suggestions(for: "Anna", from: known) == ["Hannah"])
+        #expect(ListCompletion.suggestions(for: "an", carrying: ["Ben"], from: known) == ["Anna", "Annika", "Hannah"])
+        #expect(ListCompletion.suggestions(for: "an", carrying: ["anna"], from: known) == ["Annika", "Hannah"])
+        #expect(ListCompletion.suggestions(for: " ", carrying: ["Ben"], from: known) == ["Anna", "Hannah", "Annika"])
     }
 
-    @Test func completesTheNameBeingTyped() {
-        #expect(ListCompletion.completing("Ben, an", with: "Anna") == "Ben, Anna, ")
-        #expect(ListCompletion.completing("an", with: "Anna") == "Anna, ")
+    @Test func readsTheNameTyped() {
+        #expect(ListCompletion.name(from: " Anna Berg, ") == "Anna Berg")
+        #expect(ListCompletion.name(from: " ,") == nil)
     }
 
     @Test func knownNamesComeMostUsedFirst() {
@@ -186,9 +181,12 @@ import Testing
         #expect(draft.note.start == modified.addingTimeInterval(60))
     }
 
-    @Test func readsTheListsBackAsTyped() {
-        let draft = NoteDraft(Note(name: "a.md", title: "a", attendees: ["Anna"]))
-        draft.people = "Anna, Ben, "
-        #expect(draft.note.attendees == ["Anna", "Ben"])
+    @Test func movingToAnotherDayKeepsTheTime() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC") ?? .current
+        let start = NoteTime.date(from: "2026-10-30T14:06", calendar: calendar) ?? Date()
+        let day = NoteTime.date(from: "2026-10-28", calendar: calendar) ?? Date()
+        let moved = NoteTime.moving(start, to: day, calendar: calendar)
+        #expect(NoteTime.string(for: moved, calendar: calendar) == "2026-10-28T14:06")
     }
 }

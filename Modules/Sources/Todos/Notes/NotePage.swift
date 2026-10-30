@@ -13,8 +13,7 @@ final class NoteDraft: Identifiable {
     var title: String
     var start: Date
     var end: Date?
-    /// Comma-separated, as typed.
-    var people: String
+    var people: [String]
     var project: String
     var location: String
     var tags: [String]
@@ -31,7 +30,7 @@ final class NoteDraft: Identifiable {
         title = note.title
         start = note.start ?? note.modified ?? Date()
         end = note.end
-        people = ListCompletion.text(of: note.attendees)
+        people = note.attendees
         project = note.project ?? ""
         location = note.location ?? ""
         tags = note.tags
@@ -45,7 +44,7 @@ final class NoteDraft: Identifiable {
         // A note opened without a start gets one only once it is set.
         note.start = opened.start == nil && start == (opened.modified ?? start) ? nil : start
         note.end = end
-        note.attendees = ListCompletion.items(of: people)
+        note.attendees = people
         note.project = project.trimmingCharacters(in: .whitespaces).nilIfEmpty
         note.location = location.trimmingCharacters(in: .whitespaces).nilIfEmpty
         note.tags = tags

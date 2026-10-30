@@ -1,12 +1,22 @@
 import SwiftUI
 
-/// A meeting's tags as a todo's show, coloured and after the tags they nest under, and a field
-/// that adds one. The known tags are offered as the field is typed into, all of them while it is
-/// empty; Return or Tab takes the highlighted one, or else what is typed, as do a space and a
-/// comma. A click on a chip takes its tag off, as does Delete in the empty field.
-struct NoteTagField: View {
-    @Binding var tags: [String]
-    let known: NoteSuggestions
+/// A meeting's tags, people or project as chips, and a field that adds one. What is known is offered
+/// as the field is typed into, all of it while it is empty; Return or Tab takes the highlighted
+/// one, or else what is typed, as do the `breaks` keys. A click on a chip takes it off, as does
+/// Delete in the empty field.
+struct ChipField: View {
+    let placeholder: String
+    @Binding var items: [String]
+    /// What is offered for what is typed, leaving out the items chosen.
+    let offered: (String, [String]) -> [String]
+    /// The item typed, or `nil` for none.
+    let item: (String) -> String?
+    /// Keys that end an item as Return does: a space ends a tag, but not a name.
+    var breaks = ","
+    /// Holds one item, which another replaces.
+    var isSingle = false
+    /// Drawn as a tag's chip, in its colour and after the tags it nests under.
+    var color: ((String) -> Color?)?
     @State private var typed = ""
     /// None until something is typed or an arrow pressed, so Return in the empty field takes nothing.
     @State private var highlight: Int?
@@ -15,22 +25,20 @@ struct NoteTagField: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 4) {
-                ForEach(tags, id: \.self) { tag in
-                    Button { tags.removeAll { $0 == tag } } label: { Chip(tag: tag, color: known.color(of: tag)) }
+                ForEach(items, id: \.self) { item in
+                    Button { items.removeAll { $0 == item } } label: { chip(item) }
                         .buttonStyle(.plain)
                         .fixedSize()
-                        .help("Remove tag")
+                        .help("Remove")
                 }
                 field
             }
             if isFocused, !shown.isEmpty {
                 HStack(spacing: 4) {
-                    ForEach(Array(shown.enumerated()), id: \.element) { index, tag in
-                        Button { add(tag) } label: {
-                            Chip(tag: tag, color: known.color(of: tag), isSelected: index == highlight)
-                        }
-                        .buttonStyle(.plain)
-                        .fixedSize()
+                    ForEach(Array(shown.enumerated()), id: \.element) { index, item in
+                        Button { add(item) } label: { chip(item, isSelected: index == highlight) }
+                            .buttonStyle(.plain)
+                            .fixedSize()
                     }
                 }
             }
@@ -39,15 +47,20 @@ struct NoteTagField: View {
         .onChange(of: isFocused) { if !$1 { add(typed) } }
     }
 
+    private func chip(_ item: String, isSelected: Bool = false) -> Chip {
+        guard let color else { return Chip(text: item, isSelected: isSelected) }
+        return Chip(tag: item, color: color(item), isSelected: isSelected)
+    }
+
     private var field: some View {
-        TextField(tags.isEmpty ? "Tags" : "", text: $typed)
+        TextField(items.isEmpty ? placeholder : "", text: $typed)
             .textFieldStyle(.plain)
             .frame(minWidth: 60)
             .focused($isFocused)
             .onKeyPress(.return) { take() }
             .onKeyPress(.tab) { take() }
             // Taken before the field gets them: what it holds cannot be reset while a key changes it.
-            .onKeyPress(characters: CharacterSet(charactersIn: " ,"), phases: .down) { _ in
+            .onKeyPress(characters: CharacterSet(charactersIn: breaks), phases: .down) { _ in
                 add(typed)
                 return .handled
             }
@@ -55,20 +68,20 @@ struct NoteTagField: View {
             .onKeyPress(.upArrow) { move(by: -1) }
             // The Delete key sends U+007F, not the U+0008 `.delete` holds.
             .onKeyPress(keys: [.delete, KeyEquivalent("\u{7F}")]) { _ in
-                guard typed.isEmpty, !tags.isEmpty else { return .ignored }
-                tags.removeLast()
+                guard typed.isEmpty, !items.isEmpty else { return .ignored }
+                items.removeLast()
                 return .handled
             }
     }
 
     private var shown: [String] {
-        Array(TagCompletion.suggestions(for: typed, carrying: tags, from: known.tags).prefix(5))
+        Array(offered(typed, items).prefix(5))
     }
 
     private func take() -> KeyPress.Result {
         if let highlight, shown.indices.contains(highlight) {
             add(shown[highlight])
-        } else if TagCompletion.tag(from: typed) != nil {
+        } else if item(typed) != nil {
             add(typed)
         } else {
             return .ignored
@@ -79,8 +92,8 @@ struct NoteTagField: View {
     private func add(_ text: String) {
         typed = ""
         highlight = nil
-        guard let tag = TagCompletion.tag(from: text), !tags.contains(tag) else { return }
-        tags.append(tag)
+        guard let new = item(text), !items.contains(new) else { return }
+        items = isSingle ? [new] : items + [new]
     }
 
     private func move(by step: Int) -> KeyPress.Result {

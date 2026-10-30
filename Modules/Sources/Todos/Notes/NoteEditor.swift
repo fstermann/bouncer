@@ -42,11 +42,19 @@ struct NoteEditor: View {
             VStack(alignment: .leading, spacing: 6) {
                 times
                 MetaRow(symbol: "person.2", help: "People") {
-                    ListField(placeholder: "People", text: $draft.people, known: known.people)
+                    ChipField(
+                        placeholder: "People", items: $draft.people,
+                        offered: { ListCompletion.suggestions(for: $0, carrying: $1, from: known.people) },
+                        item: ListCompletion.name(from:)
+                    )
                 }
                 HStack(spacing: 12) {
                     MetaRow(symbol: "folder", help: "Project") {
-                        ListField(placeholder: "Project", text: $draft.project, known: known.projects, isList: false)
+                        ChipField(
+                            placeholder: "Project", items: project,
+                            offered: { ListCompletion.suggestions(for: $0, carrying: $1, from: known.projects) },
+                            item: ListCompletion.name(from:), isSingle: true
+                        )
                     }
                     MetaRow(symbol: "link", help: "Room or call link") {
                         HStack(spacing: 4) {
@@ -61,7 +69,11 @@ struct NoteEditor: View {
                     }
                 }
                 MetaRow(symbol: "tag", help: "Tags") {
-                    NoteTagField(tags: $draft.tags, known: known)
+                    ChipField(
+                        placeholder: "Tags", items: $draft.tags,
+                        offered: { TagCompletion.suggestions(for: $0, carrying: $1, from: known.tags) },
+                        item: TagCompletion.tag(from:), breaks: " ,", color: known.color(of:)
+                    )
                 }
             }
             .font(.callout)
@@ -104,33 +116,13 @@ struct NoteEditor: View {
         .foregroundStyle(.secondary)
     }
 
-    /// When it started and, once ended, when it ended and how long it ran.
     private var times: some View {
-        MetaRow(symbol: "clock", help: "When") {
-            HStack(spacing: 6) {
-                DatePicker("Start", selection: $draft.start)
-                    .datePickerStyle(.field)
-                    .labelsHidden()
-                    .fixedSize()
-                Text("–").foregroundStyle(.secondary)
-                if let end = draft.end {
-                    let ending = Binding { end } set: { draft.end = $0 }
-                    DatePicker("End", selection: ending, displayedComponents: .hourAndMinute)
-                        .datePickerStyle(.field)
-                        .labelsHidden()
-                        .fixedSize()
-                    if let duration = NoteTime.duration(from: draft.start, to: end) {
-                        Text(duration).foregroundStyle(.secondary)
-                    }
-                } else {
-                    Button("End now") { draft.end = Self.minute(of: Date()) }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.secondary)
-                        .help("Note when the meeting ended")
-                }
-                Spacer(minLength: 0)
-            }
-        }
+        MetaRow(symbol: "clock", help: "When") { NoteTimes(draft: draft) }
+    }
+
+    /// The project as the one chip its field holds.
+    private var project: Binding<[String]> {
+        Binding { draft.project.isEmpty ? [] : [draft.project] } set: { draft.project = $0.last ?? "" }
     }
 
     static func minute(of date: Date) -> Date {
@@ -152,44 +144,5 @@ private struct MetaRow<Content: View>: View {
                 .help(help)
             content
         }
-    }
-}
-
-/// A comma-separated list, or with `isList` off a single name, offering the names already used for
-/// the one being typed: Tab takes the first, a click any of them.
-private struct ListField: View {
-    let placeholder: String
-    @Binding var text: String
-    let known: [String]
-    var isList = true
-    @FocusState private var isFocused: Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            TextField(placeholder, text: $text)
-                .textFieldStyle(.plain)
-                .focused($isFocused)
-                .onKeyPress(.tab) {
-                    guard let first = suggestions.first else { return .ignored }
-                    take(first)
-                    return .handled
-                }
-            if isFocused, !suggestions.isEmpty {
-                HStack(spacing: 4) {
-                    ForEach(suggestions.prefix(5), id: \.self) { name in
-                        Button { take(name) } label: { Chip(text: name) }
-                            .buttonStyle(.plain)
-                    }
-                }
-            }
-        }
-    }
-
-    private var suggestions: [String] {
-        ListCompletion.suggestions(for: isList ? text : text.replacingOccurrences(of: ",", with: " "), from: known)
-    }
-
-    private func take(_ name: String) {
-        text = isList ? ListCompletion.completing(text, with: name) : name
     }
 }
