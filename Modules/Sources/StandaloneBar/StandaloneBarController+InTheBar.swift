@@ -32,15 +32,20 @@ extension StandaloneBarController {
         if let shape { await shape(BarWindow.appKitFrame(for: tabFrame)) }
         let duration = shape == nil ? slide : nil
         let layout = lastLayout?.end == end ? lastLayout : nil
-        // The band goes out both ways at once, covering the items, which land behind it and show
-        // together once both sides have settled. Uncovered, the right side lands well before the
-        // overflow slides out on the left, and the app menus draw over the band until it has.
+        // The band goes out both ways at once, covering the items, which land behind it. The right
+        // side shows as soon as it has landed; the left stays covered until the overflow has slid
+        // out, or the app menus draw over the band until it has.
         var showing: Task<Void, Never>?
         if let layout {
             showing = Task { await tab.show(at: tabFrame, reaching: layout.reach, covered: true, over: duration) }
             if let duration { try? await Task.sleep(for: .seconds(duration * Self.revealDelay)) }
         }
         reveal(shiftedFor: layout?.width, end: end, notch: notch.range)
+        // The chevron's last place is shaded before it shows on the uncovered right.
+        if let layout { tab.shade(layout.chevron.map { NotchSplit.shade(over: $0, notch: notch.range) }) }
+        // The right side lands some 30 ms after the reveal, before the band has finished growing.
+        // Accessibility stalls for some 300 ms after it, so waiting to read it there would show it late.
+        let rightSide = layout.map { _ in Task { await showing?.value; await tab.uncover(.right, over: duration) } }
         if layout == nil { _ = await AgentItems.revealed(in: notch.range.upperBound...end, height: height) }
         let settled = await settleBothSides(notch: notch.range, expectingOverflow: layout != nil)
         var frames = settled.frames
@@ -58,15 +63,29 @@ extension StandaloneBarController {
             await tab.show(at: tabFrame, reaching: reach, over: duration)
         } else {
             tab.extend(to: reach, over: duration)
-            // Accessibility has the overflow's final frames well before it has finished sliding out.
-            if duration != nil { try? await Task.sleep(until: settled.opened + .seconds(AgentOverflow.slide)) }
-            // Read again once the overflow is out: a batch can still arrive after it looked settled.
-            let landed = await AgentItems.frames()
-            tab.extend(to: NotchSplit.band(over: landed, notch: notch.range, end: end), over: duration)
-            await tab.uncover(over: duration)
+            await showLeftSide(openedAt: settled.opened, notch: notch.range, end: end, over: duration)
+            await rightSide?.value
         }
         finishOpening(of: [], from: [:], over: tabFrame)
         closeWhenTheOverflowCloses()
+    }
+
+    /// Uncovers the left side over the overflow's last stretch of sliding out: Accessibility has its
+    /// final frames well before then.
+    private func showLeftSide(
+        openedAt opened: ContinuousClock.Instant, notch: ClosedRange<CGFloat>, end: CGFloat,
+        over duration: TimeInterval?
+    ) async {
+        var uncovering: Task<Void, Never>?
+        if let duration {
+            try? await Task.sleep(until: opened + .seconds(AgentOverflow.slide - duration))
+            uncovering = Task { await tab.uncover(.left, over: duration) }
+            try? await Task.sleep(until: opened + .seconds(AgentOverflow.slide))
+        }
+        // Read again once the overflow is out: a batch can still arrive after it looked settled.
+        let landed = await AgentItems.frames()
+        tab.extend(to: NotchSplit.band(over: landed, notch: notch, end: end), over: duration)
+        if let uncovering { await uncovering.value } else { await tab.uncover(.left, over: nil) }
     }
 
     /// Another app coming to the front closes the chevron, taking the left side back into the notch

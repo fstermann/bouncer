@@ -105,9 +105,11 @@ picks the shift that lands it evenly on both sides, from the width measured at t
 100 ms apart, splits it differently each time). A black shade above the items hides the chevron
 and takes its clicks, which would take the left side away and leave the band over the app menus;
 it holds the switch to the todo page instead. The layout read at close also places the band, so an open grows it both ways at once with a
-copy above the items, reveals the section behind that copy, and fades it once the overflow has slid
-out (400 ms after the chevron is pressed, well after Accessibility has its final frames). Uncovered, the right side lands well before
-the left, and app menus draw over the band until the overflow pushes them aside. Closing runs the
+copy above the items in two halves, and reveals the section behind it. The right half fades as soon
+as the band is out: the right side lands some 30 ms after the reveal, while Accessibility stalls for
+some 300 ms, so it is not read. The left half fades over the last of the overflow's slide (400 ms
+after the chevron is pressed, well after Accessibility has its final frames); uncovered earlier,
+app menus draw over the band until the overflow pushes them aside. Closing runs the
 other way: the copy fades in, the section collapses behind it, then both shrink into the notch. macOS slides both sides out of the notch itself, so nothing is photographed or
 replicated, clicks reach the real items, and Screen Recording is not needed. The bar adds only
 `NotchTab`: a black band grown sideways out of the notch behind the items, at the menu bar's own

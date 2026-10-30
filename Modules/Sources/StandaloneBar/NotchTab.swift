@@ -8,6 +8,8 @@ import AppKit
 /// draws over the bar's backdrop and under its menus and items, so the items show on top of it.
 @MainActor
 final class NotchTab {
+    enum Side { case left, right }
+
     private static let cornerRadius: CGFloat = 10
 
     private var window: BarWindow?
@@ -15,8 +17,10 @@ final class NotchTab {
     private var coverWindow: BarWindow?
     private let content = NSView()
     private let band = CALayer()
-    /// The band again, above the items: both sides come and go behind it, so they do so together.
-    private let cover = CALayer()
+    /// The band again, above the items, in halves that meet over the notch: each side comes and
+    /// goes behind its own.
+    private let leftCover = CALayer()
+    private let rightCover = CALayer()
     private let switchView = SwitchView()
     /// The notch the band grows out of and the window's frame, in window-server coordinates.
     private var tabFrame = CGRect.zero
@@ -80,18 +84,29 @@ final class NotchTab {
         let covering = coverWindow ?? makeCover()
         coverWindow = covering
         covering.setFrame(cgFrame: windowFrame)
-        move(cover, to: local(span), over: nil)
-        fade(cover, to: 1, over: duration)
+        moveCovers(over: nil)
+        for side in [Side.left, .right] { fade(cover(on: side), to: 1, over: duration) }
         covering.orderFrontRegardless()
     }
 
-    /// Fades the cover off, showing both sides' items at once.
-    func uncover(over duration: TimeInterval?) async {
+    /// Fades the cover off `side`, showing its items.
+    func uncover(_ side: Side, over duration: TimeInterval?) async {
         guard coverWindow != nil else { return }
-        fade(cover, to: 0, over: duration)
+        fade(cover(on: side), to: 0, over: duration)
         if let duration { try? await Task.sleep(for: .seconds(duration)) }
+        // Still up on the other side, or covering again for a close.
+        guard leftCover.opacity == 0, rightCover.opacity == 0 else { return }
         coverWindow?.orderOut(nil)
         coverWindow = nil
+    }
+
+    private func cover(on side: Side) -> CALayer {
+        side == .left ? leftCover : rightCover
+    }
+
+    private func moveCovers(over duration: TimeInterval?) {
+        move(leftCover, to: local(span.lowerBound...max(span.lowerBound, tabFrame.maxX)), over: duration)
+        move(rightCover, to: local(min(span.upperBound, tabFrame.minX)...span.upperBound), over: duration)
     }
 
     /// Grows the window to take in `reach` as well, keeping everything in it where it is on screen.
@@ -110,7 +125,7 @@ final class NotchTab {
 
     private func moveBand(over duration: TimeInterval?) {
         move(band, to: local(span), over: duration)
-        if coverWindow != nil { move(cover, to: local(span), over: duration) }
+        if coverWindow != nil { moveCovers(over: duration) }
     }
 
     /// `reach` in the window's own coordinates, the bar's height tall.
@@ -206,9 +221,11 @@ final class NotchTab {
         covering.ignoresMouseEvents = true
         let content = NSView(frame: CGRect(origin: .zero, size: windowFrame.size))
         content.wantsLayer = true
-        Self.shape(cover)
-        cover.opacity = 0
-        content.layer?.addSublayer(cover)
+        for side in [Side.left, .right] {
+            Self.shape(cover(on: side))
+            cover(on: side).opacity = 0
+            content.layer?.addSublayer(cover(on: side))
+        }
         covering.contentView = content
         return covering
     }
