@@ -17,7 +17,7 @@ final class NoteDraft: Identifiable {
     var people: String
     var project: String
     var location: String
-    var tagText: String
+    var tags: [String]
     var body: String
     /// Bumped to put the cursor in the note's text. One from the start, so a note opens with the
     /// cursor there rather than its whole title selected.
@@ -34,7 +34,7 @@ final class NoteDraft: Identifiable {
         people = ListCompletion.text(of: note.attendees)
         project = note.project ?? ""
         location = note.location ?? ""
-        tagText = ListCompletion.text(of: note.tags)
+        tags = note.tags
         body = note.body
     }
 
@@ -48,7 +48,7 @@ final class NoteDraft: Identifiable {
         note.attendees = ListCompletion.items(of: people)
         note.project = project.trimmingCharacters(in: .whitespaces).nilIfEmpty
         note.location = location.trimmingCharacters(in: .whitespaces).nilIfEmpty
-        note.tags = ListCompletion.items(of: tagText).map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "#")) }
+        note.tags = tags
         note.body = body
         return note
     }

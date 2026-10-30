@@ -189,8 +189,6 @@ import Testing
     @Test func readsTheListsBackAsTyped() {
         let draft = NoteDraft(Note(name: "a.md", title: "a", attendees: ["Anna"]))
         draft.people = "Anna, Ben, "
-        draft.tagText = "#work, home"
         #expect(draft.note.attendees == ["Anna", "Ben"])
-        #expect(draft.note.tags == ["work", "home"])
     }
 }

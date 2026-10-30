@@ -6,14 +6,20 @@ struct NoteSuggestions {
     var people: [String] = []
     var projects: [String] = []
     var tags: [String] = []
+    var tagColors: [String: String] = [:]
 
     @MainActor init(_ page: NotePage) {
         people = page.people
         projects = page.projects
         tags = page.tags
+        tagColors = page.tagColors
     }
 
     init() {}
+
+    func color(of tag: String) -> Color? {
+        TagColor.of(tag, in: tagColors)
+    }
 }
 
 /// A meeting's note: its title, when it ran, who came, its project, place and tags, and the note
@@ -55,7 +61,7 @@ struct NoteEditor: View {
                     }
                 }
                 MetaRow(symbol: "tag", help: "Tags") {
-                    ListField(placeholder: "Tags", text: $draft.tagText, known: known.tags)
+                    NoteTagField(tags: $draft.tags, known: known)
                 }
             }
             .font(.callout)
