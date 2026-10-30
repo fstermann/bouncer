@@ -103,16 +103,15 @@ divider while revealed (`sectionShift`) pushes half the section past what fits, 
 picks the shift that lands it evenly on both sides, from the width measured at the last close
 (and on the first open only: a reading taken while the overflow still arrives, in batches up to
 100 ms apart, splits it differently each time). A black shade above the items hides the chevron
-and takes its clicks; pressed, it would take the left side away and leave the band over the app
-menus. The layout read at close also places the band, so an open grows it both ways at once with a
+and takes its clicks, which would take the left side away and leave the band over the app menus;
+it holds the switch to the todo page instead. The layout read at close also places the band, so an open grows it both ways at once with a
 copy above the items, reveals the section behind that copy, and fades it once the overflow has slid
 out (400 ms after the chevron is pressed, well after Accessibility has its final frames). Uncovered, the right side lands well before
 the left, and app menus draw over the band until the overflow pushes them aside. Closing runs the
 other way: the copy fades in, the section collapses behind it, then both shrink into the notch. macOS slides both sides out of the notch itself, so nothing is photographed or
 replicated, clicks reach the real items, and Screen Recording is not needed. The bar adds only
 `NotchTab`: a black band grown sideways out of the notch behind the items, at the menu bar's own
-level, which the window server draws over the bar's backdrop and under its items, and the notch
-grown taller with the switch to the todo page. Closing closes the chevron before collapsing: it stays open
+level, which the window server draws over the bar's backdrop and under its items. Closing closes the chevron before collapsing: it stays open
 across a collapse, and left open, every later reveal draws the overflow over the app menus. Items
 that fit on neither side are dropped by macOS and cannot be shown. Rearranging is not built there.
 
