@@ -104,7 +104,10 @@ picks the shift that lands it evenly on both sides, from the width measured at t
 (and on the first open only: a reading taken while the overflow still arrives, in batches up to
 100 ms apart, splits it differently each time). A black shade above the items hides the chevron
 and takes its clicks; pressed, it would take the left side away and leave the band over the app
-menus. macOS slides both sides out of the notch itself, so nothing is photographed or
+menus. The layout read at close also places the band, so an open grows it first and reveals the
+section onto it; its left half waits for the overflow, since app menus draw over it until the
+overflow pushes them aside. Closing runs the other way, timed to the overflow (gone 70 to 130 ms
+after the chevron closes) and the fade of the rest. macOS slides both sides out of the notch itself, so nothing is photographed or
 replicated, clicks reach the real items, and Screen Recording is not needed. The bar adds only
 `NotchTab`: a black band grown sideways out of the notch behind the items, at the menu bar's own
 level, which the window server draws over the bar's backdrop and under its items, and the notch

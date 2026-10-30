@@ -6,6 +6,17 @@ import CoreGraphics
 /// go behind the chevron, which draws them left of it. Widening the divider is what moves items
 /// across, so its extra width is the one thing chosen here. Measured in SPIKES.md.
 enum NotchSplit {
+    /// How the section lay when last open, which the next open goes by before anything is revealed.
+    struct Layout: Equatable {
+        /// Both sides' items together, the chevron left out.
+        let width: CGFloat
+        /// The band's ends, in window-server x.
+        let reach: ClosedRange<CGFloat>
+        let chevron: CGRect?
+        /// The section's end it was read against: a section that moved lays out differently.
+        let end: CGFloat
+    }
+
     /// From the notch to the first item right of it while the chevron is there: the margin macOS
     /// keeps, then the chevron. Measured on macOS 27.2.
     static let leadRight: CGFloat = 62

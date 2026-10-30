@@ -58,9 +58,10 @@ public final class StandaloneBarController {
     let tab = NotchTab()
     /// Whether this open went the macOS 27 way (`openInTheBar`), so closing it does too.
     var isInTheBar = false
-    /// How wide the section was when last closed in the bar, so the next open splits it around the
-    /// notch at once. Unknown until the first open: hidden items have no frame to measure.
-    var sectionWidth: CGFloat?
+    /// How the section lay when last closed in the bar, so the next open splits it around the notch
+    /// and lays the band out before revealing it. Unknown until the first open: hidden items have
+    /// no frame to measure.
+    var lastLayout: NotchSplit.Layout?
     /// What a todo page switching back hands the next open, to take the tab's shape before it shows.
     var shapeOnOpen: (@MainActor (CGRect) async -> Void)?
 

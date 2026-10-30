@@ -42,6 +42,9 @@ enum AgentOverflow {
 
     private static let attemptLimit = 30
 
+    /// How long the overflow takes to slide out of the notch once opened, as measured.
+    static let slide: TimeInterval = 0.4
+
     private static func chevron() -> AXUIElement? {
         guard let agent = NSWorkspace.shared.runningApplications.first(where: {
             $0.bundleIdentifier == "com.apple.MenuBarAgent"

@@ -107,7 +107,7 @@ public final class DevHarness {
         lines.append("section ends at \(menuBar.hiddenSectionEnd.map { "\(Int($0))" } ?? "unknown")")
         lines.append(menuBar.devState)
         lines.append("chevron \(AgentOverflow.state)")
-        let width = controller.sectionWidth.map { "\(Int($0))" } ?? "unknown"
+        let width = controller.lastLayout.map { "\(Int($0.width))" } ?? "unknown"
         lines.append("section width \(width) shift \(Int(menuBar.sectionShift))")
         for item in await DevBarReader.accessibilityItems() {
             lines.append("item \(Self.text(item.frame)) \(item.owner)")

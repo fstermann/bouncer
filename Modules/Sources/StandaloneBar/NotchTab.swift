@@ -16,6 +16,11 @@ final class NotchTab {
     private let content = NSView()
     private let band = CALayer()
     private let view = TabView()
+    /// Where the tab rests and the window's frame, in window-server coordinates.
+    private var tabFrame = CGRect.zero
+    private var windowFrame = CGRect.zero
+    /// The band's ends, in window-server x.
+    private var span: ClosedRange<CGFloat> = 0...0
 
     var onSwitch: (@MainActor () -> Void)? {
         get { view.onSwitch }
@@ -34,28 +39,60 @@ final class NotchTab {
     }
 
     /// Slides the tab out at `frame` and grows the band out of the notch across `reach`, in window-server x.
-    func show(at frame: CGRect, reaching reach: ClosedRange<CGFloat>, over duration: TimeInterval?) async {
-        let whole = CGRect(
-            x: min(reach.lowerBound, frame.minX), y: 0,
-            width: max(reach.upperBound, frame.maxX) - min(reach.lowerBound, frame.minX), height: frame.height
-        )
-        let tab = window ?? make(whole)
+    ///
+    /// - Parameter room: how far the band is to go later on, so the window is made that wide now: grown
+    ///   while the band moves, it cuts the band's animation short.
+    func show(
+        at frame: CGRect, reaching reach: ClosedRange<CGFloat>, room: ClosedRange<CGFloat>? = nil,
+        over duration: TimeInterval?
+    ) async {
+        tabFrame = frame
+        let tab = window ?? make(frame)
         window = tab
-        tab.setFrame(cgFrame: whole)
-        content.frame = CGRect(origin: .zero, size: whole.size)
-        view.frame = CGRect(x: frame.minX - whole.minX, y: 0, width: frame.width, height: frame.height)
+        span = frame.minX...frame.maxX
+        place(covering: room ?? reach)
         view.setUpLayer()
         tab.orderFrontRegardless()
+        extend(to: reach, over: duration)
+        await slide(from: Self.tucked, to: 0, over: duration)
+    }
 
-        let barHeight = frame.height - Self.height
-        let notch = CGRect(x: view.frame.minX, y: frame.height - barHeight, width: frame.width, height: barHeight)
-        let reached = CGRect(
-            x: reach.lowerBound - whole.minX, y: notch.minY,
+    /// Moves the band's ends to `reach`, in window-server x, once the items have landed somewhere other
+    /// than expected.
+    func extend(to reach: ClosedRange<CGFloat>, over duration: TimeInterval?) {
+        guard window != nil, reach != span else { return }
+        place(covering: reach)
+        span = reach
+        move(band, to: local(reach), over: duration)
+    }
+
+    /// Takes the band left of the notch away at once, with the overflow it was behind, which leaves
+    /// in one go. Kept any longer, the app menus come back over it.
+    func dropLeftHalf() {
+        extend(to: tabFrame.minX...max(span.upperBound, tabFrame.maxX), over: nil)
+    }
+
+    /// Grows the window to take in `reach` as well, keeping everything in it where it is on screen.
+    private func place(covering reach: ClosedRange<CGFloat>) {
+        let lower = min(reach.lowerBound, span.lowerBound, tabFrame.minX)
+        let upper = max(reach.upperBound, span.upperBound, tabFrame.maxX)
+        let needed = CGRect(x: lower, y: 0, width: upper - lower, height: tabFrame.height)
+        let whole = windowFrame.isEmpty ? needed : needed.union(windowFrame)
+        guard whole != windowFrame else { return }
+        windowFrame = whole
+        window?.setFrame(cgFrame: whole)
+        content.frame = CGRect(origin: .zero, size: whole.size)
+        view.frame = CGRect(x: tabFrame.minX - whole.minX, y: 0, width: tabFrame.width, height: tabFrame.height)
+        move(band, to: local(span), over: nil)
+    }
+
+    /// `reach` in the window's own coordinates, the bar's height tall.
+    private func local(_ reach: ClosedRange<CGFloat>) -> CGRect {
+        let barHeight = tabFrame.height - Self.height
+        return CGRect(
+            x: reach.lowerBound - windowFrame.minX, y: tabFrame.height - barHeight,
             width: reach.upperBound - reach.lowerBound, height: barHeight
         )
-        move(band, to: notch, over: nil)
-        move(band, to: reached, over: duration)
-        await slide(from: Self.tucked, to: 0, over: duration)
     }
 
     /// Covers `frame`, in window-server coordinates, above the items, taking its clicks. `nil` takes
@@ -75,25 +112,38 @@ final class NotchTab {
 
     func hide(over duration: TimeInterval?) async {
         guard window != nil else { return }
-        let notch = CGRect(x: view.frame.minX, y: band.frame.minY, width: view.frame.width, height: band.frame.height)
-        move(band, to: notch, over: duration)
+        span = tabFrame.minX...tabFrame.maxX
+        move(band, to: local(span), over: duration)
         await slide(from: 0, to: Self.tucked, over: duration)
         window?.orderOut(nil)
         window = nil
+        windowFrame = .zero
     }
 
     /// Up into the notch, where the hardware hides it.
     private static let tucked = height + cornerRadius
 
+    /// Explicit, from where the layer is drawn right now: an implicit frame change was seen starting
+    /// from somewhere else entirely, so one end of the band jumped.
     private func move(_ layer: CALayer, to frame: CGRect, over duration: TimeInterval?) {
+        let start = layer.presentation()?.frame ?? layer.frame
         CATransaction.begin()
-        CATransaction.setDisableActions(duration == nil)
-        if let duration {
-            CATransaction.setAnimationDuration(duration)
-            CATransaction.setAnimationTimingFunction(CAMediaTimingFunction(name: .easeOut))
-        }
+        CATransaction.setDisableActions(true)
         layer.frame = frame
         CATransaction.commit()
+        layer.removeAnimation(forKey: "move")
+        guard let duration else { return }
+        let animation = CABasicAnimation(keyPath: "bounds.size.width")
+        animation.fromValue = start.width
+        animation.toValue = frame.width
+        let position = CABasicAnimation(keyPath: "position.x")
+        position.fromValue = start.midX
+        position.toValue = frame.midX
+        let group = CAAnimationGroup()
+        group.animations = [animation, position]
+        group.duration = duration
+        group.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        layer.add(group, forKey: "move")
     }
 
     private func slide(from start: CGFloat, to end: CGFloat, over duration: TimeInterval?) async {
