@@ -116,16 +116,17 @@ held its own Screen Recording grant.
 | A window at the menu bar's level (24) | Drawn **over the bar's backdrop and under the app menus and status items**. At 23 and below it is hidden by the bar; above status level it covers the items |
 | More items than both sides hold | **The rest are dropped.** 20 items of one app: 1 right of the notch, 12 left of it, 7 listed nowhere, their windows parked at y -33 |
 | An item wider than the bar | **Evicted.** Capped at 5016 pt and moved out of the bar; every item left of it stays |
-| Divider with its left edge right of the notch | Items left of it go behind the chevron, and the chevron stays on screen right of the notch |
-| Divider with its left edge inside the notch | **Hides everything left of it, chevron included.** 525 to 700 pt here, right edge at x 1376 |
-| Divider with its left edge past the notch | Evicted, and every item comes back. 750 pt and up here |
+| Divider short of a length threshold | Goes behind the chevron with everything left of it, and the chevron stays on screen. Up to 527 pt with the section ending at x 1266 and Ableton Live in front |
+| Divider past that threshold | **Hides everything left of it, chevron included**: too wide for the overflow left of the notch, so it is dropped. 528 to 740 pt there. The threshold is a length, not a position: with the section ending at 1376, 525 pt already hid everything. It moves with the front app's menus, which the overflow trims only so far |
+| Divider of 741 pt and up | Evicted, and every item comes back, wherever it ends |
 | Display without a notch | Not measured. The limit is presumably where the app menus end, which moves with the front app |
 | Full screen space | Every capture of the bar is black. The window list cannot tell: the `MenuBarAgent` window is missing from it even while the bar is drawn |
 
-So hiding by width still works, but only within a band: the divider has to end inside the notch.
-Too narrow and the chevron offers the hidden items; too wide and the divider disappears.
-`ExpandedDivider` aims at the middle of the notch, which leaves about 90 pt either side, roughly
-three items appearing or vanishing right of the divider while it is collapsed.
+So hiding by width still works, but only within a band of lengths. Too short and the chevron
+offers the hidden items; too long and the divider is evicted. `ExpandedDivider` takes the bar's
+width left of the notch (663.5 pt here): no front app's menus leave the overflow that much room,
+and it stays 77 pt under eviction. Whether the eviction limit scales with larger displays is not
+measured.
 
 ### The standalone bar on macOS 27
 

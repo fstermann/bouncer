@@ -65,9 +65,10 @@ reveal must hide nothing.
 
 How wide is expanded depends on the OS. Up to macOS 26 it is 10 000 pt, and everything left of
 the divider runs off the display. macOS 27 draws every status item in one `MenuBarAgent` window
-and evicts an item whose left edge reaches past the notch into the app menus, so the divider is
-sized to end in the middle of the notch instead (`ExpandedDivider`). What is left of it then goes
-behind the system's overflow chevron, and the chevron with it, since it lands under the notch.
+and evicts an item longer than 740 pt (14-inch MacBook Pro). Shorter, an item with no room goes
+behind the system's overflow chevron, which shows it left of the notch, and one too wide for that
+is dropped with everything left of it, chevron included. So the divider is as long as the bar
+left of the notch (`ExpandedDivider`), which no front app's menus leave the overflow room for.
 The divider reads its right edge from its own frame while it is narrow, because the frame of an
 expanded one keeps a stale origin. [SPIKES.md](SPIKES.md#macos-27) has the measurements.
 

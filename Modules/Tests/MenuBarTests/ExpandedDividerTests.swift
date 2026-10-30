@@ -7,9 +7,10 @@ import Testing
     /// The 14-inch MacBook Pro's notch, as `DisplayNotch` reports it.
     private let notch: ClosedRange<CGFloat> = 663.5...848.5
 
-    @Test func reachesIntoTheMiddleOfTheNotch() {
-        let length = ExpandedDivider.length(rightEdge: 1376, notch: notch)
-        #expect(length == 620)
+    @Test func isAsWideAsTheBarLeftOfTheNotch() {
+        // Measured: 528 to 740 pt hid everything with the section ending at 1266, whatever its end.
+        #expect(ExpandedDivider.length(rightEdge: 1266, notch: notch) == 663.5)
+        #expect(ExpandedDivider.length(rightEdge: 1376, notch: notch) == 663.5)
     }
 
     @Test func waitsUntilItHasBeenPlaced() {
@@ -23,7 +24,7 @@ import Testing
 
     @Test func hidesNothingWhileTheIconIsLeftOfIt() {
         #expect(ExpandedDivider.length(rightEdge: 1376, notch: notch, keeping: 1163) == nil)
-        #expect(ExpandedDivider.length(rightEdge: 1376, notch: notch, keeping: 1420) == 620)
+        #expect(ExpandedDivider.length(rightEdge: 1376, notch: notch, keeping: 1420) == 663.5)
         #expect(ExpandedDivider.length(rightEdge: 1376, notch: nil, keeping: 1163) == ExpandedDivider.legacyLength)
     }
 
