@@ -19,8 +19,9 @@ final class NoteDraft: Identifiable {
     var location: String
     var tagText: String
     var body: String
-    /// Bumped to put the cursor in the note's text.
-    var bodyFocusRequests = 0
+    /// Bumped to put the cursor in the note's text. One from the start, so a note opens with the
+    /// cursor there rather than its whole title selected.
+    var bodyFocusRequests = 1
 
     nonisolated var id: ObjectIdentifier { ObjectIdentifier(self) }
 

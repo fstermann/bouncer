@@ -71,7 +71,10 @@ struct NoteEditor: View {
         .padding(.horizontal, 14)
         .padding(.bottom, 12)
         .onChange(of: draft.note) { onEdit(draft) }
-        .onChange(of: draft.bodyFocusRequests, initial: true) { if $1 > 0 { isWritingBody = true } }
+        .onChange(of: draft.bodyFocusRequests, initial: true) {
+            // A turn later, once the editor is in the window: focus set before then is lost.
+            if $1 > 0 { Task { isWritingBody = true } }
+        }
     }
 
     private var header: some View {

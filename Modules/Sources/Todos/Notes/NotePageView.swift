@@ -113,7 +113,9 @@ struct NotePageView: View {
         .padding(.horizontal, 14)
         .padding(.top, 8)
         .padding(.bottom, 12)
-        .onChange(of: page.focusRequests, initial: true) { isTyping = true }
+        // A turn later, once the field is back in the window after the editor: focus set before
+        // then is lost.
+        .onChange(of: page.focusRequests, initial: true) { Task { isTyping = true } }
     }
 }
 
