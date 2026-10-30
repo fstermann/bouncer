@@ -161,6 +161,14 @@ enum NoteTime {
         ))
     }
 
+    /// `date` on `day`, at the same time of day.
+    static func moving(_ date: Date, to day: Date, calendar: Calendar = .current) -> Date {
+        let time = calendar.dateComponents([.hour, .minute, .second], from: date)
+        return calendar.date(
+            bySettingHour: time.hour ?? 0, minute: time.minute ?? 0, second: time.second ?? 0, of: day
+        ) ?? date
+    }
+
     /// "45 min", "1 h", "1 h 30 min"; `nil` for a meeting that has not ended or ended before it began.
     static func duration(from start: Date?, to end: Date?) -> String? {
         guard let start, let end, end > start else { return nil }
