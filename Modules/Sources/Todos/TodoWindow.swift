@@ -12,6 +12,8 @@ final class TodoWindow: NSPanel {
         isOpaque = false
         backgroundColor = .clear
         hasShadow = false
+        // The system would scale it in as it appears, pulling its top edge off the display's.
+        animationBehavior = .none
         collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
     }
 
