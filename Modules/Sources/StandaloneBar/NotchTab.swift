@@ -12,6 +12,7 @@ final class NotchTab {
     private static let cornerRadius: CGFloat = 10
 
     private var window: BarWindow?
+    private var shadeWindow: BarWindow?
     private let content = NSView()
     private let band = CALayer()
     private let view = TabView()
@@ -55,6 +56,21 @@ final class NotchTab {
         move(band, to: notch, over: nil)
         move(band, to: reached, over: duration)
         await slide(from: Self.tucked, to: 0, over: duration)
+    }
+
+    /// Covers `frame`, in window-server coordinates, above the items, taking its clicks. `nil` takes
+    /// the cover away.
+    func shade(_ frame: CGRect?) {
+        guard let frame else {
+            shadeWindow?.orderOut(nil)
+            shadeWindow = nil
+            return
+        }
+        let shade = shadeWindow ?? BarWindow(frame: frame, level: CoverWindow.aboveItems)
+        shadeWindow = shade
+        shade.backgroundColor = .black
+        shade.setFrame(cgFrame: frame)
+        shade.orderFrontRegardless()
     }
 
     func hide(over duration: TimeInterval?) async {

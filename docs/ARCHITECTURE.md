@@ -99,8 +99,11 @@ On macOS 27 none of the below applies: `openInTheBar` reveals the section into t
 leaves it there. Items can only sit right of the notch, and those that do not fit go behind a
 chevron, which Bouncer opens through Accessibility so they show left of the notch. Widening the
 divider while revealed (`sectionShift`) pushes half the section past what fits, so `NotchSplit`
-picks the shift that lands it evenly on both sides, from the width measured at the last close and
-again on each open. macOS slides both sides out of the notch itself, so nothing is photographed or
+picks the shift that lands it evenly on both sides, from the width measured at the last close
+(and on the first open only: a reading taken while the overflow still arrives, in batches up to
+100 ms apart, splits it differently each time). A black shade above the items hides the chevron
+and takes its clicks; pressed, it would take the left side away and leave the band over the app
+menus. macOS slides both sides out of the notch itself, so nothing is photographed or
 replicated, clicks reach the real items, and Screen Recording is not needed. The bar adds only
 `NotchTab`: a black band grown sideways out of the notch behind the items, at the menu bar's own
 level, which the window server draws over the bar's backdrop and under its items, and the notch

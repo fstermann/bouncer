@@ -37,6 +37,15 @@ enum NotchSplit {
         return min(lower, notch.lowerBound)...max(upper, notch.upperBound)
     }
 
+    /// What hides the chevron: from the notch to just past it, the bar's full height. Pressed, it
+    /// takes the left side away and leaves the band over the app menus.
+    static func shade(over chevron: CGRect, notch: ClosedRange<CGFloat>) -> CGRect {
+        CGRect(x: notch.upperBound, y: 0, width: chevron.maxX + shadePadding - notch.upperBound, height: chevron.maxY)
+    }
+
+    /// Less than half the gap macOS keeps between the chevron and the next item.
+    static let shadePadding: CGFloat = 2
+
     /// Only the open chevron puts items there. One it had no room for sits above the display.
     private static func leftOfNotch(_ frames: [CGRect], _ notch: ClosedRange<CGFloat>) -> [CGRect] {
         frames.filter { $0.minY >= 0 && $0.maxX <= notch.lowerBound }

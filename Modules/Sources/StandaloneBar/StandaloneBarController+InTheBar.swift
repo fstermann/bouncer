@@ -38,18 +38,19 @@ extension StandaloneBarController {
         }
         _ = await AgentItems.revealed(in: notch.range.upperBound...end, height: height)
         var frames = await settleBothSides(notch: notch.range)
-        // The width is remembered from the last close, and unknown before the first: when the
-        // section changed since, it is split again from where it landed.
-        measureSection(frames, notch: notch.range, end: end)
-        if let sectionWidth {
-            let shift = NotchSplit.shift(for: sectionWidth, endingAt: end, notch: notch.range)
-            if abs(shift - menuBar.sectionShift) > Self.resplitThreshold {
-                menuBar.sectionShift = shift
+        // The width is remembered from the last close, so it is read here only before the first:
+        // measured on every open, a reading taken while the bar still moves splits it differently
+        // from one open to the next.
+        if sectionWidth == nil {
+            measureSection(frames, notch: notch.range, end: end)
+            if let sectionWidth {
+                menuBar.sectionShift = NotchSplit.shift(for: sectionWidth, endingAt: end, notch: notch.range)
                 await AgentItems.change(from: frames)
                 frames = await settleBothSides(notch: notch.range)
             }
         }
         let reach = NotchSplit.band(over: frames, notch: notch.range, end: end)
+        tab.shade(AgentOverflow.frame.map { NotchSplit.shade(over: $0, notch: notch.range) })
         await tab.show(at: tabFrame, reaching: reach, over: shape == nil ? slide : nil)
         finishOpening(of: [], from: [:], over: tabFrame)
     }
@@ -64,11 +65,9 @@ extension StandaloneBarController {
         AgentOverflow.close()
         menuBar.setVisibility(.collapsed)
         menuBar.setBoundaryMarkersVisible(true)
+        tab.shade(nil)
         await tab.hide(over: animated ? slide : nil)
     }
-
-    /// Less than half an item: a smaller change in the shift moves nothing across the notch.
-    private static let resplitThreshold: CGFloat = 16
 
     /// Opens the chevron, if the section overflowed, and returns every item once both sides have landed.
     private func settleBothSides(notch: ClosedRange<CGFloat>) async -> [CGRect] {

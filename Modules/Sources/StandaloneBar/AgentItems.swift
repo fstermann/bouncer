@@ -30,14 +30,17 @@ enum AgentItems {
     /// Every item once the open chevron has drawn the overflow left of `edge`.
     ///
     /// A bounded poll, like `revealed`: the overflow was measured reporting its final places 70 to
-    /// 180 ms after the press, while it still slides out of the notch.
+    /// 180 ms after the press, while it still slides out of the notch, and in batches up to 100 ms
+    /// apart. So it has to hold still for longer than that gap.
     static func overflowed(leftOf edge: CGFloat) async -> [CGRect] {
         var previous: [CGRect] = []
+        var stillFor = 0
         var all: [CGRect] = []
         for _ in 0..<attemptLimit {
             all = await frames()
             let left = all.filter { $0.minY >= 0 && $0.maxX <= edge }.sorted { $0.minX < $1.minX }
-            if !left.isEmpty, left == previous { return all }
+            stillFor = !left.isEmpty && left == previous ? stillFor + 1 : 0
+            if stillFor == stillReadings { return all }
             previous = left
             try? await Task.sleep(for: .milliseconds(15))
         }
@@ -95,4 +98,6 @@ enum AgentItems {
     }
 
     private static let attemptLimit = 30
+    /// Readings 15 ms apart that make the overflow's batches gap of 100 ms.
+    private static let stillReadings = 8
 }

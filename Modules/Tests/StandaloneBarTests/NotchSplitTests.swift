@@ -60,4 +60,12 @@ struct NotchSplitTests {
     func bandOverNothing() {
         #expect(NotchSplit.band(over: [], notch: notch, end: end) == notch)
     }
+
+    @Test("The shade runs from the notch to just past the chevron")
+    func shade() {
+        let shade = NotchSplit.shade(over: CGRect(x: 886, y: 1, width: 18, height: 30), notch: notch)
+        #expect(shade.minX == notch.upperBound)
+        #expect(shade.maxX == 904 + NotchSplit.shadePadding)
+        #expect(shade.minY == 0)
+    }
 }
