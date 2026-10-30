@@ -140,7 +140,7 @@ extension TagFiltering {
 
     /// A nested tag without a colour of its own takes the one of the tag above it.
     func color(of tag: String) -> Color? {
-        tagColors[tag].flatMap(TagColor.init(rawValue:))?.color ?? TagPath.parent(of: tag).flatMap(color)
+        TagColor.of(tag, in: tagColors)
     }
 
     func setColor(_ color: TagColor, of tag: String) {

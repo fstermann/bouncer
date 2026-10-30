@@ -17,6 +17,11 @@ enum TagColor: String, CaseIterable {
         case .pink: .pink
         }
     }
+
+    /// The colour `tag` is drawn in, from tag to colour name: its own, or else that of the tag above it.
+    static func of(_ tag: String, in names: [String: String]) -> Color? {
+        names[tag].flatMap(TagColor.init(rawValue:))?.color ?? TagPath.parent(of: tag).flatMap { of($0, in: names) }
+    }
 }
 
 /// The colours `tag` can be drawn in, as swatches rather than a system menu: a system menu shows the
