@@ -117,7 +117,9 @@ level, which the window server draws over the bar's backdrop and under its items
 across a collapse, and left open, every later reveal draws the overflow over the app menus. Another app coming to the
 front closes it, open or collapsed, taking the left side back into the notch, so the bar closes with
 it, and a layout is only measured while it is open. An item dragged in or out while the bar is open moves the section's ends, so
-every release reads the items again once they hold still and refits the band. Items
+every release reads the items again once they hold still and refits the band. Accessibility stalls through a
+drag, so during one the band only grows its right end with the divider, which items dragged in push
+and whose window moves say so. Items
 that fit on neither side are dropped by macOS and cannot be shown. Rearranging is not built there.
 
 There is no capture pipeline. The section is photographed once per open, in a single call,

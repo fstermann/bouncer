@@ -78,6 +78,11 @@ final class NotchTab {
         moveBand(over: duration)
     }
 
+    /// Moves the band's right end out to `end`, in window-server x, if it falls short of it.
+    func grow(rightTo end: CGFloat, over duration: TimeInterval?) {
+        extend(to: span.lowerBound...max(end, span.upperBound), over: duration)
+    }
+
     /// Fades black in over the items on both sides, which can then come and go unseen.
     func cover(over duration: TimeInterval?) {
         guard window != nil else { return }

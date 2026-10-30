@@ -58,8 +58,7 @@ public final class StandaloneBarController {
     let tab = NotchTab()
     /// Whether this open went the macOS 27 way (`openInTheBar`), so closing it does too.
     var isInTheBar = false
-    /// How the section lay when last closed in the bar, for the next open to split it and lay the
-    /// band out before revealing it. Unknown until an open: hidden items have no frame.
+    /// How the section lay when last closed in the bar, which the next open splits and bands it by.
     var lastLayout: NotchSplit.Layout?
     var appSwitches: NSObjectProtocol?
     /// What a todo page switching back hands the next open, to take the notch's shape before it shows.
@@ -347,11 +346,11 @@ public final class StandaloneBarController {
                 // A Cmd-drag up in the bar is the user rearranging it, whether or not it began on
                 // a replica. The panel follows either way, or it stands still through the drag and
                 // jumps once at the end of it.
-                case .leftMouseDragged where !self.isInTheBar && self.isRearranging(event):
-                    self.handover.followAlong()
+                case .leftMouseDragged where self.isRearranging(event):
+                    if self.isInTheBar { self.followDragInTheBar() } else { self.handover.followAlong() }
                 // Any release ends whatever drag the follow was following — Cmd or not, since Cmd
                 // let go before the mouse ends it just the same. The look stands itself down when
-                // no follow is up. On macOS 27 there is no follow, so every release refits the band.
+                // no follow is up; on macOS 27 the band is refitted.
                 case .leftMouseUp where self.isInTheBar: Task { await self.refitInTheBar() }
                 case .leftMouseUp: self.handover.lookAgain(around: self.items, over: self.slide)
                 default: break

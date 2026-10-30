@@ -94,6 +94,10 @@ public final class MenuBarManager {
     /// left of this when revealed. `nil` before the divider has been placed, and below macOS 27,
     /// where nothing reads it.
     public var hiddenSectionEnd: CGFloat? { hiddenDivider?.restingRightEdge }
+    /// Where the hidden section's divider starts, in window-server x, while the section is revealed.
+    public var hiddenDividerStart: CGFloat? { visibility.shows(.hidden) ? hiddenDivider?.frame?.minX : nil }
+    /// Called as the hidden section's divider moves on macOS 27, where items dragged across the bar push it.
+    public var onHiddenDividerMove: (@MainActor () -> Void)?
 
     #if DEV
     public var devState: String {
@@ -163,6 +167,7 @@ public final class MenuBarManager {
         )
         divider.onClick = { [weak self] in self?.revealFurtherOrCollapse() }
         divider.keepsVisible = { [weak self] in self?.iconItem?.button?.window?.frame }
+        divider.onMove = { [weak self] in self?.onHiddenDividerMove?() }
         divider.isExpanded = !visibility.shows(.hidden)
         hiddenDivider = divider
     }

@@ -56,6 +56,15 @@ struct NotchSplitTests {
         #expect(band == (492 - NotchSplit.bandPadding)...(1027 + NotchSplit.bandPadding))
     }
 
+    @Test("Followed by the divider, the band reaches past the last item wherever its window sits")
+    func bandEndFromTheDivider() {
+        let lastItem = item(987, 1027)
+        let band = NotchSplit.band(over: [lastItem], notch: notch, end: end)
+        for dividerStart in [lastItem.maxX - 1, lastItem.maxX + 6] {
+            #expect(NotchSplit.bandEnd(dividerStart: dividerStart) >= band.upperBound)
+        }
+    }
+
     @Test("With nothing revealed the band is the notch")
     func bandOverNothing() {
         #expect(NotchSplit.band(over: [], notch: notch, end: end) == notch)

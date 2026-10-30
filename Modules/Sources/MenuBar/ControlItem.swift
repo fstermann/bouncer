@@ -35,6 +35,9 @@ final class ControlItem: NSObject {
     /// Invoked when the marker is clicked.
     var onClick: (@MainActor () -> Void)?
 
+    /// Invoked when the divider moves in the bar, as items dragged past it push it.
+    var onMove: (@MainActor () -> Void)?
+
     /// `true` collapses the section to this divider's left.
     var isExpanded = true {
         didSet { if isExpanded != oldValue { updateAppearance() } }
@@ -106,6 +109,7 @@ final class ControlItem: NSObject {
               screen.frame.intersects(window.frame), !isWide
         else { return }
         restingRightEdge = window.frame.maxX
+        onMove?()
         lookAgain()
     }
 

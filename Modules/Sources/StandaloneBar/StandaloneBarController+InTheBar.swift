@@ -88,10 +88,25 @@ extension StandaloneBarController {
         if let uncovering { await uncovering.value } else { await tab.uncover(.left, over: nil) }
     }
 
+    /// Grows the band past the section's last item through a Cmd-drag, as an item dragged in pushes
+    /// the divider. Accessibility stalls for the whole drag, so the divider is all there is, and it
+    /// is not exact enough to shrink the band by: the release does that.
+    func followDragInTheBar() {
+        guard menuBar.onHiddenDividerMove == nil else { return }
+        menuBar.onHiddenDividerMove = { [weak self] in
+            guard let self, isOpen, isInTheBar, let start = menuBar.hiddenDividerStart else { return }
+            tab.grow(rightTo: NotchSplit.bandEnd(dividerStart: start), over: slide)
+        }
+    }
+
     /// Fits the band to the section again once the bar has settled after a release: an item dragged
     /// in or out changes how far the section reaches, and macOS says nothing when it lands.
     func refitInTheBar() async {
-        let frames = await AgentItems.settled()
+        menuBar.onHiddenDividerMove = nil
+        fitBand(to: await AgentItems.settled())
+    }
+
+    private func fitBand(to frames: [CGRect]) {
         guard isOpen, isInTheBar, let end = menuBar.hiddenSectionEnd,
               let notch = Notch.on(displayOf: CGRect(x: end, y: 0, width: 1, height: 1))
         else { return }
@@ -128,6 +143,7 @@ extension StandaloneBarController {
     /// Closes the chevron before collapsing: left open, every later reveal, a plain click on the icon
     /// included, draws the overflow over the app menus.
     func closeInTheBar(animated: Bool) async {
+        menuBar.onHiddenDividerMove = nil
         appSwitches.map(NSWorkspace.shared.notificationCenter.removeObserver)
         appSwitches = nil
         // Measured only with the chevron open: closed, it holds just the right side.

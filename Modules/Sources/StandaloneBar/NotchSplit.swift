@@ -24,6 +24,12 @@ enum NotchSplit {
     static let tailRight: CGFloat = 25
     /// How far the black band reaches past the outermost items.
     static let bandPadding: CGFloat = 8
+    /// Where the band ends on the right for a divider starting at `dividerStart`: past the last item.
+    /// The divider's window was measured from 1 pt over the last item to 6 pt clear of it, so the
+    /// band goes as far as the nearest of those allows.
+    static func bandEnd(dividerStart: CGFloat) -> CGFloat {
+        dividerStart + 1 + bandPadding
+    }
 
     /// The divider's extra width that leaves room right of the notch for half of `hiddenWidth`.
     static func shift(for hiddenWidth: CGFloat, endingAt end: CGFloat, notch: ClosedRange<CGFloat>) -> CGFloat {
