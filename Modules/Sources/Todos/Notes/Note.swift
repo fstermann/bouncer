@@ -166,6 +166,45 @@ enum NoteTime {
         calendar.date(bySettingHour: hour, minute: minute, second: 0, of: day) ?? day
     }
 
+    /// Digits typed into a time, split into its hour and as much of its minutes as there is: the first
+    /// two digits are the hour while they can be one, so "930" is 9:30. `nil` once no time starts so.
+    static func split(_ digits: String) -> (hour: Int, minutes: String)? {
+        guard digits.allSatisfy({ $0.isASCII && $0.isNumber }) else { return nil }
+        let isTwoDigitHour = digits.count > 1 && Int(digits.prefix(2)).map { $0 < 24 } == true
+        guard let hour = Int(digits.prefix(isTwoDigitHour ? 2 : 1)) else { return nil }
+        let minutes = String(digits.dropFirst(isTwoDigitHour ? 2 : 1))
+        guard minutes.count <= 2, minutes.first.map({ $0 <= "5" }) ?? true else { return nil }
+        return (hour, minutes)
+    }
+
+    /// The digits as the field shows them: "14", "14:0", "9:30"; `nil` once no time starts so.
+    static func typed(_ digits: String) -> String? {
+        guard !digits.isEmpty else { return "" }
+        guard let (_, minutes) = split(digits) else { return nil }
+        return minutes.isEmpty ? digits : "\(digits.dropLast(minutes.count)):\(minutes)"
+    }
+
+    /// The time the digits stand for on `day`, the minutes they lack read as noughts: "14:3" is 14:30.
+    static func time(typed digits: String, on day: Date, calendar: Calendar = .current) -> Date? {
+        guard let (hour, minutes) = split(digits) else { return nil }
+        let minute = Int(minutes.padding(toLength: 2, withPad: "0", startingAt: 0)) ?? 0
+        return at(hour: hour, minute: minute, on: day, calendar: calendar)
+    }
+
+    /// The quarter hour at or before `date`.
+    static func quarter(before date: Date, calendar: Calendar = .current) -> Date {
+        let minute = calendar.component(.minute, from: date)
+        let hour = calendar.component(.hour, from: date)
+        return at(hour: hour, minute: minute - minute % 15, on: date, calendar: calendar)
+    }
+
+    /// The next quarter hour after `date`, or with `up` false, the one before it.
+    static func step(_ date: Date, up: Bool, calendar: Calendar = .current) -> Date {
+        let quarter = quarter(before: date, calendar: calendar)
+        if up { return quarter.addingTimeInterval(15 * 60) }
+        return quarter == date ? date.addingTimeInterval(-15 * 60) : quarter
+    }
+
     /// `date` on `day`, at the same time of day.
     static func moving(_ date: Date, to day: Date, calendar: Calendar = .current) -> Date {
         let time = calendar.dateComponents([.hour, .minute, .second], from: date)

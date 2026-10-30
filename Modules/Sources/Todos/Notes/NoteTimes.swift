@@ -1,23 +1,31 @@
+import AppKit
 import SwiftUI
 
-/// When a meeting ran: its day, start and, once it has, end, and how long it ran. A click on any of
-/// them opens its choices under the row: a calendar, or the day's quarter hours. The end stays on
-/// the start's day.
+/// When a meeting ran: its day, start and, once it has, end, and how long it ran. A click on the day
+/// opens a calendar under the row; a click on a time turns it into a field to type a time into, with
+/// the quarter hours near it offered under the row, and for the end, how long it lasted. The end stays
+/// on the start's day.
 struct NoteTimes: View {
     private enum Picking { case day, start, end }
 
     @Bindable var draft: NoteDraft
     @State private var picking: Picking?
+    /// What the field shows: the time as it was, or as stepped to, until digits are typed.
+    @State private var typed = ""
+    /// The digits typed, `nil` until one is.
+    @State private var digits: String?
+    @State private var stepped: Date?
+    @FocusState private var isTyping: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
                 let day = TaskDay.label(for: TaskDay.string(for: draft.start), today: Date()).text
                 opener(.day, day, help: "Change the day")
-                opener(.start, Self.clock(draft.start), help: "Change the start")
+                time(.start, draft.start, help: "Change the start")
                 Text("–").foregroundStyle(.secondary)
                 if let end = draft.end {
-                    opener(.end, Self.clock(end), help: "Change the end")
+                    time(.end, end, help: "Change the end")
                     if let duration = NoteTime.duration(from: draft.start, to: end) {
                         Text(duration).foregroundStyle(.secondary)
                     }
@@ -31,6 +39,8 @@ struct NoteTimes: View {
             }
             choices
         }
+        // Clicking away keeps what was typed; a pick or Escape has closed the field already.
+        .onChange(of: isTyping) { if !$1, picking == .start || picking == .end { take() } }
     }
 
     @ViewBuilder private var choices: some View {
@@ -41,19 +51,11 @@ struct NoteTimes: View {
                 .labelsHidden()
                 .fixedSize()
         case .start:
-            HStack(alignment: .top, spacing: 12) {
-                TimeGrid(day: draft.start, selected: draft.start) { start($0) }
-                nowChip { start($0) }
-            }
+            nearby(draft.start, after: nil) { start($0) }
         case .end:
-            HStack(alignment: .top, spacing: 12) {
-                TimeGrid(day: draft.start, selected: draft.end, after: draft.start) { end($0) }
-                Grid(alignment: .leading, horizontalSpacing: 4, verticalSpacing: 3) {
-                    GridRow { nowChip { end($0) } }
-                    GridRow { lasting(15); lasting(30) }
-                    GridRow { lasting(45); lasting(60) }
-                    GridRow { lasting(90) }
-                }
+            VStack(alignment: .leading, spacing: 4) {
+                nearby(draft.end ?? draft.start, after: draft.start) { end($0) }
+                HStack(spacing: 4) { ForEach([15, 30, 45, 60, 90], id: \.self, content: lasting) }
             }
         case nil:
             EmptyView()
@@ -73,6 +75,122 @@ struct NoteTimes: View {
         .help(help)
     }
 
+    /// The start or end, which a click turns into a field: Return takes what is typed, and the arrows
+    /// step it a quarter hour at a time. It takes only digits that a time can start with, and puts the
+    /// colon in itself.
+    @ViewBuilder private func time(_ choice: Picking, _ date: Date, help: String) -> some View {
+        if picking == choice {
+            // As wide as the longest time, so it takes no more room than the button it replaces.
+            Text("00:00")
+                .monospacedDigit()
+                .hidden()
+                .overlay { field(date) }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 1)
+                .background(RoundedRectangle(cornerRadius: 5).fill(.white.opacity(0.2)))
+        } else {
+            Button {
+                typed = Self.clock(date)
+                digits = nil
+                stepped = nil
+                picking = choice
+            } label: {
+                Text(Self.clock(date))
+                    .monospacedDigit()
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 1)
+                    .background(RoundedRectangle(cornerRadius: 5).fill(.white.opacity(0.08)))
+            }
+            .buttonStyle(.plain)
+            .help(help)
+        }
+    }
+
+    private func field(_ date: Date) -> some View {
+        TextField("", text: $typed)
+            .textFieldStyle(.plain)
+            .monospacedDigit()
+            .focused($isTyping)
+            .onSubmit { take() }
+            // Taken before the field gets them: what it holds cannot be reset while a key changes it.
+            .onKeyPress(characters: Self.notDigits, phases: .down, action: refuse)
+            .onKeyPress(characters: .decimalDigits, phases: .down) { press in
+                type((isAllSelected ? "" : digits ?? "") + press.characters)
+                return .handled
+            }
+            // The Delete key sends U+007F, not the U+0008 `.delete` holds.
+            .onKeyPress(keys: [.delete, KeyEquivalent("\u{7F}")]) { _ in
+                type(isAllSelected ? "" : String((digits ?? "").dropLast()))
+                return .handled
+            }
+            .onKeyPress(.upArrow) { step(from: date, up: true) }
+            .onKeyPress(.downArrow) { step(from: date, up: false) }
+            .onKeyPress(.escape) {
+                picking = nil
+                return .handled
+            }
+            // A turn later, once the field is in the window: focus set before then is lost.
+            .onAppear { Task { isTyping = true } }
+    }
+
+    /// The quarter hours from half an hour before the one at or before `date` to half an hour after it,
+    /// later than `after`, and now.
+    private func nearby(_ date: Date, after: Date?, pick: @escaping (Date) -> Void) -> some View {
+        let quarter = NoteTime.quarter(before: date)
+        let times = (-2...2).map { quarter.addingTimeInterval(TimeInterval($0 * 15 * 60)) }
+            .filter { time in after.map { time > $0 } ?? true }
+        return HStack(spacing: 4) {
+            ForEach(times, id: \.self) { time in
+                Button { pick(time) } label: {
+                    Chip(text: Self.clock(time), isSelected: time == date).monospacedDigit()
+                }
+                .buttonStyle(.plain)
+            }
+            Button { pick(NoteEditor.minute(of: Date())) } label: { Chip(text: "Now") }
+                .buttonStyle(.plain)
+        }
+    }
+
+    /// Keeps out what is no part of a time, but lets commands by.
+    private func refuse(_ press: KeyPress) -> KeyPress.Result {
+        press.modifiers.contains(.command) ? .ignored : .handled
+    }
+
+    /// Whether the field's text is all selected, as it opens or after Command-A, so the next digit
+    /// replaces it.
+    private var isAllSelected: Bool {
+        guard let editor = NSApp.keyWindow?.firstResponder as? NSTextView else { return false }
+        return editor.selectedRange().length == (editor.string as NSString).length
+    }
+
+    /// Shows `new` as the digits typed, if a time can start with them.
+    private func type(_ new: String) {
+        guard let shown = NoteTime.typed(new) else { return }
+        digits = new
+        typed = shown
+    }
+
+    /// The time typed, or else stepped to; `nil` for none.
+    private var entered: Date? {
+        digits.map { NoteTime.time(typed: $0, on: draft.start) } ?? stepped
+    }
+
+    /// Sets the time entered and closes the field.
+    private func take() {
+        let choice = picking
+        picking = nil
+        guard let time = entered else { return }
+        if choice == .start { start(time) } else if choice == .end { end(time) }
+    }
+
+    private func step(from date: Date, up: Bool) -> KeyPress.Result {
+        let time = NoteTime.step(entered ?? date, up: up)
+        digits = nil
+        stepped = time
+        typed = Self.clock(time)
+        return .handled
+    }
+
     /// Ends the meeting `minutes` after it started.
     private func lasting(_ minutes: Int) -> some View {
         let end = draft.start.addingTimeInterval(TimeInterval(minutes * 60))
@@ -80,11 +198,6 @@ struct NoteTimes: View {
             Chip(text: NoteTime.duration(from: draft.start, to: end) ?? "", isSelected: end == draft.end)
         }
         .buttonStyle(.plain)
-    }
-
-    private func nowChip(_ set: @escaping (Date) -> Void) -> some View {
-        Button { set(NoteEditor.minute(of: Date())) } label: { Chip(text: "Now") }
-            .buttonStyle(.plain)
     }
 
     private var day: Binding<Date> {
@@ -103,56 +216,11 @@ struct NoteTimes: View {
         picking = nil
     }
 
+    /// What can be typed but is no part of a time; arrows, Return and Escape stay keys.
+    private static let notDigits = CharacterSet.letters.union(.punctuationCharacters).union(.symbols)
+        .union(.whitespaces).subtracting(.decimalDigits)
+
     static func clock(_ date: Date) -> String {
         date.formatted(date: .omitted, time: .shortened)
-    }
-}
-
-/// The quarter hours of `day`, an hour a row, scrolled to the selected one's hour. The full and half
-/// hours stand out, as meetings mostly start on them. Given `after`, the rows start at its hour, and
-/// the times up to it cannot be picked.
-private struct TimeGrid: View {
-    let day: Date
-    let selected: Date?
-    var after: Date?
-    let pick: (Date) -> Void
-
-    var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 3) {
-                    ForEach(hours, id: \.self) { hour in
-                        HStack(spacing: 4) {
-                            ForEach([0, 15, 30, 45], id: \.self) { minute in
-                                slot(NoteTime.at(hour: hour, minute: minute, on: day), isHalf: minute % 30 == 0)
-                            }
-                        }
-                        .id(hour)
-                    }
-                }
-            }
-            .fixedSize(horizontal: true, vertical: false)
-            .frame(height: 110)
-            .background(OverlayScrollers())
-            .onAppear {
-                let hour = Calendar.current.component(.hour, from: selected ?? after ?? Date())
-                proxy.scrollTo(hour, anchor: .center)
-            }
-        }
-    }
-
-    private var hours: Range<Int> {
-        (after.map { Calendar.current.component(.hour, from: $0) } ?? 0)..<24
-    }
-
-    private func slot(_ time: Date, isHalf: Bool) -> some View {
-        let isOpen = after.map { time > $0 } ?? true
-        return Button { pick(time) } label: {
-            Chip(text: NoteTimes.clock(time), isSelected: time == selected)
-                .monospacedDigit()
-                .opacity(isOpen ? (isHalf ? 1 : 0.6) : 0.25)
-        }
-        .buttonStyle(.plain)
-        .disabled(!isOpen)
     }
 }
