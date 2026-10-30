@@ -66,9 +66,36 @@ public final class DevHarness {
                     seconds: seconds, height: height ?? DevCamera.defaultHeight, to: URL(fileURLWithPath: path)
                 )
             }
+        case "drag":
+            let to = CGPoint(x: number ?? 0, y: Double(words.count > 3 ? words[3] : "") ?? 12)
+            await Self.cmdDrag(from: CGPoint(x: Double(path) ?? 0, y: 12), to: to)
+            return "dragged"
         default:
             return "unknown command: \(command)"
         }
+    }
+
+    /// A Cmd-drag as the user makes one, posted from here because the app holds Accessibility,
+    /// which posting needs. The pointer is put back where it was.
+    private static func cmdDrag(from start: CGPoint, to end: CGPoint) async {
+        let home = CGEvent(source: nil)?.location ?? start
+        func post(_ type: CGEventType, at point: CGPoint) {
+            let event = CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: point, mouseButton: .left)
+            event?.flags = .maskCommand
+            event?.post(tap: .cghidEventTap)
+        }
+        post(.leftMouseDown, at: start)
+        let steps = 30
+        for step in 1...steps {
+            try? await Task.sleep(for: .milliseconds(16))
+            let progress = CGFloat(step) / CGFloat(steps)
+            post(.leftMouseDragged, at: CGPoint(
+                x: start.x + (end.x - start.x) * progress, y: start.y + (end.y - start.y) * progress
+            ))
+        }
+        try? await Task.sleep(for: .milliseconds(100))
+        post(.leftMouseUp, at: end)
+        CGWarpMouseCursorPosition(home)
     }
 
     private func outcome(_ work: () async throws -> String) async -> String {

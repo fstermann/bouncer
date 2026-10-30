@@ -88,6 +88,17 @@ extension StandaloneBarController {
         if let uncovering { await uncovering.value } else { await tab.uncover(.left, over: nil) }
     }
 
+    /// Fits the band to the section again once the bar has settled after a release: an item dragged
+    /// in or out changes how far the section reaches, and macOS says nothing when it lands.
+    func refitInTheBar() async {
+        let frames = await AgentItems.settled()
+        guard isOpen, isInTheBar, let end = menuBar.hiddenSectionEnd,
+              let notch = Notch.on(displayOf: CGRect(x: end, y: 0, width: 1, height: 1))
+        else { return }
+        tab.extend(to: NotchSplit.band(over: frames, notch: notch.range, end: end), over: slide)
+        tab.shade(AgentOverflow.frame.map { NotchSplit.shade(over: $0, notch: notch.range) })
+    }
+
     /// Another app coming to the front closes the chevron, taking the left side back into the notch
     /// and leaving the band over the app menus, so the bar goes with it.
     private func closeWhenTheOverflowCloses() {

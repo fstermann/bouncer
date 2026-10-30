@@ -21,10 +21,12 @@ enum AgentItems {
             .sorted { $0.item.frame.minX < $1.item.frame.minX }
     }
 
-    /// Where every status item but Bouncer's own sits, as Accessibility reports it. One macOS had
-    /// no room for sits above the display.
+    /// Where every status item but Bouncer's own sits, as Accessibility reports it, left to right.
+    /// One macOS had no room for sits above the display.
+    ///
+    /// Sorted because the apps answer in any order, and two readings of a still bar must compare equal.
     static func frames() async -> [CGRect] {
-        await found().map(\.frame)
+        await found().map(\.frame).sorted { ($0.minX, $0.minY) < ($1.minX, $1.minY) }
     }
 
     /// Every item once the open chevron has drawn the overflow left of `edge`.
@@ -46,6 +48,21 @@ enum AgentItems {
         }
         Log.menuBar.error("Standalone bar: the overflow never settled left of the notch")
         return all
+    }
+
+    /// Every item once the bar has stopped moving, after a drag dropped one. A bounded poll: an
+    /// item lands without a word from Accessibility.
+    static func settled() async -> [CGRect] {
+        var previous = await frames()
+        var stillFor = 0
+        for _ in 0..<attemptLimit {
+            try? await Task.sleep(for: .milliseconds(30))
+            let current = await frames()
+            stillFor = current == previous ? stillFor + 1 : 0
+            if stillFor == 3 { return current }
+            previous = current
+        }
+        return previous
     }
 
     /// Waits for the bar to be laid out again after the divider changed width. A bounded poll.

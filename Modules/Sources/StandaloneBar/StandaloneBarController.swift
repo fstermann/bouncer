@@ -351,9 +351,9 @@ public final class StandaloneBarController {
                     self.handover.followAlong()
                 // Any release ends whatever drag the follow was following — Cmd or not, since Cmd
                 // let go before the mouse ends it just the same. The look stands itself down when
-                // no follow is up.
-                case .leftMouseUp where !self.isInTheBar:
-                    self.handover.lookAgain(around: self.items, over: self.slide)
+                // no follow is up. On macOS 27 there is no follow, so every release refits the band.
+                case .leftMouseUp where self.isInTheBar: Task { await self.refitInTheBar() }
+                case .leftMouseUp: self.handover.lookAgain(around: self.items, over: self.slide)
                 default: break
                 }
             }
