@@ -13,8 +13,11 @@ final class NotchTab {
 
     private var window: BarWindow?
     private var shadeWindow: BarWindow?
+    private var coverWindow: BarWindow?
     private let content = NSView()
     private let band = CALayer()
+    /// The band again, above the items: both sides come and go behind it, so they do so together.
+    private let cover = CALayer()
     private let view = TabView()
     /// Where the tab rests and the window's frame, in window-server coordinates.
     private var tabFrame = CGRect.zero
@@ -42,9 +45,10 @@ final class NotchTab {
     ///
     /// - Parameter room: how far the band is to go later on, so the window is made that wide now: grown
     ///   while the band moves, it cuts the band's animation short.
+    /// - Parameter covered: whether the band also hides the items until `uncover`.
     func show(
         at frame: CGRect, reaching reach: ClosedRange<CGFloat>, room: ClosedRange<CGFloat>? = nil,
-        over duration: TimeInterval?
+        covered: Bool = false, over duration: TimeInterval?
     ) async {
         tabFrame = frame
         let tab = window ?? make(frame)
@@ -53,6 +57,7 @@ final class NotchTab {
         place(covering: room ?? reach)
         view.setUpLayer()
         tab.orderFrontRegardless()
+        if covered { self.cover(over: nil) }
         extend(to: reach, over: duration)
         await slide(from: Self.tucked, to: 0, over: duration)
     }
@@ -63,13 +68,27 @@ final class NotchTab {
         guard window != nil, reach != span else { return }
         place(covering: reach)
         span = reach
-        move(band, to: local(reach), over: duration)
+        moveBand(over: duration)
     }
 
-    /// Takes the band left of the notch away at once, with the overflow it was behind, which leaves
-    /// in one go. Kept any longer, the app menus come back over it.
-    func dropLeftHalf() {
-        extend(to: tabFrame.minX...max(span.upperBound, tabFrame.maxX), over: nil)
+    /// Fades black in over the items on both sides, which can then come and go unseen.
+    func cover(over duration: TimeInterval?) {
+        guard window != nil else { return }
+        let covering = coverWindow ?? makeCover()
+        coverWindow = covering
+        covering.setFrame(cgFrame: windowFrame)
+        move(cover, to: local(span), over: nil)
+        fade(cover, to: 1, over: duration)
+        covering.orderFrontRegardless()
+    }
+
+    /// Fades the cover off, showing both sides' items at once.
+    func uncover(over duration: TimeInterval?) async {
+        guard coverWindow != nil else { return }
+        fade(cover, to: 0, over: duration)
+        if let duration { try? await Task.sleep(for: .seconds(duration)) }
+        coverWindow?.orderOut(nil)
+        coverWindow = nil
     }
 
     /// Grows the window to take in `reach` as well, keeping everything in it where it is on screen.
@@ -81,9 +100,15 @@ final class NotchTab {
         guard whole != windowFrame else { return }
         windowFrame = whole
         window?.setFrame(cgFrame: whole)
+        coverWindow?.setFrame(cgFrame: whole)
         content.frame = CGRect(origin: .zero, size: whole.size)
         view.frame = CGRect(x: tabFrame.minX - whole.minX, y: 0, width: tabFrame.width, height: tabFrame.height)
-        move(band, to: local(span), over: nil)
+        moveBand(over: nil)
+    }
+
+    private func moveBand(over duration: TimeInterval?) {
+        move(band, to: local(span), over: duration)
+        if coverWindow != nil { move(cover, to: local(span), over: duration) }
     }
 
     /// `reach` in the window's own coordinates, the bar's height tall.
@@ -113,10 +138,12 @@ final class NotchTab {
     func hide(over duration: TimeInterval?) async {
         guard window != nil else { return }
         span = tabFrame.minX...tabFrame.maxX
-        move(band, to: local(span), over: duration)
+        moveBand(over: duration)
         await slide(from: 0, to: Self.tucked, over: duration)
         window?.orderOut(nil)
         window = nil
+        coverWindow?.orderOut(nil)
+        coverWindow = nil
         windowFrame = .zero
     }
 
@@ -146,6 +173,20 @@ final class NotchTab {
         layer.add(group, forKey: "move")
     }
 
+    private func fade(_ layer: CALayer, to opacity: Float, over duration: TimeInterval?) {
+        let start = layer.presentation()?.opacity ?? layer.opacity
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        layer.opacity = opacity
+        CATransaction.commit()
+        guard let duration else { return }
+        let animation = CABasicAnimation(keyPath: "opacity")
+        animation.fromValue = start
+        animation.toValue = opacity
+        animation.duration = duration
+        layer.add(animation, forKey: "fade")
+    }
+
     private func slide(from start: CGFloat, to end: CGFloat, over duration: TimeInterval?) async {
         guard let layer = view.layer else { return }
         layer.transform = CATransform3DMakeTranslation(0, end, 0)
@@ -162,13 +203,29 @@ final class NotchTab {
     private func make(_ frame: CGRect) -> BarWindow {
         let tab = BarWindow(frame: frame, level: .mainMenu)
         content.wantsLayer = true
-        band.backgroundColor = NSColor.black.cgColor
-        band.cornerRadius = Self.cornerRadius
-        band.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
+        Self.shape(band)
         content.layer?.addSublayer(band)
         content.addSubview(view)
         tab.contentView = content
         return tab
+    }
+
+    private func makeCover() -> BarWindow {
+        let covering = BarWindow(frame: windowFrame, level: CoverWindow.aboveItems)
+        covering.ignoresMouseEvents = true
+        let content = NSView(frame: CGRect(origin: .zero, size: windowFrame.size))
+        content.wantsLayer = true
+        Self.shape(cover)
+        cover.opacity = 0
+        content.layer?.addSublayer(cover)
+        covering.contentView = content
+        return covering
+    }
+
+    private static func shape(_ layer: CALayer) {
+        layer.backgroundColor = NSColor.black.cgColor
+        layer.cornerRadius = cornerRadius
+        layer.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
     }
 }
 

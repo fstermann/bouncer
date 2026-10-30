@@ -32,21 +32,20 @@ extension StandaloneBarController {
         if let shape { await shape(BarWindow.appKitFrame(for: tabFrame)) }
         let duration = shape == nil ? slide : nil
         let layout = lastLayout?.end == end ? lastLayout : nil
-        // The band goes out first and the items land on it, the chevron already covered. Revealed
-        // first, they would sit on the grey bar and the band slide in under them. Its left half waits
-        // for the overflow: out any sooner, it is drawn under the app menus the overflow pushes aside.
+        // The band goes out both ways at once, covering the items, which land behind it and show
+        // together once both sides have settled. Uncovered, the right side lands well before the
+        // overflow slides out on the left, and the app menus draw over the band until it has.
         var showing: Task<Void, Never>?
         if let layout {
-            let rightHalf = notch.range.lowerBound...layout.reach.upperBound
-            showing = Task { await tab.show(at: tabFrame, reaching: rightHalf, room: layout.reach, over: duration) }
+            showing = Task { await tab.show(at: tabFrame, reaching: layout.reach, covered: true, over: duration) }
             if let duration { try? await Task.sleep(for: .seconds(duration * Self.revealDelay)) }
             tab.shade(layout.chevron.map { NotchSplit.shade(over: $0, notch: notch.range) })
         }
         reveal(shiftedFor: layout?.width, end: end, notch: notch.range)
         _ = await AgentItems.revealed(in: notch.range.upperBound...end, height: height)
-        var frames = await settleBothSides(notch: notch.range) { [tab] in
-            if let layout { tab.extend(to: layout.reach, over: duration.map { _ in AgentOverflow.slide }) }
-        }
+        var frames = await settleBothSides(notch: notch.range)
+        // Accessibility has the overflow's final frames well before it has finished sliding out.
+        let overflowLanded = ContinuousClock.now + .seconds(AgentOverflow.slide)
         // Read here only before the first close: a reading taken while the bar still moves would
         // split it differently from one open to the next.
         if layout == nil, let width = sectionWidth(in: frames, notch: notch.range, end: end) {
@@ -61,15 +60,14 @@ extension StandaloneBarController {
             await tab.show(at: tabFrame, reaching: reach, over: duration)
         } else {
             tab.extend(to: reach, over: duration)
+            if duration != nil { try? await Task.sleep(until: overflowLanded) }
+            await tab.uncover(over: duration)
         }
         finishOpening(of: [], from: [:], over: tabFrame)
     }
 
     /// How long the items take to go once collapsed: the overflow back into the notch, the rest fading.
     private static let itemsLeave = 0.3
-    /// When the overflow, closed, goes back into the notch: it holds still for this long, then goes
-    /// within one frame, and the app menus return over where it was.
-    private static let overflowLeaves = 0.07
 
     /// How far into the band's slide the section is revealed: far enough that the items land on black.
     private static let revealDelay = 0.6
@@ -92,26 +90,23 @@ extension StandaloneBarController {
                 lastLayout = NotchSplit.Layout(width: width, reach: reach, chevron: AgentOverflow.frame, end: end)
             }
         }
+        // The reverse of opening: both sides fade out together and leave behind the cover, which
+        // goes back into the notch once the app menus are back.
+        let leaving = animated ? slide : nil
+        tab.cover(over: leaving)
+        if let leaving { try? await Task.sleep(for: .seconds(leaving)) }
         AgentOverflow.close()
         menuBar.setVisibility(.collapsed)
         menuBar.setBoundaryMarkersVisible(true)
-        // The reverse of opening: the items leave the band before it goes back into the notch, and
-        // the chevron stays covered until the collapse has taken it too.
-        let leaving = animated && slide != nil
-        if leaving { try? await Task.sleep(for: .seconds(Self.overflowLeaves)) }
-        tab.dropLeftHalf()
-        if leaving { try? await Task.sleep(for: .seconds(Self.itemsLeave - Self.overflowLeaves)) }
+        if leaving != nil { try? await Task.sleep(for: .seconds(Self.itemsLeave)) }
         tab.shade(nil)
         await tab.hide(over: animated ? slide : nil)
     }
 
     /// Opens the chevron, if the section overflowed, and returns every item once both sides have landed.
-    private func settleBothSides(
-        notch: ClosedRange<CGFloat>, whenOverflowOpens opened: (@MainActor () -> Void)? = nil
-    ) async -> [CGRect] {
+    private func settleBothSides(notch: ClosedRange<CGFloat>) async -> [CGRect] {
         if menuBar.sectionShift > 0 { await AgentOverflow.appearance() }
         AgentOverflow.open()
-        if AgentOverflow.state == .open { opened?() }
         return AgentOverflow.state == .open
             ? await AgentItems.overflowed(leftOf: notch.lowerBound)
             : await AgentItems.frames()
