@@ -17,6 +17,8 @@ struct ChipField: View {
     var isSingle = false
     /// Drawn as a tag's chip, in its colour and after the tags it nests under.
     var color: ((String) -> Color?)?
+    /// Takes the cursor once shown, as it is when added to a note.
+    var focusesOnAppear = false
     @State private var typed = ""
     /// None until something is typed or an arrow pressed, so Return in the empty field takes nothing.
     @State private var highlight: Int?
@@ -45,6 +47,8 @@ struct ChipField: View {
         }
         .onChange(of: typed) { highlight = $1.isEmpty ? nil : 0 }
         .onChange(of: isFocused) { if !$1 { add(typed) } }
+        // A turn later, once the field is in the window: focus set before then is lost.
+        .onAppear { if focusesOnAppear { Task { isFocused = true } } }
     }
 
     private func chip(_ item: String, isSelected: Bool = false) -> Chip {
