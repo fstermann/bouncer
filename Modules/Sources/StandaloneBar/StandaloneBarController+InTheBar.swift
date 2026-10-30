@@ -88,14 +88,14 @@ extension StandaloneBarController {
         if let uncovering { await uncovering.value } else { await tab.uncover(.left, over: nil) }
     }
 
-    /// Grows the band past the section's last item through a Cmd-drag, as an item dragged in pushes
-    /// the divider. Accessibility stalls for the whole drag, so the divider is all there is, and it
-    /// is not exact enough to shrink the band by: the release does that.
+    /// Keeps the band's right end past the section's last item through a Cmd-drag, as items dragged
+    /// in or out move the divider. Accessibility stalls for the whole drag, so the divider is all
+    /// there is; the release fits the band exactly.
     func followDragInTheBar() {
         guard menuBar.onHiddenDividerMove == nil else { return }
         menuBar.onHiddenDividerMove = { [weak self] in
             guard let self, isOpen, isInTheBar, let start = menuBar.hiddenDividerStart else { return }
-            tab.grow(rightTo: NotchSplit.bandEnd(dividerStart: start), over: slide)
+            tab.extend(rightTo: NotchSplit.bandEnd(dividerStart: start), over: slide)
         }
     }
 

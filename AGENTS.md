@@ -33,7 +33,7 @@ make ctl CMD="click"                        # what a click on the icon does
 make ctl CMD="open"                         # or close: the standalone bar
 make ctl CMD="dump"                         # items by app, chevron, Bouncer's windows, with frames
 make ctl CMD="hit 900 15"                   # whose element a click at that point reaches
-make ctl CMD="drag 1209 960"                # Cmd-drag the item at x 1209 to x 960, as the user would
+make ctl CMD="drag 1209 960 1.5"            # Cmd-drag the item at x 1209 to x 960, held there 1.5 s
 make ctl CMD="shoot /path/bar.png"          # top 120 pt of the main display, then Read the PNG
 make ctl CMD="record /path/bar.mov 3"       # video, at most 30 s; run it in the background, then act
 ffmpeg -loglevel error -i bar.mov -vf "fps=5,scale=1512:-1,tile=1x15" -frames:v 1 sheet.png

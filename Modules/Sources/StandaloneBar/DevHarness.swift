@@ -67,8 +67,9 @@ public final class DevHarness {
                 )
             }
         case "drag":
-            let to = CGPoint(x: number ?? 0, y: Double(words.count > 3 ? words[3] : "") ?? 12)
-            await Self.cmdDrag(from: CGPoint(x: Double(path) ?? 0, y: 12), to: to)
+            let hold = words.count > 3 ? Double(words[3]) ?? 0 : 0
+            let start = CGPoint(x: Double(path) ?? 0, y: 12)
+            await Self.cmdDrag(from: start, to: CGPoint(x: number ?? 0, y: 12), holding: hold)
             return "dragged"
         default:
             return "unknown command: \(command)"
@@ -76,8 +77,9 @@ public final class DevHarness {
     }
 
     /// A Cmd-drag as the user makes one, posted from here because the app holds Accessibility,
-    /// which posting needs. The pointer is put back where it was.
-    private static func cmdDrag(from start: CGPoint, to end: CGPoint) async {
+    /// which posting needs. It holds the item at `end` for `hold` seconds before letting go, and puts
+    /// the pointer back where it was.
+    private static func cmdDrag(from start: CGPoint, to end: CGPoint, holding hold: TimeInterval) async {
         let home = CGEvent(source: nil)?.location ?? start
         func post(_ type: CGEventType, at point: CGPoint) {
             let event = CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: point, mouseButton: .left)
@@ -93,7 +95,7 @@ public final class DevHarness {
                 x: start.x + (end.x - start.x) * progress, y: start.y + (end.y - start.y) * progress
             ))
         }
-        try? await Task.sleep(for: .milliseconds(100))
+        try? await Task.sleep(for: .seconds(0.1 + hold))
         post(.leftMouseUp, at: end)
         CGWarpMouseCursorPosition(home)
     }

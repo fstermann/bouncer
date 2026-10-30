@@ -78,9 +78,9 @@ final class NotchTab {
         moveBand(over: duration)
     }
 
-    /// Moves the band's right end out to `end`, in window-server x, if it falls short of it.
-    func grow(rightTo end: CGFloat, over duration: TimeInterval?) {
-        extend(to: span.lowerBound...max(end, span.upperBound), over: duration)
+    /// Moves only the band's right end, to `end` in window-server x, never into the notch.
+    func extend(rightTo end: CGFloat, over duration: TimeInterval?) {
+        extend(to: span.lowerBound...max(end, tabFrame.maxX), over: duration)
     }
 
     /// Fades black in over the items on both sides, which can then come and go unseen.
