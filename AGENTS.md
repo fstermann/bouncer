@@ -23,7 +23,8 @@ permitted"), with the sandbox disabled and through the user's `!` prefix alike. 
 that. The app is not sandboxed, so it can write there.
 
 To check how a SwiftUI view looks without driving the app, render it in a temporary test with
-`ImageRenderer` (scale 4), write the PNG to the scratchpad, Read it, then delete the test.
+`ImageRenderer` (scale 4), write the PNG to the scratchpad, Read it, then delete the test. It draws a
+`ScrollView` as a placeholder; render the scroll view's content instead.
 
 ## Checking it yourself
 
