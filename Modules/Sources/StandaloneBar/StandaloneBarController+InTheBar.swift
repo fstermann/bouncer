@@ -39,19 +39,17 @@ extension StandaloneBarController {
         if let layout {
             showing = Task { await tab.show(at: tabFrame, reaching: layout.reach, covered: true, over: duration) }
             if let duration { try? await Task.sleep(for: .seconds(duration * Self.revealDelay)) }
-            tab.shade(layout.chevron.map { NotchSplit.shade(over: $0, notch: notch.range) })
         }
         reveal(shiftedFor: layout?.width, end: end, notch: notch.range)
-        _ = await AgentItems.revealed(in: notch.range.upperBound...end, height: height)
-        var frames = await settleBothSides(notch: notch.range)
-        // Accessibility has the overflow's final frames well before it has finished sliding out.
-        let overflowLanded = ContinuousClock.now + .seconds(AgentOverflow.slide)
+        if layout == nil { _ = await AgentItems.revealed(in: notch.range.upperBound...end, height: height) }
+        let settled = await settleBothSides(notch: notch.range)
+        var frames = settled.frames
         // Read here only before the first close: a reading taken while the bar still moves would
         // split it differently from one open to the next.
         if layout == nil, let width = sectionWidth(in: frames, notch: notch.range, end: end) {
             menuBar.sectionShift = NotchSplit.shift(for: width, endingAt: end, notch: notch.range)
             await AgentItems.change(from: frames)
-            frames = await settleBothSides(notch: notch.range)
+            frames = await settleBothSides(notch: notch.range).frames
         }
         await showing?.value
         let reach = NotchSplit.band(over: frames, notch: notch.range, end: end)
@@ -60,7 +58,8 @@ extension StandaloneBarController {
             await tab.show(at: tabFrame, reaching: reach, over: duration)
         } else {
             tab.extend(to: reach, over: duration)
-            if duration != nil { try? await Task.sleep(until: overflowLanded) }
+            // Accessibility has the overflow's final frames well before it has finished sliding out.
+            if duration != nil { try? await Task.sleep(until: settled.opened + .seconds(AgentOverflow.slide)) }
             await tab.uncover(over: duration)
         }
         finishOpening(of: [], from: [:], over: tabFrame)
@@ -69,8 +68,8 @@ extension StandaloneBarController {
     /// How long the items take to go once collapsed: the overflow back into the notch, the rest fading.
     private static let itemsLeave = 0.3
 
-    /// How far into the band's slide the section is revealed: far enough that the items land on black.
-    private static let revealDelay = 0.6
+    /// How far into the band's slide the section is revealed: far enough that the cover is past the items.
+    private static let revealDelay = 0.4
 
     private func reveal(shiftedFor width: CGFloat?, end: CGFloat, notch: ClosedRange<CGFloat>) {
         menuBar.isRevealHeld = true
@@ -103,13 +102,18 @@ extension StandaloneBarController {
         await tab.hide(over: animated ? slide : nil)
     }
 
-    /// Opens the chevron, if the section overflowed, and returns every item once both sides have landed.
-    private func settleBothSides(notch: ClosedRange<CGFloat>) async -> [CGRect] {
+    /// Opens the chevron, if the section overflowed, and returns every item once both sides have
+    /// landed, with when it was opened.
+    private func settleBothSides(
+        notch: ClosedRange<CGFloat>
+    ) async -> (frames: [CGRect], opened: ContinuousClock.Instant) {
         if menuBar.sectionShift > 0 { await AgentOverflow.appearance() }
+        let opened = ContinuousClock.now
         AgentOverflow.open()
-        return AgentOverflow.state == .open
+        let frames = AgentOverflow.state == .open
             ? await AgentItems.overflowed(leftOf: notch.lowerBound)
             : await AgentItems.frames()
+        return (frames, opened)
     }
 
     /// How wide the revealed section is in `frames`, both sides of the notch together.

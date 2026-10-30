@@ -106,7 +106,7 @@ picks the shift that lands it evenly on both sides, from the width measured at t
 and takes its clicks; pressed, it would take the left side away and leave the band over the app
 menus. The layout read at close also places the band, so an open grows it both ways at once with a
 copy above the items, reveals the section behind that copy, and fades it once the overflow has slid
-out (400 ms after Accessibility has its final frames). Uncovered, the right side lands well before
+out (400 ms after the chevron is pressed, well after Accessibility has its final frames). Uncovered, the right side lands well before
 the left, and app menus draw over the band until the overflow pushes them aside. Closing runs the
 other way: the copy fades in, the section collapses behind it, then both shrink into the notch. macOS slides both sides out of the notch itself, so nothing is photographed or
 replicated, clicks reach the real items, and Screen Recording is not needed. The bar adds only
