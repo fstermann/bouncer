@@ -13,11 +13,11 @@ import Sparkle
 /// values are the `SU*` keys in `Info.plist`.
 @MainActor
 public final class UpdateController {
-    /// Debug builds do not update themselves. They are a different app — `com.bouncer.app.dev`
+    /// Dev builds do not update themselves. They are a different app — `com.bouncer.app.dev`
     /// — but they share this feed, so an update would replace the build you are working on with
     /// the released one, so `start()` arms nothing. Callers gate the update controls on
     /// `isRunning`, which stays false here.
-    #if DEBUG
+    #if DEV
     public static let isSupported = false
     #else
     public static let isSupported = true

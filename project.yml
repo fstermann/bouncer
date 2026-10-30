@@ -84,10 +84,11 @@ targets:
         # feed always matches where that build's assets are uploaded.
         SU_FEED_URL: https://github.com/fstermann/bouncer/releases/latest/download/appcast.xml
       configs:
-        # A Debug build is a different app from the one people install: its own bundle
-        # identifier, so it has its own preferences, its own permission grants and its own
-        # login item, and a name of its own so it is obvious which one is in the menu bar.
+        # The Debug configuration builds Bouncer Dev, a different app from the one people
+        # install: its own bundle identifier, so it has its own preferences, its own permission
+        # grants and its own login item, and a name of its own so it is obvious which one is in the menu bar.
         # Working on Bouncer therefore cannot disturb the copy you actually use.
         Debug:
           PRODUCT_BUNDLE_IDENTIFIER: com.bouncer.app.dev
           PRODUCT_NAME: Bouncer Dev
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) DEV
