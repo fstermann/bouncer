@@ -67,6 +67,8 @@ private final class MemoryPersistence: PreferencesPersistence, @unchecked Sendab
         #expect(store.preferences.todoFile == nil)
         #expect(store.preferences.enableMenuBarItems)
         #expect(store.preferences.enableTodos)
+        #expect(!store.preferences.enableNotes)
+        #expect(store.preferences.notesFolder == nil)
         #expect(store.preferences.notchPage == .items)
         #expect(store.preferences.tagColors.isEmpty)
         #expect(store.preferences.tagOrder.isEmpty)
@@ -86,6 +88,20 @@ private final class MemoryPersistence: PreferencesPersistence, @unchecked Sendab
         #expect(reloaded.preferences.notchPage == .todos)
         #expect(reloaded.preferences.tagColors == ["work": "blue"])
         #expect(reloaded.preferences.tagOrder == ["home", "work"])
+    }
+
+    @Test func notePreferencesRoundTrip() {
+        let persistence = MemoryPersistence()
+        let store = SettingsStore(persistence: persistence)
+        store.preferences.enableNotes = true
+        store.preferences.notesFolder = Data([4, 5])
+        store.preferences.notchPage = .notes
+        store.flush()
+
+        let reloaded = SettingsStore(persistence: persistence)
+        #expect(reloaded.preferences.enableNotes)
+        #expect(reloaded.preferences.notesFolder == Data([4, 5]))
+        #expect(reloaded.preferences.notchPage == .notes)
     }
 
     @Test func onlyAnEmptyStoreIsAFirstLaunch() {

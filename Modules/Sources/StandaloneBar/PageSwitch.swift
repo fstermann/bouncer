@@ -1,7 +1,7 @@
 import AppKit
 
 extension StandaloneBarController {
-    /// Switches the notch panel to the todo page. `nil` hides the switch, which sits at the right
+    /// Switches the notch panel to another page. `nil` hides the switch, which sits at the right
     /// end of the menu bar row, over the section's last item.
     public var onSwitchPage: (@MainActor () -> Void)? {
         get { shield.onSwitchPage }
@@ -9,6 +9,11 @@ extension StandaloneBarController {
             shield.onSwitchPage = newValue
             cover.pageSwitch.isHidden = newValue == nil
         }
+    }
+
+    /// The SF Symbol the switch shows: the page it switches to.
+    public func setPageSwitch(symbol: String, help: String) {
+        cover.pageSwitch.image = NSImage(systemSymbolName: symbol, accessibilityDescription: help)
     }
 
     /// Opens the panel under another that takes its shape first, the way the todo page turns into
@@ -56,7 +61,7 @@ extension StandaloneBarController {
     }
 }
 
-/// The switch to the todo page: dimmed white on a dark disc, so it reads on black, on grey and on
+/// The switch to another page: dimmed white on a dark disc, so it reads on black, on grey and on
 /// glass alike without knowing which the cover is painted with, and sits back like the todo page's.
 @MainActor
 enum PageSwitchGlyph {

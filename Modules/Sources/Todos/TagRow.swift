@@ -2,11 +2,11 @@ import SwiftUI
 
 /// The categories to filter by, and a way to add one. Right-clicking one opens its colours, and
 /// dragging one moves it among the tags beside it.
-struct TagRow: View {
-    private static let strip = "strip"
-    private static let chipSpace = "chips"
-    @Bindable var page: TodoPage
-    /// The todo field's focus, which gets the cursor back once a category is named.
+struct TagRow<Page: TagFiltering>: View {
+    private static var strip: String { "strip" }
+    private static var chipSpace: String { "chips" }
+    @Bindable var page: Page
+    /// The page field's focus, which gets the cursor back once a category is named.
     let isTyping: FocusState<Bool>.Binding
     /// How far chips run on past the strip's ends, which fade out to show it.
     @State private var beforeStart: CGFloat = 0
@@ -48,19 +48,21 @@ struct TagRow: View {
                     }
                 }
             }
-            if page.isAddingCategory {
-                PanelField(placeholder: "Tag", text: $page.categoryDraft) {
-                    page.onAddCategory?(page.categoryDraft)
-                    page.isAddingCategory = false
-                } onEnd: {
-                    // Given up once the cursor goes elsewhere, so the plus comes back.
-                    page.isAddingCategory = false
+            if let add = page.onAddCategory {
+                if page.isAddingCategory {
+                    PanelField(placeholder: "Tag", text: $page.categoryDraft) {
+                        add(page.categoryDraft)
+                        page.isAddingCategory = false
+                    } onEnd: {
+                        // Given up once the cursor goes elsewhere, so the plus comes back.
+                        page.isAddingCategory = false
+                    }
+                    .frame(width: 90)
+                } else {
+                    Button { page.isAddingCategory = true } label: { Chip(text: "+") }
+                        .buttonStyle(.plain)
+                        .help("Add a tag")
                 }
-                .frame(width: 90)
-            } else {
-                Button { page.isAddingCategory = true } label: { Chip(text: "+") }
-                    .buttonStyle(.plain)
-                    .help("Add a tag")
             }
             Spacer(minLength: 0)
             SearchControl(page: page)
@@ -114,7 +116,7 @@ struct TagRow: View {
         .animation(.snappy, value: page.offersUntagged)
     }
 
-    private static let spacing: CGFloat = 6
+    private static var spacing: CGFloat { 6 }
 
     /// Where each chip starts along the row, from the chips' widths. Their measured frames would lag
     /// a swap by a layout pass, and swap the chip straight back.

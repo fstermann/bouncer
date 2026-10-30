@@ -46,23 +46,34 @@ final class TodoWindow: NSPanel {
 
     var onFind: (@MainActor () -> Void)?
 
-    /// Bouncer has no Edit menu to carry the editing shortcuts, so the panel maps them itself.
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        guard event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command else {
-            return super.performKeyEquivalent(with: event)
-        }
-        let key = event.charactersIgnoringModifiers ?? ""
-        if key == "f", let onFind {
+        if event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,
+           event.charactersIgnoringModifiers == "f", let onFind {
             onFind()
             return true
         }
-        if let action = Self.editActions[key], let firstResponder, firstResponder.tryToPerform(action, with: self) {
+        return EditShortcuts.perform(event, in: self) || super.performKeyEquivalent(with: event)
+    }
+}
+
+/// Bouncer has no Edit menu to carry the editing shortcuts, so its windows map them themselves.
+@MainActor
+enum EditShortcuts {
+    static func perform(_ event: NSEvent, in window: NSWindow) -> Bool {
+        guard let responder = window.firstResponder else { return false }
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        let key = event.charactersIgnoringModifiers?.lowercased() ?? ""
+        if key == "z", flags == .command || flags == [.command, .shift], let undo = responder.undoManager {
+            let redoes = flags.contains(.shift)
+            guard redoes ? undo.canRedo : undo.canUndo else { return false }
+            if redoes { undo.redo() } else { undo.undo() }
             return true
         }
-        return super.performKeyEquivalent(with: event)
+        guard flags == .command, let action = actions[key] else { return false }
+        return responder.tryToPerform(action, with: window)
     }
 
-    private static let editActions: [String: Selector] = [
+    private static let actions: [String: Selector] = [
         "x": #selector(NSText.cut(_:)),
         "c": #selector(NSText.copy(_:)),
         "v": #selector(NSText.paste(_:)),
