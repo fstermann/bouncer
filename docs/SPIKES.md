@@ -111,6 +111,9 @@ held its own Screen Recording grant.
 | Chevron state | **Persists** across a collapse and a reveal: left open, every reveal draws the overflow over the app menus |
 | Which chevron to press | The one in `MenuBarAgent`'s `AXExtrasMenuBar`. Its full tree holds stale copies, one per window, whose press flips the label and draws nothing |
 | Opening it, as drawn | The section right of the notch fades in; the overflow comes out of the notch leftwards, squeezed at first, pushing the app menus aside. Settled about 400 ms after the reveal. Closing the chevron removes the left side at once |
+| Widening the divider while revealed | Pushes the section's items toward the notch; those no longer fitting move behind the chevron, right-aligned to the notch 19 pt from it. With the chevron, the first item right of the notch sits 62 pt from it. Changed after the reveal, the bar re-lays out visibly in about 300 ms |
+| Overflow through Accessibility | Final positions reported 70 to 180 ms after the press, while it still slides |
+| A window at the menu bar's level (24) | Drawn **over the bar's backdrop and under the app menus and status items**. At 23 and below it is hidden by the bar; above status level it covers the items |
 | More items than both sides hold | **The rest are dropped.** 20 items of one app: 1 right of the notch, 12 left of it, 7 listed nowhere, their windows parked at y -33 |
 | An item wider than the bar | **Evicted.** Capped at 5016 pt and moved out of the bar; every item left of it stays |
 | Divider with its left edge right of the notch | Items left of it go behind the chevron, and the chevron stays on screen right of the notch |

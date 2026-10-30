@@ -13,6 +13,47 @@ enum AgentItems {
 
     /// Every visible status item but Bouncer's own, drawn `height` tall in the bar.
     static func scan(height: CGFloat) async -> [Found] {
+        await found()
+            .map { found in
+                let frame = CGRect(x: found.frame.minX, y: 0, width: found.frame.width, height: height)
+                return (MenuBarItem(windowID: id(of: found.element), frame: frame), found.element)
+            }
+            .sorted { $0.item.frame.minX < $1.item.frame.minX }
+    }
+
+    /// Where every status item but Bouncer's own sits, as Accessibility reports it. One macOS had
+    /// no room for sits above the display.
+    static func frames() async -> [CGRect] {
+        await found().map(\.frame)
+    }
+
+    /// Every item once the open chevron has drawn the overflow left of `edge`.
+    ///
+    /// A bounded poll, like `revealed`: the overflow was measured reporting its final places 70 to
+    /// 180 ms after the press, while it still slides out of the notch.
+    static func overflowed(leftOf edge: CGFloat) async -> [CGRect] {
+        var previous: [CGRect] = []
+        var all: [CGRect] = []
+        for _ in 0..<attemptLimit {
+            all = await frames()
+            let left = all.filter { $0.minY >= 0 && $0.maxX <= edge }.sorted { $0.minX < $1.minX }
+            if !left.isEmpty, left == previous { return all }
+            previous = left
+            try? await Task.sleep(for: .milliseconds(15))
+        }
+        Log.menuBar.error("Standalone bar: the overflow never settled left of the notch")
+        return all
+    }
+
+    /// Waits for the bar to be laid out again after the divider changed width. A bounded poll.
+    static func change(from frames: [CGRect]) async {
+        for _ in 0..<attemptLimit {
+            if await self.frames() != frames { return }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+    }
+
+    private static func found() async -> [(frame: CGRect, element: ItemElement)] {
         let own = getpid()
         let pids = await MainActor.run {
             NSWorkspace.shared.runningApplications
@@ -21,7 +62,7 @@ enum AgentItems {
         }
         // One task per app, as `ClickForwarder` does: an app that has stopped answering must not
         // hold up the ones that do.
-        let found = await withTaskGroup(of: [(frame: CGRect, element: ItemElement)].self) { group in
+        return await withTaskGroup(of: [(frame: CGRect, element: ItemElement)].self) { group in
             for pid in pids {
                 group.addTask { ClickForwarder.statusItems(of: pid) }
             }
@@ -29,12 +70,6 @@ enum AgentItems {
             for await items in group { all.append(contentsOf: items) }
             return all
         }
-        return found
-            .map { found in
-                let frame = CGRect(x: found.frame.minX, y: 0, width: found.frame.width, height: height)
-                return (MenuBarItem(windowID: id(of: found.element), frame: frame), found.element)
-            }
-            .sorted { $0.item.frame.minX < $1.item.frame.minX }
     }
 
     /// The items that came back into `reach` once the section was revealed.

@@ -97,10 +97,14 @@ user switches it on, with the divider mechanism still doing the hiding.
 
 On macOS 27 none of the below applies: `openInTheBar` reveals the section into the menu bar and
 leaves it there. Items can only sit right of the notch, and those that do not fit go behind a
-chevron, which Bouncer opens through Accessibility so they show left of the notch. macOS slides
-both sides out of the notch itself, so nothing is photographed or replicated, clicks reach the real
-items, and Screen Recording is not needed. The bar adds only `NotchTab`, the notch grown taller
-with the switch to the todo page. Closing closes the chevron before collapsing: it stays open
+chevron, which Bouncer opens through Accessibility so they show left of the notch. Widening the
+divider while revealed (`sectionShift`) pushes half the section past what fits, so `NotchSplit`
+picks the shift that lands it evenly on both sides, from the width measured at the last close and
+again on each open. macOS slides both sides out of the notch itself, so nothing is photographed or
+replicated, clicks reach the real items, and Screen Recording is not needed. The bar adds only
+`NotchTab`: a black band grown sideways out of the notch behind the items, at the menu bar's own
+level, which the window server draws over the bar's backdrop and under its items, and the notch
+grown taller with the switch to the todo page. Closing closes the chevron before collapsing: it stays open
 across a collapse, and left open, every later reveal draws the overflow over the app menus. Items
 that fit on neither side are dropped by macOS and cannot be shown. Rearranging is not built there.
 

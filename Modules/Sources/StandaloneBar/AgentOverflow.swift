@@ -27,6 +27,21 @@ enum AgentOverflow {
         AXUIElementPerformAction(chevron, kAXPressAction as CFString)
     }
 
+    /// Where the chevron sits in the bar, `nil` when it is not there.
+    static var frame: CGRect? {
+        chevron().flatMap(ClickForwarder.itemFrame(of:))
+    }
+
+    /// Waits for the chevron after the bar was given more than fits. A bounded poll: nothing says
+    /// when `MenuBarAgent` has laid the bar out again.
+    static func appearance() async {
+        for _ in 0..<attemptLimit where state == .absent {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+    }
+
+    private static let attemptLimit = 30
+
     private static func chevron() -> AXUIElement? {
         guard let agent = NSWorkspace.shared.runningApplications.first(where: {
             $0.bundleIdentifier == "com.apple.MenuBarAgent"
