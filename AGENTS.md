@@ -45,6 +45,11 @@ Clicks posted from a shell do not land; `press` and `drag` do, because Bouncer D
 line turns a recording into one image of stacked frames, which can be Read. A black bar
 in a picture means the user is in a full-screen space: ask them to leave it.
 
+For a glitch that lasts a frame, record at full rate (`record path secs height`: the third word
+is the height in pt, not fps), split every frame with
+`ffmpeg -i bar.mov -fps_mode passthrough f/%04d.png`, and tile a crop of 6 to 15 consecutive
+frames. ffmpeg here has no drawtext and Python no PIL: count frames by position.
+
 ## Rules
 
 Two principles decide every tradeoff — see README. In practice:
@@ -74,6 +79,12 @@ Two principles decide every tradeoff — see README. In practice:
 - **Versions belong to release-please.** `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` in
   `project.yml` are bumped by it off Conventional Commits; never edit them by hand, and keep
   the `x-release-please-version` annotations on those lines.
+- **A glitch that comes and goes is fixed only by numbers.** Reproduce it on the old build
+  first, then show it gone in several runs of the new one (e.g. 3 of 3 before, 0 of 5 after).
+  One clean run proves nothing.
+- **Measure an animation bug before fixing it.** Log the frames, model and presentation values
+  involved to the scratchpad file and find where they disagree with what the recording shows.
+  Don't ship a fix that only might help.
 - `App/Resources/Logo.svg` is the source of truth for the mark. The app icon, the
   README lockups, `MenuBarIcon.imageset`, `MenuBarIconOpen.imageset`,
   `SectionEndIcon.imageset` and its mirror `SectionStartIcon.imageset` are derived from
