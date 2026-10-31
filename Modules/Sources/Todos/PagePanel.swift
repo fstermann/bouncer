@@ -236,7 +236,7 @@ final class PagePanel<Page: PanelPage> {
             return onClickOutsideMenu?() ?? false
         }
         window.cursorOverride = { [weak self] point in
-            guard let self, menu != nil, let host = menuHost, host.frame.contains(point) else { return nil }
+            guard let self, menu != nil, let host = self.menuHost, host.frame.contains(point) else { return nil }
             return .arrow
         }
 
