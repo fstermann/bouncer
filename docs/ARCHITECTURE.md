@@ -13,7 +13,7 @@ to hide someone else's status item — but an item's width is ours to choose, an
 enough item pushes everything to its left past the edge of the display.
 
 Bouncer creates two status items and uses them as **dividers**. A divider is either
-**expanded** (10 000 pt — everything to its left is off screen) or a **boundary**: a glyph
+**expanded** (wide enough that everything to its left is hidden) or a **boundary**: a glyph
 on the divider's own button, clickable to walk the bar back. Only `.fullyRevealed` puts
 all three sections on screen at once, so that is the state drawn here:
 
@@ -63,6 +63,15 @@ The alwaysHidden divider exists only while the always-hidden section is enabled.
 divider that is in the bar hides whatever is left of it, and a section the user cannot
 reveal must hide nothing.
 
+How wide is expanded depends on the OS. Up to macOS 26 it is 10 000 pt, and everything left of
+the divider runs off the display. macOS 27 draws every status item in one `MenuBarAgent` window
+and evicts an item longer than 740 pt (14-inch MacBook Pro). Shorter, an item with no room goes
+behind the system's overflow chevron, which shows it left of the notch, and one too wide for that
+is dropped with everything left of it, chevron included. So the divider is as long as the bar
+left of the notch (`ExpandedDivider`), which no front app's menus leave the overflow room for.
+The divider reads its right edge from its own frame while it is narrow, because the frame of an
+expanded one keeps a stale origin. [SPIKES.md](SPIKES.md#macos-27) has the measurements.
+
 That is the entire mechanism: two width assignments. It costs nothing at rest, needs no
 permissions, and survives OS updates that break screenshot-based approaches. It is what
 hides the items no matter what else is switched on — the standalone bar below borrows the
@@ -86,6 +95,34 @@ Screen Recording permission, and click forwarding, which means Accessibility —
 permission-hungry, fragile subsystem next to two width assignments. So it is built, in
 `StandaloneBar`, and it is opt-in: off by default, asking for its permissions only when the
 user switches it on, with the divider mechanism still doing the hiding.
+
+On macOS 27 none of the below applies: `openInTheBar` reveals the section into the menu bar and
+leaves it there. Items can only sit right of the notch, and those that do not fit go behind a
+chevron, which Bouncer opens through Accessibility so they show left of the notch. Widening the
+divider while revealed (`sectionShift`) pushes half the section past what fits, so `NotchSplit`
+picks the shift that lands it evenly on both sides, from the width measured at the last close
+(and on the first open only: a reading taken while the overflow still arrives, in batches up to
+100 ms apart, splits it differently each time). A black shade above the items hides the chevron
+and takes its clicks, which would take the left side away and leave the band over the app menus;
+it holds the switch to the todo page instead. The layout read at close also places the band, so an open grows it both ways at once with a
+copy above the items in two halves, and reveals the section behind it. The right half fades 200 ms after
+the reveal, opening or switching from the todo page alike: the right side lands an item at a time
+from some 30 ms in, while Accessibility stalls for some 300 ms, so it is not read. The left half fades once the overflow has slid out (400 ms after the
+chevron is pressed): until then app menus draw over the band, and any fade before it shows them
+through. Closing runs the
+other way: the copy fades in, the section collapses behind it, then both shrink into the notch. macOS slides both sides out of the notch itself, so nothing is photographed or
+replicated, clicks reach the real items, and Screen Recording is not needed. The bar adds only
+`NotchTab`: a black band grown sideways out of the notch behind the items, at the menu bar's own
+level, which the window server draws over the bar's backdrop and under its items. Closing closes the chevron before collapsing: it stays open
+across a collapse, and left open, every later reveal draws the overflow over the app menus. Another app coming to the
+front closes it, open or collapsed, taking the left side back into the notch, so the bar closes with
+it, and a layout is only measured while it is open. An item dragged in or out while the bar is open moves the section's ends, so
+every release reads the items again once they hold still and refits the band. An app launching or
+quitting adds or takes away items, so a change to the running apps, watched only while the bar is
+open, refits it too; the launch notification would miss agents, which own most items. Accessibility stalls through a
+drag, so during one the band's right end follows the divider, which items dragged in or out move
+and whose window moves say so. Items
+that fit on neither side are dropped by macOS and cannot be shown. Rearranging is not built there.
 
 There is no capture pipeline. The section is photographed once per open, in a single call,
 while its items are still parked off the display — ScreenCaptureKit cannot reach a window
@@ -268,11 +305,29 @@ panel springs to their outline (`StandaloneBarController.open(closingWhenLeft:ta
 show, and only then is the section revealed under them; the todo panel fades off last. Shown any
 sooner they stick out past the panel still changing shape, and hidden while the section is revealed
 they leave its real items showing in the menu bar.
+On macOS 27 the items panel is the band: the todo panel grows out of it, which then waits out the
+items leaving, and goes back into its saved shape, under which the band goes up covered
+(`TakeOver`). The todo panel fades off it there, and the bar opens on from that point as it always
+does. One page is open at a time: Bouncer's icon over the todo page switches to the items page, and
+nothing opens either page while a switch is running. The items page counts as open from the start
+of its open (`isShowing`), and a switch away from it waits for that open to finish.
 
 The file is read the way the Tasks plugin writes it: `#tags` anywhere in a task, `📅` before its due
 day and `✅` before the day it was done, which Bouncer stamps when ticking so the vault's queries
 count todos ticked here. Indented lines under a task are its note. Preset categories are a
 `categories` list in the file's frontmatter.
+
+### Checking the bar from a shell
+
+The bar's bugs are disagreements between where Bouncer draws something and where the real items
+are, which unit tests and log lines don't see. `DevHarness` lets a shell look: Bouncer Dev
+only, it observes the distributed notification `com.bouncer.dev.command`, runs the command and
+answers on `com.bouncer.dev.reply`. The observer is all it installs, and a recording stops
+itself. It reads items through Accessibility, because on macOS 27 the window list has none, and
+photographs the display through ScreenCaptureKit, so pictures include the bar's background and
+the pointer. `Tools/barctl.swift` is the sender. Commands are listed in `AGENTS.md`.
+
+It cannot rearrange items: macOS starts no status item drag from synthesised input.
 
 ## Modules
 

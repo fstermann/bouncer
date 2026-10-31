@@ -52,6 +52,8 @@ public final class DevHarness {
         case "close":
             await controller.close()
             return "closed"
+        case "hit":
+            return DevBarReader.element(at: CGPoint(x: Double(path) ?? 0, y: number ?? 0))
         case "dump":
             return written(await state(), to: path)
         case "shoot":
@@ -64,9 +66,51 @@ public final class DevHarness {
                     seconds: seconds, height: height ?? DevCamera.defaultHeight, to: URL(fileURLWithPath: path)
                 )
             }
+        case "drag":
+            let hold = words.count > 3 ? Double(words[3]) ?? 0 : 0
+            let start = CGPoint(x: Double(path) ?? 0, y: 12)
+            await Self.cmdDrag(from: start, to: CGPoint(x: number ?? 0, y: 12), holding: hold)
+            return "dragged"
+        case "press":
+            Self.click(at: CGPoint(x: Double(path) ?? 0, y: number ?? 0))
+            return "pressed"
         default:
             return "unknown command: \(command)"
         }
+    }
+
+    /// A Cmd-drag as the user makes one, posted from here because the app holds Accessibility,
+    /// which posting needs. It holds the item at `end` for `hold` seconds before letting go, and puts
+    /// the pointer back where it was.
+    private static func cmdDrag(from start: CGPoint, to end: CGPoint, holding hold: TimeInterval) async {
+        let home = CGEvent(source: nil)?.location ?? start
+        func post(_ type: CGEventType, at point: CGPoint) {
+            let event = CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: point, mouseButton: .left)
+            event?.flags = .maskCommand
+            event?.post(tap: .cghidEventTap)
+        }
+        post(.leftMouseDown, at: start)
+        let steps = 30
+        for step in 1...steps {
+            try? await Task.sleep(for: .milliseconds(16))
+            let progress = CGFloat(step) / CGFloat(steps)
+            post(.leftMouseDragged, at: CGPoint(
+                x: start.x + (end.x - start.x) * progress, y: start.y + (end.y - start.y) * progress
+            ))
+        }
+        try? await Task.sleep(for: .seconds(0.1 + hold))
+        post(.leftMouseUp, at: end)
+        CGWarpMouseCursorPosition(home)
+    }
+
+    /// A left click as the user makes one, posted from here for the same reason as `cmdDrag`.
+    private static func click(at point: CGPoint) {
+        let home = CGEvent(source: nil)?.location ?? point
+        for type in [CGEventType.leftMouseDown, .leftMouseUp] {
+            CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: point, mouseButton: .left)?
+                .post(tap: .cghidEventTap)
+        }
+        CGWarpMouseCursorPosition(home)
     }
 
     private func outcome(_ work: () async throws -> String) async -> String {
@@ -102,7 +146,12 @@ public final class DevHarness {
                 lines.append("notch \(Self.text(notch.range)) \(notch.isReal ? "real" : "stand-in")")
             }
         }
-        lines.append("chevron \(DevBarReader.chevronState())")
+        lines.append("section ends at \(menuBar.hiddenSectionEnd.map { "\(Int($0))" } ?? "unknown")")
+        lines.append(menuBar.devState)
+        lines.append("chevron \(AgentOverflow.state)")
+        let width = controller.lastLayout.map { "\(Int($0.width))" } ?? "unknown"
+        lines.append("section width \(width) shift \(Int(menuBar.sectionShift))")
+        lines.append("band \(controller.tab.devSpan.map(Self.text) ?? "none")")
         for item in await DevBarReader.accessibilityItems() {
             lines.append("item \(Self.text(item.frame)) \(item.owner)")
         }

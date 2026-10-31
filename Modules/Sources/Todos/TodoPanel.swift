@@ -133,12 +133,12 @@ final class TodoPanel {
         menuHost = nil
         menu = nil
         isMoving = false
-        if let duration, let content { Motion(duration: duration * 0.6, bounce: 0).focusOut([content]) }
+        if let duration, let content { Motion(duration: duration * 1.6, bounce: 0).focusOut([content]) }
         var isShaped = false
         await items? { [self] frame in
             isShaped = true
             guard let duration else { return }
-            reach(frame, in: window, resting: rest)
+            reach(frame, in: window, resting: rest, surface: surface)
             let gather = Motion(duration: duration * 1.6, bounce: 0)
             shape(surface, to: local(frame, in: window), on: gather)
             await gather.finished()
@@ -150,7 +150,7 @@ final class TodoPanel {
             fade.fade(window.contentView, to: 0)
             await fade.finished()
         } else {
-            reach(notch.rect, in: window, resting: rest)
+            reach(notch.rect, in: window, resting: rest, surface: surface)
             let gather = Motion(duration: duration * 1.6, bounce: 0)
             shape(surface, to: local(notch.rect, in: window), on: gather)
             if !notch.isReal { body(surface).forEach { gather.fade($0, to: 0) } }
@@ -182,14 +182,15 @@ final class TodoPanel {
     }
 
     /// Widens the window to take in `rect` as well as the panel, which stays where it is on screen.
-    private func reach(_ rect: CGRect, in window: NSWindow, resting: CGRect? = nil) {
+    /// - Parameter surface: the panel's, for one closing, which has already let go of it.
+    private func reach(_ rect: CGRect, in window: NSWindow, resting: CGRect? = nil, surface: NSView? = nil) {
         let resting = resting ?? rest
         window.setFrame(frame(around: [resting, rect]), display: false)
-        place(at: resting, in: window)
+        place(at: resting, in: window, surface: surface)
     }
 
-    private func place(at rect: CGRect, in window: NSWindow) {
-        guard let surface else { return }
+    private func place(at rect: CGRect, in window: NSWindow, surface: NSView? = nil) {
+        guard let surface = surface ?? self.surface else { return }
         shape(surface, to: local(rect, in: window))
         content?.frame = surface.bounds
     }

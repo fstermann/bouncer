@@ -90,7 +90,7 @@ public final class CoverWindow {
         MenuBarItemGeometry.span(of: rect, reaching: notch?.range).insetBy(dx: -margin, dy: 0)
     }
 
-    private static let aboveItems = NSWindow.Level(rawValue: BarWindow.statusLevel.rawValue + 1)
+    static let aboveItems = NSWindow.Level(rawValue: BarWindow.statusLevel.rawValue + 1)
 
     /// Settles the cover onto the section as it now stands.
     ///

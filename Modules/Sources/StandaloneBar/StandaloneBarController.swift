@@ -22,31 +22,31 @@ import Settings
 public final class StandaloneBarController {
     public private(set) var isOpen = false
 
-    private let menuBar: MenuBarManager
-    private let settings: SettingsStore
-    private let itemCapture = ItemCapture()
+    let menuBar: MenuBarManager
+    let settings: SettingsStore
+    let itemCapture = ItemCapture()
     let cover = CoverWindow()
     let shield = ClickShield()
     let bar = ReplicaBar()
-    private let menus = MenuWatcher()
+    let menus = MenuWatcher()
     private let handover: Handover
 
     /// Watches for the pointer leaving the bar.
     private var pointerObservation: Any?
     /// The items being replicated, held so a click can be mapped back to a real one.
-    private var items: [MenuBarItem] = []
+    var items: [MenuBarItem] = []
     /// Whether a menu opened from a replica is showing.
-    private var isMenuOpen = false
+    var isMenuOpen = false
     /// When the bar puts itself away, and what it is waiting for.
-    private let closing = BarClosing()
+    let closing = BarClosing()
     /// The bounded wait for the recording indicator to shift the bar, while it is opening.
     private var settling: Task<Void, Never>?
     /// What a replica's click is delivered to, resolved while the bar opens and awaited only
     /// when one is clicked.
-    private var resolvingElements: Task<[UInt32: ItemElement], Never>?
+    var resolvingElements: Task<[UInt32: ItemElement], Never>?
     /// How long the panel takes to come out of the menu bar, or `nil` while animation is
     /// switched off. Read once per open, and used again to put the bar away.
-    private var slide: TimeInterval?
+    var slide: TimeInterval?
     /// The order the section came back in when it was last revealed.
     ///
     /// The panel is drawn before the reveal, so the order the replicas go in has to be
@@ -55,6 +55,15 @@ public final class StandaloneBarController {
     /// is the best guide there is, and it is replaced by the truth on every open.
     private var orderLastTime: [UInt32] = []
     private let indicator = PrivacyIndicator()
+    let tab = NotchTab()
+    /// Whether this open went the macOS 27 way (`openInTheBar`), so closing it does too.
+    var isInTheBar = false
+    /// How the section lay when last closed in the bar, which the next open splits and bands it by.
+    var lastLayout: NotchSplit.Layout? { get { .saved } set { NotchSplit.Layout.saved = newValue } }
+    var appSwitches: NSObjectProtocol?
+    var appsChange: NSKeyValueObservation?
+    /// What a todo page switching back hands the next open, to take the notch's shape before it shows.
+    var takeOver: TakeOver?
 
     public init(menuBar: MenuBarManager, settings: SettingsStore) {
         self.menuBar = menuBar
@@ -62,6 +71,7 @@ public final class StandaloneBarController {
         handover = Handover(bar: bar, cover: cover, shield: shield, capture: itemCapture)
         bar.onClick = { [weak self] item in self?.forward(to: item) }
         bar.onHandoff = { [weak self] item in
+            guard self?.isInTheBar == false else { return }
             Task { await self?.handover.begin(on: item, from: self?.items ?? []) }
         }
         bar.onArm = { [weak self] in self?.shield.standDown() }
@@ -76,21 +86,29 @@ public final class StandaloneBarController {
     }
 
     /// Whether an `open` is underway, so a second click mid-open starts nothing.
-    private var isOpening = false
+    var isOpening = false
     /// The same for `close`, which is not simply the absence of `isOpen`: closing clears that flag
     /// and then waits for the section to go off screen, and an open started in that gap has its
     /// cover pulled down by the close still finishing.
     private var isClosing = false
 
+    /// What is waiting for an open underway to finish.
+    var whenOpened: [CheckedContinuation<Void, Never>] = []
+
     public func toggle() async {
-        isOpen ? await close() : await open()
+        isShowing ? await close() : await open()
     }
 
     /// Reveals the hidden section, hides it again behind a cover, and replicates it below.
     public func open(closingWhenLeft: Bool = false, animated: Bool = true) async {
         guard !isOpen, !isOpening, !isClosing else { return }
         isOpening = true
-        defer { isOpening = false }
+        defer { endOpening() }
+        if #available(macOS 27, *) {
+            let takeOver = takeOver
+            self.takeOver = nil
+            return await openInTheBar(closingWhenLeft: closingWhenLeft, takingOver: takeOver)
+        }
         guard CGPreflightScreenCaptureAccess() else {
             Log.menuBar.error("Standalone bar: Screen Recording not granted")
             return
@@ -158,7 +176,6 @@ public final class StandaloneBarController {
         bar.show(revealed, below: strip)
         // The items under the cover are painted over, not moved, and so still take clicks.
         shield.show(over: strip)
-
         finishOpening(of: hidden, from: PlacementWait.frames(of: hidden), over: strip)
     }
 
@@ -180,7 +197,7 @@ public final class StandaloneBarController {
 
     /// How far past the section the cover reaches at each end: the same as the shelf below
     /// it, so the two are exactly as wide as each other.
-    private static let coverBleed = ReplicaBar.padding
+    static let coverBleed = ReplicaBar.padding
 
     /// Resolves what each replica's click goes to, in the background: the sweep spends a second
     /// on any app that has stopped answering, so it is awaited only once one is clicked.
@@ -192,7 +209,7 @@ public final class StandaloneBarController {
     /// Marks the bar open and installs the two things that outlive `open`: the watch for the
     /// pointer leaving, and the one bounded wait for the recording indicator to shift the
     /// items out from under the replicas.
-    private func finishOpening(of hidden: Set<UInt32>, from before: [UInt32: CGRect], over strip: CGRect) {
+    func finishOpening(of hidden: Set<UInt32>, from before: [UInt32: CGRect], over strip: CGRect) {
         isOpen = true
         watchForThePointerLeaving()
         // A menu opened from a replica belongs to the app it came from, and activating that
@@ -201,8 +218,12 @@ public final class StandaloneBarController {
             guard let self, isOpen, !isMenuOpen, !handover.isUnderway else { return }
             Task { await self.close() }
         }
-        settling = Task { [weak self] in
-            await self?.followTheShift(of: hidden, from: before)
+        // Following the shift reads the window list, which macOS 27 no longer fills, and there
+        // are no replicas to move there anyway.
+        if !isInTheBar {
+            settling = Task { [weak self] in
+                await self?.followTheShift(of: hidden, from: before)
+            }
         }
         let width = Int(strip.width)
         Log.menuBar.info(
@@ -242,6 +263,7 @@ public final class StandaloneBarController {
 
     /// Puts everything away and hands hiding back to the divider.
     public func close(animated: Bool = true) async {
+        await opening()
         guard isOpen else { return }
         isOpen = false
         isClosing = true
@@ -261,6 +283,12 @@ public final class StandaloneBarController {
         resolvingElements?.cancel()
         resolvingElements = nil
         itemCapture.stop()
+        if isInTheBar {
+            isInTheBar = false
+            await closeInTheBar(animated: animated)
+            menuBar.isRevealHeld = false
+            return
+        }
 
         // The section goes away underneath the panel, which only uncovers the bar once it has:
         // the cover leaves with the panel it is half of.
@@ -317,10 +345,12 @@ public final class StandaloneBarController {
                 // A Cmd-drag up in the bar is the user rearranging it, whether or not it began on
                 // a replica. The panel follows either way, or it stands still through the drag and
                 // jumps once at the end of it.
-                case .leftMouseDragged where self.isRearranging(event): self.handover.followAlong()
+                case .leftMouseDragged where self.isRearranging(event):
+                    if self.isInTheBar { self.followDragInTheBar() } else { self.handover.followAlong() }
                 // Any release ends whatever drag the follow was following — Cmd or not, since Cmd
                 // let go before the mouse ends it just the same. The look stands itself down when
-                // no follow is up.
+                // no follow is up; on macOS 27 the band is refitted.
+                case .leftMouseUp where self.isInTheBar: Task { await self.refitInTheBar() }
                 case .leftMouseUp: self.handover.lookAgain(around: self.items, over: self.slide)
                 default: break
                 }
@@ -334,7 +364,7 @@ public final class StandaloneBarController {
     /// in the bar. Anything else — a window dragged across the desktop — is none of Bouncer's
     /// business, and following it would be a poll running for nothing.
     private func isRearranging(_ event: NSEvent) -> Bool {
-        event.modifierFlags.contains(.command) && NSEvent.mouseLocation.y >= bar.bottomEdge
+        event.modifierFlags.contains(.command) && NSEvent.mouseLocation.y >= panelBottomEdge
     }
 
     /// A menu opened from the bar hangs below it, so reaching into one must not dismiss the
@@ -343,51 +373,26 @@ public final class StandaloneBarController {
     /// Leaving is given a moment to be taken back. Overshooting the bar on the way to it, or
     /// dipping below it on the way across, should not put it away — and the pointer coming
     /// back cancels the close before it happens.
-    private func closeIfThePointerHasLeft() {
+    func closeIfThePointerHasLeft() {
         // Not mid-handoff: the pointer is up in the menu bar, where the user has taken it.
         let hasLeft = isOpen && !isMenuOpen && !handover.isUnderway
-            && NSEvent.mouseLocation.y < bar.bottomEdge
+            && NSEvent.mouseLocation.y < panelBottomEdge
         guard hasLeft else {
             closing.pointerReturned()
             return
         }
         closing.pointerLeft(for: settings.preferences.autoRehide) { [weak self] in
-            Task { await self?.close() }
-        }
-    }
-
-    /// Opens the real item a replica stands for.
-    ///
-    /// The sweep that finds the elements is usually long finished by the first click; when it
-    /// is not, this waits for it rather than holding every open behind it.
-    private func forward(to item: MenuBarItem) {
-        guard ClickForwarder.isPermitted else {
-            Log.menuBar.error("Standalone bar: click ignored, Accessibility not granted")
-            return
-        }
-        guard let resolving = resolvingElements else { return }
-        Task { [weak self] in
-            let elements = await resolving.value
-            guard let self, let element = elements[item.windowID] else {
-                Log.menuBar.error("Standalone bar: the clicked item cannot be reached")
+            guard let self else { return }
+            // On macOS 27 the user clicks the real items, whose menus hang below the bar, and the
+            // pointer reaching into one must not take the section away. The next move asks again.
+            if isInTheBar, ItemMenus.isShowing {
+                closing.pointerReturned()
                 return
             }
-            self.open(element)
+            Task { await self.close() }
         }
     }
 
-    /// Presses an item's element and follows whatever menu it opens.
-    private func open(_ element: ItemElement) {
-        if let owner = ClickForwarder.owner(of: element) {
-            menus.watch(pid: owner) { [weak self] isOpen in
-                guard let self else { return }
-                self.isMenuOpen = isOpen
-                guard !isOpen else { return }
-                self.menus.stop()
-                // The pointer is usually deep in the menu that just closed.
-                self.closeIfThePointerHasLeft()
-            }
-        }
-        Task.detached { ClickForwarder.press(element) }
-    }
+    /// The bottom of whatever the bar has drawn below the menu bar, in AppKit coordinates.
+    private var panelBottomEdge: CGFloat { isInTheBar ? tab.bottomEdge : bar.bottomEdge }
 }

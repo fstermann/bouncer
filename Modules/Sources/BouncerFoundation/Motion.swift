@@ -60,7 +60,7 @@ public struct Motion {
     /// Needs the filter `focus(_:blurredBy:)` puts on the view.
     public func blur(_ view: NSView, to radius: CGFloat) {
         guard let layer = view.layer else { return }
-        let from = shown(layer, Self.blurRadius)
+        let from = shownBlur(view)
         change { layer.setValue(radius, forKeyPath: Self.blurRadius) }
         spring(layer, Self.blurRadius, from: from, to: radius)
     }
@@ -116,6 +116,14 @@ public struct Motion {
     private func shown(_ layer: CALayer, _ keyPath: String) -> Any? {
         let moving = !(layer.animationKeys() ?? []).isEmpty
         return (moving ? layer.presentation() ?? layer : layer).value(forKeyPath: keyPath)
+    }
+
+    /// Read off the filter itself, the view's until a spring carries the layer's: the key path a
+    /// spring animates it by reads back nothing, and the view hands its filters to the layer late.
+    private func shownBlur(_ view: NSView) -> Any? {
+        let moving = view.layer?.animation(forKey: Self.blurRadius) != nil
+        let filters = moving ? view.layer?.presentation()?.filters as? [CIFilter] : view.contentFilters
+        return filters?.first { $0.name == Self.blurName }?.value(forKey: kCIInputRadiusKey)
     }
 
     private func change(_ apply: () -> Void) {

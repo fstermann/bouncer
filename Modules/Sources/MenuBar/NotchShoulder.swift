@@ -15,8 +15,16 @@ public final class NotchShoulder: NSView {
         let size = Self.radius
         super.init(frame: CGRect(x: 0, y: 0, width: size, height: size))
         let shape = CAShapeLayer()
+        shape.path = Self.path(left: left)
+        shape.fillColor = NSColor.black.cgColor
+        layer = shape
+        wantsLayer = true
+    }
+
+    /// The square minus a quarter disc centred on the corner away from the panel.
+    public static func path(left: Bool) -> CGPath {
+        let size = radius
         let path = CGMutablePath()
-        // The square minus a quarter disc centred on the corner away from the panel.
         let centre = CGPoint(x: left ? 0 : size, y: 0)
         path.move(to: CGPoint(x: left ? size : 0, y: size))
         path.addLine(to: CGPoint(x: left ? size : 0, y: 0))
@@ -25,10 +33,7 @@ public final class NotchShoulder: NSView {
             startAngle: left ? 0 : .pi, endAngle: .pi / 2, clockwise: !left
         )
         path.closeSubpath()
-        shape.path = path
-        shape.fillColor = NSColor.black.cgColor
-        layer = shape
-        wantsLayer = true
+        return path
     }
 
     /// Where it sits beside a panel of frame `panel` hanging from the top of the display.

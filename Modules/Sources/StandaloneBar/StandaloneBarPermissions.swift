@@ -42,3 +42,11 @@ public final class StandaloneBarPermissions {
     /// Live preflight for the hover path, which reads it every time and needs no observation.
     public static var screenRecordingGranted: Bool { CGPreflightScreenCaptureAccess() }
 }
+
+extension StandaloneBarController {
+    /// Whether the bar photographs items: not on macOS 27, where they stay in the menu bar.
+    public static var needsScreenRecording: Bool {
+        if #available(macOS 27, *) { return false }
+        return true
+    }
+}
