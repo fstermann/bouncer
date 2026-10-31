@@ -40,12 +40,10 @@ extension StandaloneBarController {
             showing = Task { await tab.show(at: tabFrame, reaching: layout.reach, covered: true, over: duration) }
             if let duration { try? await Task.sleep(for: .seconds(duration * Self.revealDelay)) }
         }
-        reveal(shiftedFor: layout?.width, end: end, notch: notch.range)
+        let revealed = reveal(shiftedFor: layout?.width, end: end, notch: notch.range)
         // The chevron's last place is shaded before it shows on the uncovered right.
         if let layout { tab.shade(layout.chevron.map { NotchSplit.shade(over: $0, notch: notch.range) }) }
-        // The right side lands some 30 ms after the reveal, before the band has finished growing.
-        // Accessibility stalls for some 300 ms after it, so waiting to read it there would show it late.
-        let rightSide = layout.map { _ in Task { await showing?.value; await tab.uncover(.right, over: duration) } }
+        let rightSide = layout.map { _ in Task { await showRightSide(after: showing, revealedAt: revealed) } }
         if layout == nil { _ = await AgentItems.revealed(in: notch.range.upperBound...end, height: height) }
         let settled = await settleBothSides(notch: notch.range, expectingOverflow: layout != nil)
         var frames = settled.frames
@@ -78,6 +76,15 @@ extension StandaloneBarController {
         await takeOver.shape(BarWindow.appKitFrame(for: band))
         if let reach { await tab.show(at: tabFrame, reaching: reach, covered: true, over: nil) }
         takeOver.letGo()
+    }
+
+    /// Uncovers the right side once the band is out and the side has landed. It lands from some 30 ms
+    /// after the reveal, an item at a time, and Accessibility stalls for some 300 ms after it, so it
+    /// is given a fixed while rather than read.
+    private func showRightSide(after showing: Task<Void, Never>?, revealedAt revealed: ContinuousClock.Instant) async {
+        await showing?.value
+        try? await Task.sleep(until: revealed + .seconds(Self.rightSideLands))
+        await tab.uncover(.right, over: slide)
     }
 
     /// Uncovers the left side once the overflow has slid out: until then the app menus still draw
@@ -157,14 +164,21 @@ extension StandaloneBarController {
     /// How long the items take to go once collapsed: the overflow back into the notch, the rest fading.
     private static let itemsLeave = 0.3
 
+    /// How long after the reveal the right side has landed, its last item measured some 150 ms in.
+    private static let rightSideLands = 0.2
+
     /// How far into the band's slide the section is revealed: far enough that the cover is past the items.
     private static let revealDelay = 0.4
 
-    private func reveal(shiftedFor width: CGFloat?, end: CGFloat, notch: ClosedRange<CGFloat>) {
+    /// Returns when it was revealed.
+    private func reveal(
+        shiftedFor width: CGFloat?, end: CGFloat, notch: ClosedRange<CGFloat>
+    ) -> ContinuousClock.Instant {
         menuBar.isRevealHeld = true
         menuBar.setBoundaryMarkersVisible(false)
         menuBar.setVisibility(.revealed)
         if let width { menuBar.sectionShift = NotchSplit.shift(for: width, endingAt: end, notch: notch) }
+        return .now
     }
 
     /// Closes the chevron before collapsing: left open, every later reveal, a plain click on the icon
