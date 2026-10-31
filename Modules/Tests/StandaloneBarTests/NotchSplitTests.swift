@@ -27,6 +27,15 @@ struct NotchSplitTests {
         #expect(abs(shift - 155) < 1)
     }
 
+    @Test("A layout holds when the section's end moves while the shift can take it up")
+    func layoutHoldsAcrossEnds() {
+        let layout = NotchSplit.Layout(width: 289, reach: 484...1035, chevron: nil, end: end, notch: notch)
+        #expect(layout.holds(endingAt: end - 12, notch: notch))
+        // Too close to the notch for any shift: the section lands somewhere else.
+        #expect(!layout.holds(endingAt: notch.upperBound + 100, notch: notch))
+        #expect(!layout.holds(endingAt: end, notch: 100...285))
+    }
+
     @Test("A section wider than the bar right of the notch gets no shift")
     func noRoom() {
         #expect(NotchSplit.shift(for: 1000, endingAt: end, notch: notch) == 0)

@@ -13,8 +13,18 @@ enum NotchSplit {
         /// The band's ends, in window-server x.
         let reach: ClosedRange<CGFloat>
         let chevron: CGRect?
-        /// The section's end it was read against: a section that moved lays out differently.
+        /// The section's end and the notch it was read against.
         let end: CGFloat
+        let notch: ClosedRange<CGFloat>
+
+        /// Whether the section still lands as it did once it ends at `end`. The shift takes up a
+        /// change of end, as an item right of the section changing width makes, unless either end
+        /// leaves it nothing to give.
+        func holds(endingAt end: CGFloat, notch: ClosedRange<CGFloat>) -> Bool {
+            guard notch == self.notch else { return false }
+            return end == self.end
+                || [self.end, end].allSatisfy { NotchSplit.shift(for: width, endingAt: $0, notch: notch) > 0 }
+        }
     }
 
     /// From the notch to the first item right of it while the chevron is there: the margin macOS

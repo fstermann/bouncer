@@ -31,7 +31,7 @@ extension StandaloneBarController {
         let tabFrame = NotchTab.frame(under: notch.range, barHeight: height)
         if let shape { await shape(BarWindow.appKitFrame(for: tabFrame)) }
         let duration = shape == nil ? slide : nil
-        let layout = lastLayout?.end == end ? lastLayout : nil
+        let layout = lastLayout?.holds(endingAt: end, notch: notch.range) == true ? lastLayout : nil
         // The band goes out both ways at once, covering the items, which land behind it. The right
         // side shows as soon as it has landed; the left stays covered until the overflow has slid
         // out, or the app menus draw over the band until it has.
@@ -153,7 +153,9 @@ extension StandaloneBarController {
             let frames = await AgentItems.frames()
             if let width = sectionWidth(in: frames, notch: notch.range, end: end) {
                 let reach = NotchSplit.band(over: frames, notch: notch.range, end: end)
-                lastLayout = NotchSplit.Layout(width: width, reach: reach, chevron: AgentOverflow.frame, end: end)
+                lastLayout = NotchSplit.Layout(
+                    width: width, reach: reach, chevron: AgentOverflow.frame, end: end, notch: notch.range
+                )
             }
         }
         // The reverse of opening: both sides fade out together and leave behind the cover, which
