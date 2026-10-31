@@ -71,6 +71,9 @@ public final class DevHarness {
             let start = CGPoint(x: Double(path) ?? 0, y: 12)
             await Self.cmdDrag(from: start, to: CGPoint(x: number ?? 0, y: 12), holding: hold)
             return "dragged"
+        case "press":
+            Self.click(at: CGPoint(x: Double(path) ?? 0, y: number ?? 0))
+            return "pressed"
         default:
             return "unknown command: \(command)"
         }
@@ -97,6 +100,16 @@ public final class DevHarness {
         }
         try? await Task.sleep(for: .seconds(0.1 + hold))
         post(.leftMouseUp, at: end)
+        CGWarpMouseCursorPosition(home)
+    }
+
+    /// A left click as the user makes one, posted from here for the same reason as `cmdDrag`.
+    private static func click(at point: CGPoint) {
+        let home = CGEvent(source: nil)?.location ?? point
+        for type in [CGEventType.leftMouseDown, .leftMouseUp] {
+            CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: point, mouseButton: .left)?
+                .post(tap: .cghidEventTap)
+        }
         CGWarpMouseCursorPosition(home)
     }
 

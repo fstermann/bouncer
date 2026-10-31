@@ -37,8 +37,10 @@ final class NotchTab {
         set { switchView.onSwitch = newValue }
     }
 
-    /// The notch in AppKit coordinates, the bar's height tall: what the todo page grows from.
-    var outline: CGRect? { window.map { _ in BarWindow.appKitFrame(for: tabFrame) } }
+    /// The band in AppKit coordinates, the bar's height tall: what the todo page grows from.
+    var outline: CGRect? {
+        window.map { _ in BarWindow.appKitFrame(for: Self.frame(under: span, barHeight: tabFrame.height)) }
+    }
 
     #if DEV
     /// The band's ends, in window-server x, `nil` while it is not shown.

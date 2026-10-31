@@ -303,6 +303,11 @@ panel springs to their outline (`StandaloneBarController.open(closingWhenLeft:ta
 show, and only then is the section revealed under them; the todo panel fades off last. Shown any
 sooner they stick out past the panel still changing shape, and hidden while the section is revealed
 they leave its real items showing in the menu bar.
+On macOS 27 the items panel is the band: the todo panel grows out of it, which then waits out the
+items leaving, and goes back into its saved shape, under which the band goes up covered
+(`TakeOver`). The todo panel fades off it there, and the bar opens on from that point as it always
+does. One page is open at a time: Bouncer's icon over the todo page switches to the items page, and
+nothing opens either page while a switch is running.
 
 The file is read the way the Tasks plugin writes it: `#tags` anywhere in a task, `📅` before its due
 day and `✅` before the day it was done, which Bouncer stamps when ticking so the vault's queries

@@ -62,7 +62,7 @@ public final class StandaloneBarController {
     var lastLayout: NotchSplit.Layout? { get { .saved } set { NotchSplit.Layout.saved = newValue } }
     var appSwitches: NSObjectProtocol?
     /// What a todo page switching back hands the next open, to take the notch's shape before it shows.
-    var shapeOnOpen: (@MainActor (CGRect) async -> Void)?
+    var takeOver: TakeOver?
 
     public init(menuBar: MenuBarManager, settings: SettingsStore) {
         self.menuBar = menuBar
@@ -107,9 +107,9 @@ public final class StandaloneBarController {
         isOpening = true
         defer { isOpening = false }
         if #available(macOS 27, *) {
-            let shape = shapeOnOpen
-            shapeOnOpen = nil
-            return await openInTheBar(closingWhenLeft: closingWhenLeft, takingShape: shape)
+            let takeOver = takeOver
+            self.takeOver = nil
+            return await openInTheBar(closingWhenLeft: closingWhenLeft, takingOver: takeOver)
         }
         guard CGPreflightScreenCaptureAccess() else {
             Log.menuBar.error("Standalone bar: Screen Recording not granted")

@@ -22,6 +22,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var standaloneBar = StandaloneBarController(menuBar: menuBar, settings: settings)
     private lazy var todos = TodoController(settings: settings)
     private var pageSwitches: ObservationLoop?
+    /// A page turning into the other, which nothing else may open or close until it has.
+    private var isSwitching = false
     private let permissions = StandaloneBarPermissions()
     private let updates = UpdateController()
     private var settingsWindow: NSWindow?
@@ -105,11 +107,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// re-asks only as a fallback for a user who dismissed those prompts. Accessibility
     /// missing still opens the bar — the items show, they are just not clickable yet.
     private func handleIconClick() {
+        guard !isSwitching else { return }
         guard settings.preferences.enableMenuBarItems else { return toggleTodos() }
         guard settings.preferences.showItemsInBar else {
             menuBar.toggle()
             return
         }
+        // The todo page shares the notch with the bar, so the bar takes its place.
+        guard !todos.isOpen else { return switchPage(to: .items) }
         permissions.refresh()
         guard !StandaloneBarController.needsScreenRecording || permissions.screenRecording == .granted else {
             Log.app.error("Standalone bar: Screen Recording not granted; requesting")
@@ -129,11 +134,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// The notch opens the todo page unless the items bar is there to share it, in which case it
     /// opens whichever page the switch last chose.
     private func handleHoverReveal(on screen: NSScreen, atNotch: Bool) {
+        guard !isSwitching else { return }
         let preferences = settings.preferences
         let showsItemsBar = preferences.enableMenuBarItems && preferences.showItemsInBar
         let opensTodos = preferences.enableTodos
             && (showsItemsBar ? preferences.notchPage == .todos : atNotch || !preferences.enableMenuBarItems)
+        // One page at a time: the other is switched to, not opened over it.
         if opensTodos {
+            guard !standaloneBar.isOpen else { return }
             Task { await todos.open(on: screen) }
             return
         }
@@ -141,7 +149,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             menuBar.setVisibility(.revealed)
             return
         }
-        guard !StandaloneBarController.needsScreenRecording || StandaloneBarPermissions.screenRecordingGranted
+        guard !todos.isOpen,
+              !StandaloneBarController.needsScreenRecording || StandaloneBarPermissions.screenRecordingGranted
         else { return }
         // With hover over the whole menu bar off, only the notch could have opened it.
         Task { await standaloneBar.open(closingWhenLeft: !settings.preferences.revealOnHover) }
@@ -168,8 +177,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// moving both ways: it grows out of the items panel and takes it away once covering it, or
     /// has it built underneath itself and shrinks into its shape before it shows.
     private func switchPage(to page: NotchPage) {
+        guard !isSwitching else { return }
+        isSwitching = true
         settings.preferences.notchPage = page
-        Task { [standaloneBar, todos, settings] in
+        Task { [weak self, standaloneBar, todos, settings] in
+            defer { self?.isSwitching = false }
             switch page {
             case .todos:
                 await todos.open(from: standaloneBar.panelFrame) { await standaloneBar.close(animated: false) }
@@ -183,6 +195,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// ⌘⇧B opens the todo page, from the items page if that is up, and closes it again.
     private func handleTodoShortcut() {
+        guard !isSwitching else { return }
         guard !standaloneBar.isOpen else { return switchPage(to: .todos) }
         toggleTodos()
     }

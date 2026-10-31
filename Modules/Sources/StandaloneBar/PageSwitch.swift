@@ -21,8 +21,16 @@ extension StandaloneBarController {
     /// and the section, revealed with them hidden, shows its real items in the menu bar.
     public func open(closingWhenLeft: Bool, takingShape shape: @escaping @MainActor (CGRect) async -> Void) async {
         if #available(macOS 27, *) {
-            shapeOnOpen = shape
-            return await open(closingWhenLeft: closingWhenLeft, animated: false)
+            // Returns once the band covers the section, so the page fades off it as the bar opens.
+            let takeOver = TakeOver(shape: shape)
+            self.takeOver = takeOver
+            return await withCheckedContinuation { covered in
+                takeOver.covered = covered
+                Task {
+                    await open(closingWhenLeft: closingWhenLeft, animated: false)
+                    takeOver.letGo()
+                }
+            }
         }
         isPanelConcealed = true
         cover.arrival = { [weak self] in
@@ -58,6 +66,23 @@ extension StandaloneBarController {
             x: shelfFrame.minX, y: shelfFrame.minY,
             width: shelfFrame.width, height: screen.frame.maxY - shelfFrame.minY
         )
+    }
+}
+
+/// A todo page turning into the bar on macOS 27: it takes the band's shape, and is let go once the
+/// band covers the section underneath it.
+@MainActor
+final class TakeOver {
+    let shape: @MainActor (CGRect) async -> Void
+    var covered: CheckedContinuation<Void, Never>?
+
+    init(shape: @escaping @MainActor (CGRect) async -> Void) {
+        self.shape = shape
+    }
+
+    func letGo() {
+        covered?.resume()
+        covered = nil
     }
 }
 

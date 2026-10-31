@@ -9,7 +9,7 @@ extension StandaloneBarController {
     /// which draws them left of the notch when opened. Widening the divider pushes half the section
     /// past what fits, so it lands on both sides, and a black band grows out of the notch behind it.
     /// Nothing is photographed or replicated: clicks go to the real items.
-    func openInTheBar(closingWhenLeft: Bool, takingShape shape: (@MainActor (CGRect) async -> Void)? = nil) async {
+    func openInTheBar(closingWhenLeft: Bool, takingOver takeOver: TakeOver? = nil) async {
         guard ClickForwarder.isPermitted else {
             Log.menuBar.error("Standalone bar: Accessibility not granted")
             return
@@ -29,14 +29,14 @@ extension StandaloneBarController {
         isInTheBar = true
 
         let tabFrame = NotchTab.frame(under: notch.range, barHeight: height)
-        if let shape { await shape(BarWindow.appKitFrame(for: tabFrame)) }
-        let duration = shape == nil ? slide : nil
         let layout = lastLayout?.holds(endingAt: end, notch: notch.range) == true ? lastLayout : nil
+        if let takeOver { await cover(for: takeOver, at: tabFrame, reaching: layout?.reach) }
+        let duration = slide
         // The band goes out both ways at once, covering the items, which land behind it. The right
         // side shows as soon as it has landed; the left stays covered until the overflow has slid
         // out, or the app menus draw over the band until it has.
         var showing: Task<Void, Never>?
-        if let layout {
+        if let layout, takeOver == nil {
             showing = Task { await tab.show(at: tabFrame, reaching: layout.reach, covered: true, over: duration) }
             if let duration { try? await Task.sleep(for: .seconds(duration * Self.revealDelay)) }
         }
@@ -70,6 +70,15 @@ extension StandaloneBarController {
         closeWhenTheOverflowCloses()
     }
 
+    /// Has a todo page take the band's shape, puts the band up covered underneath it, and lets the
+    /// page go to fade off it. With nothing measured yet, the page goes into the notch.
+    private func cover(for takeOver: TakeOver, at tabFrame: CGRect, reaching reach: ClosedRange<CGFloat>?) async {
+        let band = NotchTab.frame(under: reach ?? tabFrame.minX...tabFrame.maxX, barHeight: tabFrame.height)
+        await takeOver.shape(BarWindow.appKitFrame(for: band))
+        if let reach { await tab.show(at: tabFrame, reaching: reach, covered: true, over: nil) }
+        takeOver.letGo()
+    }
+
     /// Uncovers the left side over the overflow's last stretch of sliding out: Accessibility has its
     /// final frames well before then.
     private func showLeftSide(
@@ -80,8 +89,8 @@ extension StandaloneBarController {
         if let duration {
             try? await Task.sleep(until: opened + .seconds(AgentOverflow.slide - duration))
             uncovering = Task { await tab.uncover(.left, over: duration) }
-            try? await Task.sleep(until: opened + .seconds(AgentOverflow.slide))
         }
+        try? await Task.sleep(until: opened + .seconds(AgentOverflow.slide))
         // Read again once the overflow is out: a batch can still arrive after it looked settled.
         let landed = await AgentItems.frames()
         tab.extend(to: NotchSplit.band(over: landed, notch: notch, end: end), over: duration)
@@ -166,7 +175,8 @@ extension StandaloneBarController {
         AgentOverflow.close()
         menuBar.setVisibility(.collapsed)
         menuBar.setBoundaryMarkersVisible(true)
-        if leaving != nil { try? await Task.sleep(for: .seconds(Self.itemsLeave)) }
+        // Waited even unanimated: a todo page taking over covers the items only until it grows.
+        try? await Task.sleep(for: .seconds(Self.itemsLeave))
         tab.shade(nil)
         await tab.hide(over: animated ? slide : nil)
     }
