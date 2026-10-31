@@ -8,11 +8,14 @@
 //   dump [path]                        every item, the chevron and Bouncer's windows, with frames
 //   shoot <path.png> [height]          the top of the main display, 120 pt by default
 //   record <path.mov> <seconds> [height]  the same as a video, at most 30 s
+//   key <shortcut>                     presses it, as cmd+shift+n, escape or cmd+z
+//   type <text>                        types it into whatever has focus
+//   tap <x> <y>                        clicks there, in the coordinates dump prints
 import Foundation
 
 let command = CommandLine.arguments.dropFirst().joined(separator: " ")
 guard !command.isEmpty else {
-    print("usage: barctl click | open | close | dump [path] | shoot <png> [height] | record <mov> <seconds> [height]")
+    print("usage: barctl click | open | close | dump [path] | shoot <png> [height] | record <mov> <seconds> [height] | key <shortcut> | type <text> | tap <x> <y>")
     exit(1)
 }
 

@@ -3,19 +3,19 @@ import BouncerFoundation
 import MenuBar
 import SwiftUI
 
-/// The todo page's window: a black panel that grows out of the notch, or out of a notch-sized
-/// point at the top centre of a display without one, the way the notch-style bar does. Switching
-/// pages, it grows out of the items panel instead, and goes back into it.
-///
-/// It opens key, without activating Bouncer, so a todo can be typed straight away. It goes when
-/// the user clicks elsewhere or presses Escape, and when the pointer leaves: after a grace period,
-/// or at once once it is well clear. The panel changes shape under a still pointer, and a pointer
-/// left just outside it has not left.
 /// Springs the todo panel into a frame, in AppKit screen coordinates, and returns once it is there.
 public typealias Shaping = @MainActor (CGRect) async -> Void
 
+/// A page's window: a black panel that grows out of the notch, or out of a notch-sized point at the
+/// top centre of a display without one, the way the notch-style bar does. Switching pages, it grows
+/// out of the panel it replaces instead, and goes back into it.
+///
+/// It opens key, without activating Bouncer, so the page can be typed into straight away. It goes
+/// when the user clicks elsewhere or presses Escape, and when the pointer leaves: after a grace
+/// period, or at once once it is well clear. The panel changes shape under a still pointer, and a
+/// pointer left just outside it has not left.
 @MainActor
-final class TodoPanel {
+final class PagePanel<Page: PanelPage> {
     /// The pointer left for good, or the user clicked elsewhere.
     var onDismiss: (@MainActor () -> Void)?
     var onEscape: (@MainActor () -> Void)?
@@ -28,8 +28,8 @@ final class TodoPanel {
 
     private var window: TodoWindow?
     private var surface: SurfaceView?
-    private var content: NSHostingView<TodoPageView>?
-    private var menuHost: NSHostingView<RowMenuHost>?
+    private var content: NSHostingView<Page.Content>?
+    private var menuHost: NSHostingView<Page.Menu>?
     private var resignObserver: NSObjectProtocol?
     /// Where the panel rests, and the notch it grows from, in AppKit screen coordinates.
     private var rest: CGRect = .zero
@@ -42,13 +42,13 @@ final class TodoPanel {
     private var leaveMonitors: [Any] = []
     private var leaveGrace: Task<Void, Never>?
 
-    private static let grace: Duration = .milliseconds(1500)
+    private static var grace: Duration { .milliseconds(1500) }
     /// How far outside the panel the pointer can stray before it has plainly left.
-    private static let reach: CGFloat = 80
+    private static var reach: CGFloat { 80 }
 
-    static let cornerRadius: CGFloat = 12
+    private static var cornerRadius: CGFloat { 12 }
     /// Transparent margin around the panel, so the spring's overshoot is drawn rather than clipped.
-    private static let room = CGSize(width: 12, height: 4)
+    private static var room: CGSize { CGSize(width: 12, height: 4) }
 
     private static var pointerScreen: NSScreen? {
         NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main
@@ -58,7 +58,7 @@ final class TodoPanel {
     ///   - screen: whose notch to grow out of, the one under the pointer when `nil`.
     ///   - start: what to grow out of instead of the notch, in screen coordinates.
     func open(
-        _ page: TodoPage, on screen: NSScreen?, over duration: TimeInterval?, from start: CGRect?,
+        _ page: Page, on screen: NSScreen?, over duration: TimeInterval?, from start: CGRect?,
         onceCovered: () async -> Void
     ) async {
         let screen = screen ?? Self.pointerScreen
@@ -73,7 +73,7 @@ final class TodoPanel {
         ), range.isReal)
         page.menuBarHeight = screen.menuBarHeight
         rest = CGRect(
-            x: notch.rect.midX - TodoPage.width / 2, y: top - page.height, width: TodoPage.width, height: page.height
+            x: notch.rect.midX - page.width / 2, y: top - page.height, width: page.width, height: page.height
         )
         let window = make(page)
         guard let surface, let content else { return }
@@ -159,12 +159,15 @@ final class TodoPanel {
         window.orderOut(nil)
     }
 
+    /// Where the panel rests while it is open, in AppKit screen coordinates.
+    var frame: CGRect? { window == nil ? nil : rest }
+
     /// Fits the panel to the page's height, keeping its top against the top of the display.
-    func fit(_ page: TodoPage) {
+    func fit(_ page: Page) {
         guard let window else { return }
         let previous = rest
         rest = CGRect(x: rest.minX, y: rest.maxY - page.height, width: rest.width, height: page.height)
-        menu = page.menu.map { $0.frame(size: page.menuSize, under: page.menuIcon, in: rest) }
+        menu = page.menuFrame(in: rest)
         guard !isMoving else { return }
         if rest.height < previous.height { shrink(window, from: previous) } else { settle(window) }
     }
@@ -221,7 +224,7 @@ final class TodoPanel {
         rect.offsetBy(dx: -window.frame.minX, dy: -window.frame.minY)
     }
 
-    private func make(_ page: TodoPage) -> TodoWindow {
+    private func make(_ page: Page) -> TodoWindow {
         let frame = frame(around: [rest])
         let window = TodoWindow(frame: frame)
         window.onEscape = { [weak self] in self?.onEscape?() }
@@ -231,6 +234,10 @@ final class TodoPanel {
                 return false
             }
             return onClickOutsideMenu?() ?? false
+        }
+        window.cursorOverride = { [weak self] point in
+            guard let self, menu != nil, let host = self.menuHost, host.frame.contains(point) else { return nil }
+            return .arrow
         }
 
         let root = NSView(frame: CGRect(origin: .zero, size: frame.size))
@@ -248,13 +255,12 @@ final class TodoPanel {
         root.addSubview(surface)
         root.addSubview(NotchShoulder(left: true))
         root.addSubview(NotchShoulder(left: false))
-        let content = NSHostingView(rootView: TodoPageView(page: page))
+        let content = NSHostingView(rootView: page.view)
         // Sized by the panel, which follows the height the page measures for itself.
         content.sizingOptions = []
-        // Kept at the panel's resting size and pinned to its top centre, the way the page sits.
-        content.autoresizingMask = [.minXMargin, .maxXMargin, .minYMargin]
+        // Kept at the panel's resting size; the surface pins it to its top centre.
         surface.addSubview(content)
-        let menuHost = NSHostingView(rootView: RowMenuHost(page: page))
+        let menuHost = NSHostingView(rootView: page.menuView)
         menuHost.sizingOptions = []
         root.addSubview(menuHost)
         window.contentView = root
@@ -324,7 +330,7 @@ final class TodoPanel {
     }
 }
 
-extension TodoPanel {
+extension PagePanel {
     /// Springs the panel shorter alongside the rows the page takes out, which cutting it short at once
     /// would hide mid-motion. The page's `.snappy`, so the two move as one.
     fileprivate func shrink(_ window: NSWindow, from previous: CGRect) {
@@ -348,6 +354,14 @@ extension TodoPanel {
 private final class SurfaceView: NSView {
     var onExit: (@MainActor () -> Void)?
     var onEnter: (@MainActor () -> Void)?
+
+    /// Pins the content to the top centre. Autoresizing cannot: it splits the change between two
+    /// flexible margins by their size, and both are zero at rest.
+    override func resizeSubviews(withOldSize oldSize: NSSize) {
+        for view in subviews {
+            view.setFrameOrigin(CGPoint(x: (bounds.width - view.frame.width) / 2, y: bounds.height - view.frame.height))
+        }
+    }
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()

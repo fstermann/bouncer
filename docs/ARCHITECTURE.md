@@ -1,10 +1,12 @@
 # Architecture
 
-Bouncer has two modes, and the user picks one or both on first launch: **menu bar items**, which
-hides items behind dividers, and **todos**, the todo page under the notch. Each works without the
-other (`Preferences.enableMenuBarItems`, `Preferences.enableTodos`). With menu bar items off there
-is no divider in the bar, Bouncer's icon opens the todo page, and nothing of this section runs;
-with todos off there is no todo page, no switch to it and no ⌘⇧B.
+Bouncer has three modes, and the user picks any of them on first launch: **menu bar items**, which
+hides items behind dividers, **todos**, the todo page under the notch, and **meeting notes**, the
+notes page beside it. Each works without the others (`Preferences.enableMenuBarItems`,
+`Preferences.enableTodos`, `Preferences.enableNotes`). With menu bar items off there is no divider
+in the bar, Bouncer's icon opens the todo or notes page, and nothing of this section runs; with
+todos off there is no todo page, no switch to it and no ⌘⇧B, and with notes off no notes page and
+no ⌘⇧N.
 
 ## How hiding works
 
@@ -274,6 +276,32 @@ day and `✅` before the day it was done, which Bouncer stamps when ticking so t
 count todos ticked here. Indented lines under a task are its note. Preset categories are a
 `categories` list in the file's frontmatter.
 
+### The notes page
+
+The third page keeps meeting notes, one Markdown file per meeting in a folder: `Notes` in
+Bouncer's Application Support folder, or one the user picked, such as a meetings folder in a vault,
+reached through a security-scoped bookmark like the todo file. Only the files directly in the
+folder are notes, so picking a vault's root does not list the whole vault. Its panel is the todo
+page's (`PagePanel`), opened with the other page, and it switches to and from the others the same
+way: the panel arriving grows out of the one open and takes it away once covering it. The items
+page has room for one switch, so it goes to the todo page while that is on, and to the notes page
+otherwise.
+
+What the meeting was is kept in the file's frontmatter, as Obsidian properties: `date` and `end`
+as date-times, `attendees` and `project` as `[[links]]` so the vault's graph joins meetings to
+people, `location`, and `tags`. The title is the file's name after the day and time it starts with,
+so the folder sorts by when meetings took place. A note is rewritten over the file as it stands, so
+properties Bouncer does not know survive; one of its own is added only once it has a value. The
+file is saved a moment after each change, and renamed to follow its title only once the note is
+left, not on every letter.
+
+The folder is read whole when the page opens, the notes' text included, since the search covers it,
+and its entries are watched while the page is open. A note open in the editor stays open across
+closes of the panel, which a click elsewhere in a meeting would otherwise lose; popping it out puts
+it in a window of its own, floating and on every space, until that is closed. ⌘⇧N is a system-wide
+hot key like ⌘⇧B, so while notes are on it no longer reaches other apps, Finder's new folder and the
+browsers' private windows among them.
+
 ## Modules
 
 Logic lives in `Modules/` (a SwiftPM package); `App/` is a thin shell.
@@ -290,8 +318,8 @@ BouncerFoundation   Logging, signposts, observation helper, the panel's springs.
       └────── App ───────┘         AppDelegate: constructs the graph, owns the menu
                                    and window.
 
-Todos   The todo page: Markdown task lines, the file, the panel. Depends on
-        BouncerFoundation, Settings and MenuBar; BouncerUI and App depend on it.
+Todos   The todo and notes pages: Markdown task lines, meeting notes, their files, the panel.
+        Depends on BouncerFoundation, Settings and MenuBar; BouncerUI and App depend on it.
 ```
 
 `StandaloneBar` is a module of its own because it is the one feature that asks for

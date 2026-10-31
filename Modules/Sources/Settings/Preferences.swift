@@ -18,10 +18,11 @@ public enum HoverDelay: Codable, Hashable, Sendable {
     public static let longest: TimeInterval = 2
 }
 
-/// The notch panel's two pages: the hidden items, and the todo list.
+/// The notch panel's pages: the hidden items, the todo list, and the meeting notes.
 public enum NotchPage: Codable, Hashable, Sendable {
     case items
     case todos
+    case notes
 }
 
 /// The complete user-facing configuration. One value type so it round-trips as a
@@ -29,8 +30,10 @@ public enum NotchPage: Codable, Hashable, Sendable {
 public struct Preferences: Codable, Hashable, Sendable {
     /// Hide menu bar items behind Bouncer's dividers. Off, Bouncer puts no divider in the bar.
     public var enableMenuBarItems: Bool
-    /// The todo panel under the notch. At least one of the two is always on.
+    /// The todo panel under the notch. At least one of the modes is always on.
     public var enableTodos: Bool
+    /// The meeting notes panel under the notch.
+    public var enableNotes: Bool
     public var autoRehide: AutoRehide
     public var enableAlwaysHiddenSection: Bool
     /// Reveal by moving the pointer into the menu bar, without a click.
@@ -54,14 +57,20 @@ public struct Preferences: Codable, Hashable, Sendable {
     /// Application Support.
     /// A bookmark rather than a path, so the file is found again after it is moved or renamed.
     public var todoFile: Data?
+    /// A bookmark to the folder meeting notes are kept in, one Markdown file each; `nil` for a local
+    /// folder in Application Support.
+    public var notesFolder: Data?
     /// The page the notch panel was last left on, which is the one hover opens next.
     public var notchPage: NotchPage
     /// The colour each todo tag's chip is drawn in, by name; a tag left out is grey.
     public var tagColors: [String: String]
+    /// The order todo tags' chips were dragged into; a tag left out follows those in it.
+    public var tagOrder: [String]
 
     public init(
         enableMenuBarItems: Bool = true,
         enableTodos: Bool = true,
+        enableNotes: Bool = false,
         autoRehide: AutoRehide = .afterDelay(seconds: 10),
         enableAlwaysHiddenSection: Bool = false,
         revealOnHover: Bool = false,
@@ -72,11 +81,14 @@ public struct Preferences: Codable, Hashable, Sendable {
         animateBar: Bool = true,
         barAnimationDuration: TimeInterval = 0.18,
         todoFile: Data? = nil,
+        notesFolder: Data? = nil,
         notchPage: NotchPage = .items,
-        tagColors: [String: String] = [:]
+        tagColors: [String: String] = [:],
+        tagOrder: [String] = []
     ) {
         self.enableMenuBarItems = enableMenuBarItems
         self.enableTodos = enableTodos
+        self.enableNotes = enableNotes
         self.autoRehide = autoRehide
         self.enableAlwaysHiddenSection = enableAlwaysHiddenSection
         self.revealOnHover = revealOnHover
@@ -87,8 +99,10 @@ public struct Preferences: Codable, Hashable, Sendable {
         self.animateBar = animateBar
         self.barAnimationDuration = barAnimationDuration
         self.todoFile = todoFile
+        self.notesFolder = notesFolder
         self.notchPage = notchPage
         self.tagColors = tagColors
+        self.tagOrder = tagOrder
     }
 
     /// A blob stored before a key existed must keep the user's other settings, not throw
@@ -98,6 +112,7 @@ public struct Preferences: Codable, Hashable, Sendable {
         // Both, as every build before the choice offered.
         enableMenuBarItems = try container.decodeIfPresent(Bool.self, forKey: .enableMenuBarItems) ?? true
         enableTodos = try container.decodeIfPresent(Bool.self, forKey: .enableTodos) ?? true
+        enableNotes = try container.decodeIfPresent(Bool.self, forKey: .enableNotes) ?? false
         // Clamped to what the slider can ask for, the way the animation duration below is:
         // a longer delay stored by an older build leaves the bar open past what any setting
         // can now express.
@@ -122,7 +137,9 @@ public struct Preferences: Codable, Hashable, Sendable {
             0.5
         )
         todoFile = try container.decodeIfPresent(Data.self, forKey: .todoFile)
+        notesFolder = try container.decodeIfPresent(Data.self, forKey: .notesFolder)
         notchPage = try container.decodeIfPresent(NotchPage.self, forKey: .notchPage) ?? .items
         tagColors = try container.decodeIfPresent([String: String].self, forKey: .tagColors) ?? [:]
+        tagOrder = try container.decodeIfPresent([String].self, forKey: .tagOrder) ?? []
     }
 }

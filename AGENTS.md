@@ -22,6 +22,10 @@ permitted"), with the sandbox disabled and through the user's `!` prefix alike. 
 `Logger` to debug; have temporary debug lines append to a file in the scratchpad and read
 that. The app is not sandboxed, so it can write there.
 
+To check how a SwiftUI view looks without driving the app, render it in a temporary test with
+`ImageRenderer` (scale 4), write the PNG to the scratchpad, Read it, then delete the test. It draws a
+`ScrollView` as a placeholder; render the scroll view's content instead.
+
 ## Checking it yourself
 
 Don't ask the user to try a bar change and report back; drive a running Bouncer Dev with
@@ -34,11 +38,16 @@ make ctl CMD="open"                         # or close: the standalone bar
 make ctl CMD="dump"                         # items by app, chevron, Bouncer's windows, with frames
 make ctl CMD="shoot /path/bar.png"          # top 120 pt of the main display, then Read the PNG
 make ctl CMD="record /path/bar.mov 3"       # video, at most 30 s; run it in the background, then act
+make ctl CMD="key cmd+shift+n"              # a real key press: hot keys, focus and key equivalents
+make ctl CMD="type Weekly sync"             # text into whatever has focus
+make ctl CMD="tap 756 60"                   # a click, in the coordinates dump prints
 ffmpeg -loglevel error -i bar.mov -vf "fps=5,scale=1512:-1,tile=1x15" -frames:v 1 sheet.png
 ```
 
 The last line turns a recording into one image of stacked frames, which can be Read. A black bar
 in a picture means the user is in a full-screen space: ask them to leave it.
+
+`key`, `type` and `tap` move the user's pointer and type into their apps: ask before using them.
 
 ## Rules
 

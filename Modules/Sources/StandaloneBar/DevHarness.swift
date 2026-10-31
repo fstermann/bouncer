@@ -65,7 +65,28 @@ public final class DevHarness {
                 )
             }
         default:
-            return "unknown command: \(command)"
+            return await input(command, words: words) ?? "unknown command: \(command)"
+        }
+    }
+
+    /// Keys, text and clicks, or `nil` for any other command.
+    private func input(_ command: String, words: [String]) async -> String? {
+        let argument = words.count > 1 ? words[1] : ""
+        switch words.first {
+        case "key":
+            guard let shortcut = DevInput.shortcut(argument) else { return "unknown key: \(argument)" }
+            await DevInput.press(shortcut)
+            return "pressed \(argument)"
+        case "type":
+            await DevInput.type(String(command.dropFirst("type ".count)))
+            return "typed"
+        case "tap":
+            guard let left = Double(argument), let top = words.count > 2 ? Double(words[2]) : nil
+            else { return "usage: tap <x> <y>" }
+            await DevInput.tap(at: CGPoint(x: left, y: top))
+            return "tapped"
+        default:
+            return nil
         }
     }
 
@@ -113,6 +134,10 @@ public final class DevHarness {
         for window in DevBarReader.bouncerWindows() {
             lines.append("bouncer window \(window.id) level \(window.layer) \(Self.text(window.frame))")
         }
+        let key = NSApp.keyWindow
+        lines.append("key window \(key.map { "\($0.windowNumber) \(type(of: $0))" } ?? "none")")
+        lines.append("first responder \(key?.firstResponder.map { "\(type(of: $0))" } ?? "none")")
+        lines.append("active app \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "none")")
         return lines.joined(separator: "\n")
     }
 
