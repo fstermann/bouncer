@@ -27,9 +27,10 @@ final class NoteWindow: NSPanel {
         titleVisibility = .hidden
         backgroundColor = .black
         appearance = NSAppearance(named: .darkAqua)
-        minSize = CGSize(width: 360, height: 320)
         let editor = NoteEditor(draft: draft, known: known, onEdit: onEdit, onDelete: onDelete, fillsHeight: true)
             .padding(.top, 28)
+            // The hosting view sizes the window to its content's minimum, so the minimum goes here.
+            .frame(minWidth: 360, minHeight: 320)
             .foregroundStyle(.white)
             .environment(\.colorScheme, .dark)
         contentView = NSHostingView(rootView: editor)
