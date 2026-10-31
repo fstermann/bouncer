@@ -122,6 +122,11 @@ public final class MenuBarManager {
     /// Clicking a boundary opens whatever is still beyond it, and collapses once there is
     /// nothing left — so the always-hidden section is reachable from the bar alone.
     private func revealFurtherOrCollapse() {
+        // Collapsing under whatever holds the reveal would leave it showing nothing: it decides.
+        guard !isRevealHeld else {
+            onIconClick?()
+            return
+        }
         let hasMoreToShow = visibility == .revealed && alwaysHiddenDivider != nil
         setVisibility(hasMoreToShow ? .fullyRevealed : .collapsed)
     }
