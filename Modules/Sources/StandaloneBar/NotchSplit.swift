@@ -1,4 +1,4 @@
-import CoreGraphics
+import Foundation
 
 /// How macOS 27's bar shares the revealed section between the two sides of the notch.
 ///
@@ -7,7 +7,7 @@ import CoreGraphics
 /// across, so its extra width is the one thing chosen here. Measured in SPIKES.md.
 enum NotchSplit {
     /// How the section lay when last open, which the next open goes by before anything is revealed.
-    struct Layout: Equatable {
+    struct Layout: Equatable, Codable {
         /// Both sides' items together, the chevron left out.
         let width: CGFloat
         /// The band's ends, in window-server x.
@@ -16,6 +16,14 @@ enum NotchSplit {
         /// The section's end and the notch it was read against.
         let end: CGFloat
         let notch: ClosedRange<CGFloat>
+
+        /// The layout last closed in, kept across launches so the first open after one is covered too.
+        static var saved: Layout? {
+            get { UserDefaults.standard.data(forKey: key).flatMap { try? JSONDecoder().decode(Layout.self, from: $0) } }
+            set { UserDefaults.standard.set(newValue.flatMap { try? JSONEncoder().encode($0) }, forKey: key) }
+        }
+
+        private static let key = "notchLayout"
 
         /// Whether the section still lands as it did once it ends at `end`. The shift takes up a
         /// change of end, as an item right of the section changing width makes, unless either end

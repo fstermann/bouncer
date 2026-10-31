@@ -59,7 +59,7 @@ public final class StandaloneBarController {
     /// Whether this open went the macOS 27 way (`openInTheBar`), so closing it does too.
     var isInTheBar = false
     /// How the section lay when last closed in the bar, which the next open splits and bands it by.
-    var lastLayout: NotchSplit.Layout?
+    var lastLayout: NotchSplit.Layout? { get { .saved } set { NotchSplit.Layout.saved = newValue } }
     var appSwitches: NSObjectProtocol?
     /// What a todo page switching back hands the next open, to take the notch's shape before it shows.
     var shapeOnOpen: (@MainActor (CGRect) async -> Void)?
