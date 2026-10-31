@@ -141,7 +141,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             && (showsItemsBar ? preferences.notchPage == .todos : atNotch || !preferences.enableMenuBarItems)
         // One page at a time: the other is switched to, not opened over it.
         if opensTodos {
-            guard !standaloneBar.isOpen else { return }
+            guard !standaloneBar.isShowing else { return }
             Task { await todos.open(on: screen) }
             return
         }
@@ -184,6 +184,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             defer { self?.isSwitching = false }
             switch page {
             case .todos:
+                // Grown out of the band as it rests: one still opening has no outline yet.
+                await standaloneBar.opening()
                 await todos.open(from: standaloneBar.panelFrame) { await standaloneBar.close(animated: false) }
             case .items:
                 await todos.close { shape in
@@ -196,7 +198,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// ⌘⇧B opens the todo page, from the items page if that is up, and closes it again.
     private func handleTodoShortcut() {
         guard !isSwitching else { return }
-        guard !standaloneBar.isOpen else { return switchPage(to: .todos) }
+        guard !standaloneBar.isShowing else { return switchPage(to: .todos) }
         toggleTodos()
     }
 

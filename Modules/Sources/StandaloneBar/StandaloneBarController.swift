@@ -86,27 +86,24 @@ public final class StandaloneBarController {
     }
 
     /// Whether an `open` is underway, so a second click mid-open starts nothing.
-    private var isOpening = false
+    var isOpening = false
     /// The same for `close`, which is not simply the absence of `isOpen`: closing clears that flag
     /// and then waits for the section to go off screen, and an open started in that gap has its
     /// cover pulled down by the close still finishing.
     private var isClosing = false
 
-    /// Whether the bar photographs items: not on macOS 27, where they stay in the menu bar.
-    public static var needsScreenRecording: Bool {
-        if #available(macOS 27, *) { return false }
-        return true
-    }
+    /// What is waiting for an open underway to finish.
+    var whenOpened: [CheckedContinuation<Void, Never>] = []
 
     public func toggle() async {
-        isOpen ? await close() : await open()
+        isShowing ? await close() : await open()
     }
 
     /// Reveals the hidden section, hides it again behind a cover, and replicates it below.
     public func open(closingWhenLeft: Bool = false, animated: Bool = true) async {
         guard !isOpen, !isOpening, !isClosing else { return }
         isOpening = true
-        defer { isOpening = false }
+        defer { endOpening() }
         if #available(macOS 27, *) {
             let takeOver = takeOver
             self.takeOver = nil
@@ -266,6 +263,7 @@ public final class StandaloneBarController {
 
     /// Puts everything away and hands hiding back to the divider.
     public func close(animated: Bool = true) async {
+        await opening()
         guard isOpen else { return }
         isOpen = false
         isClosing = true
