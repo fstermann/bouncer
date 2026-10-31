@@ -118,7 +118,8 @@ final class NotePage: TagFiltering {
     }
 
     var people: [String] { ListCompletion.known(in: notes.map(\.attendees)) }
-    var projects: [String] { ListCompletion.known(in: notes.map { [$0.project].compactMap(\.self) }) }
+    /// Each project and the folders it is nested in, so `Work` is offered as well as `Work/Bouncer`.
+    var projects: [String] { ListCompletion.known(in: notes.map { $0.project.map(TagPath.lineage) ?? [] }) }
 
     /// Nothing half-entered that the pointer leaving would throw away, and no note open, which a
     /// meeting is still being written into.

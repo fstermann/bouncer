@@ -4,10 +4,11 @@ import Foundation
 /// which Obsidian shows and Dataview queries, and the note itself under them.
 ///
 /// The title is the file's name, after the day and time it starts with, as Obsidian takes a note's
-/// title from its name. People and the project are written as links, so a vault's graph and
-/// backlinks join each meeting to them; plain names read just as well.
+/// title from its name. A note with a project is kept in the project's folder, nested as `Work/Bouncer`
+/// is. People and the project are written as links too, so a vault's graph and backlinks join each
+/// meeting to them; plain names read just as well.
 struct Note: Hashable, Identifiable {
-    /// The file's name in the folder, which is what knows the note.
+    /// The file's path in the notes folder, `Project/2026-10-29 1400 Sync.md`, which is what knows the note.
     var name: String
     var title: String
     var start: Date?
@@ -48,7 +49,7 @@ extension Note {
             ?? NoteName.start(of: name, calendar: calendar)
         end = frontmatter[Key.end]?.value.flatMap { NoteTime.date(from: $0, calendar: calendar) }
         attendees = frontmatter[Key.attendees]?.values.map(Link.target) ?? []
-        project = frontmatter[Key.project]?.value.map(Link.target)
+        project = NoteName.folder(of: name) ?? frontmatter[Key.project]?.value.map(Link.target)
         location = frontmatter[Key.location]?.value
         tags = (frontmatter[Key.tags]?.values ?? [])
             .flatMap { $0.split(whereSeparator: { $0 == "," || $0 == " " }) }
@@ -70,7 +71,7 @@ extension Note {
         set(Key.start, [start.map { NoteTime.string(for: $0, calendar: calendar) }].compactMap(\.self), false)
         set(Key.end, [end.map { NoteTime.string(for: $0, calendar: calendar) }].compactMap(\.self), false)
         set(Key.attendees, attendees.map(Link.make), true)
-        set(Key.project, [project.map(Link.make)].compactMap(\.self), false)
+        set(Key.project, [project.map { Link.make(TagPath.leaf(of: $0)) }].compactMap(\.self), false)
         set(Key.location, [location].compactMap(\.self), false)
         set(Key.tags, tags, true)
         return frontmatter.joined(with: body)
@@ -97,27 +98,43 @@ enum Link {
     }
 }
 
-/// A note's file name: the day and time it starts, then its title, so the folder sorts by when
-/// meetings took place.
+/// A note's path: its project's folder, then the day and time it starts and its title, so a folder
+/// sorts by when meetings took place.
 enum NoteName {
-    /// `2026-10-29 1400 Weekly sync.md`, with what a file name or an Obsidian link cannot hold taken out.
-    static func make(title: String, start: Date?, calendar: Calendar = .current) -> String {
-        let cleaned = title.unicodeScalars.filter { !forbidden.contains($0) }.map(String.init).joined()
-            .split(separator: " ").joined(separator: " ")
+    /// `Project/2026-10-29 1400 Weekly sync.md`, with what a file name or an Obsidian link cannot hold
+    /// taken out.
+    static func make(title: String, start: Date?, project: String? = nil, calendar: Calendar = .current) -> String {
+        let cleaned = clean(title)
         let prefix = start.map { stamp(for: $0, calendar: calendar) + " " } ?? ""
-        return prefix + (cleaned.isEmpty ? "Meeting" : cleaned) + ".md"
+        let file = prefix + (cleaned.isEmpty ? "Meeting" : cleaned) + ".md"
+        return folder(for: project).map { "\($0)/\(file)" } ?? file
     }
 
-    /// `name` without its extension and the day and time it starts with.
+    /// The folder a note of `project` is kept in, `Work/Bouncer` nested; `nil` for none, or a name with
+    /// nothing left once cleaned. Leading dots go too, as they would hide a folder.
+    static func folder(for project: String?) -> String? {
+        let parts = (project ?? "").split(separator: "/").map { String(clean(String($0)).drop { $0 == "." }) }
+            .filter { !$0.isEmpty }
+        return parts.isEmpty ? nil : parts.joined(separator: "/")
+    }
+
+    /// The folder `name` is in, `nil` for a note at the top.
+    static func folder(of name: String) -> String? {
+        let parts = name.split(separator: "/")
+        return parts.count > 1 ? parts.dropLast().joined(separator: "/") : nil
+    }
+
+    /// `name` without its folder and extension and the day and time it starts with.
     static func title(of name: String) -> String {
-        let base = name.hasSuffix(".md") ? String(name.dropLast(3)) : name
+        let file = file(of: name)
+        let base = file.hasSuffix(".md") ? String(file.dropLast(3)) : file
         guard let match = base.prefixMatch(of: pattern) else { return base }
         let rest = base[match.range.upperBound...]
         return rest.isEmpty ? base : String(rest)
     }
 
     static func start(of name: String, calendar: Calendar) -> Date? {
-        guard let match = name.prefixMatch(of: pattern) else { return nil }
+        guard let match = file(of: name).prefixMatch(of: pattern) else { return nil }
         let (_, year, month, day, time) = match.output
         let hour = time.flatMap { Int($0.prefix(2)) } ?? 0
         let minute = time.flatMap { Int($0.suffix(2)) } ?? 0
@@ -127,6 +144,15 @@ enum NoteName {
     }
 
     private static let forbidden = CharacterSet(charactersIn: "/\\:*?\"<>|#^[]")
+
+    private static func file(of name: String) -> String {
+        name.split(separator: "/").last.map(String.init) ?? name
+    }
+
+    private static func clean(_ text: String) -> String {
+        text.unicodeScalars.filter { !forbidden.contains($0) }.map(String.init).joined()
+            .split(separator: " ").joined(separator: " ")
+    }
     nonisolated(unsafe) private static let pattern = #/(\d{4})-(\d{2})-(\d{2})(?: (\d{4}))? /#
 
     private static func stamp(for date: Date, calendar: Calendar) -> String {

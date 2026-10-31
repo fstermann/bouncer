@@ -118,6 +118,24 @@ import Testing
         #expect(NoteName.title(of: "Sync.md") == "Sync")
     }
 
+    @Test func keepsANoteInItsProjectsFolder() {
+        #expect(NoteName.make(title: "Sync", start: date(29, 14), project: "Bouncer", calendar: calendar)
+            == "Bouncer/2026-10-29 1400 Sync.md")
+        #expect(NoteName.make(title: "Sync", start: nil, project: " Work / b: c ") == "Work/b c/Sync.md")
+        #expect(NoteName.folder(for: "../..") == nil)
+        #expect(NoteName.folder(for: "Work//.hidden") == "Work/hidden")
+        #expect(NoteName.folder(for: nil) == nil)
+        let other = "---\nproject: Other\n---\n"
+        let note = Note(name: "Bouncer/2026-10-29 1400 Sync.md", markdown: other, calendar: calendar)
+        #expect(note.project == "Bouncer")
+        #expect(note.title == "Sync")
+        #expect(note.start == date(29, 14))
+        #expect(Note(name: "Sync.md", markdown: other, calendar: calendar).project == "Other")
+        let nested = Note(name: "Work/Bouncer/Sync.md", markdown: "", calendar: calendar)
+        #expect(nested.project == "Work/Bouncer")
+        #expect(nested.markdown(over: "").contains("project: \"[[Bouncer]]\""))
+    }
+
     @Test func searchFindsPeopleAndTheProject() {
         let note = Note(name: "a.md", title: "Sync", attendees: ["Anna Smith"], project: "Bouncer", body: "")
         #expect(note.mentions("anna"))

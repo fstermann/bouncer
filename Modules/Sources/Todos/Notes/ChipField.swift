@@ -3,7 +3,8 @@ import SwiftUI
 /// A meeting's tags, people or project as chips, and a field that adds one. What is known is offered
 /// as the field is typed into, all of it while it is empty; Return or Tab takes the highlighted
 /// one, or else what is typed, as do the `breaks` keys. A click on a chip takes it off, as does
-/// Delete in the empty field.
+/// Delete in the empty field. Items can nest, `Work/Bouncer`: Tab on one with others under it types
+/// it with the slash, to go on to them.
 struct ChipField: View {
     let placeholder: String
     @Binding var items: [String]
@@ -17,6 +18,8 @@ struct ChipField: View {
     var isSingle = false
     /// Drawn as a tag's chip, in its colour and after the tags it nests under.
     var color: ((String) -> Color?)?
+    /// Items nest, and Tab goes into the highlighted one rather than taking it.
+    var nests = false
     /// Takes the cursor once shown, as it is when added to a note.
     var focusesOnAppear = false
     @State private var typed = ""
@@ -33,7 +36,8 @@ struct ChipField: View {
                         .fixedSize()
                         .help("Remove")
                 }
-                field
+                // One item is all it holds: a click on it takes it off to make room for another.
+                if !isSingle || items.isEmpty { field }
             }
             if isFocused, !shown.isEmpty {
                 HStack(spacing: 4) {
@@ -59,10 +63,11 @@ struct ChipField: View {
     private var field: some View {
         TextField(items.isEmpty ? placeholder : "", text: $typed)
             .textFieldStyle(.plain)
-            .frame(minWidth: 60)
+            // Narrow after its chips until clicked, so the next property sits close.
+            .frame(minWidth: items.isEmpty || isFocused ? 60 : 16)
             .focused($isFocused)
             .onKeyPress(.return) { take() }
-            .onKeyPress(.tab) { take() }
+            .onKeyPress(.tab) { descend() ?? take() }
             // Taken before the field gets them: what it holds cannot be reset while a key changes it.
             .onKeyPress(characters: CharacterSet(charactersIn: breaks), phases: .down) { _ in
                 add(typed)
@@ -90,6 +95,15 @@ struct ChipField: View {
         } else {
             return .ignored
         }
+        return .handled
+    }
+
+    /// Types the highlighted item and a slash, if any item is under it.
+    private func descend() -> KeyPress.Result? {
+        guard nests, let highlight, shown.indices.contains(highlight) else { return nil }
+        let parent = shown[highlight] + "/"
+        guard offered(parent, items).contains(where: { $0.hasPrefix(parent) }) else { return nil }
+        typed = parent
         return .handled
     }
 
