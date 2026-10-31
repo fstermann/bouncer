@@ -68,6 +68,7 @@ extension StandaloneBarController {
         }
         finishOpening(of: [], from: [:], over: tabFrame)
         closeWhenTheOverflowCloses()
+        refitWhenAppsComeAndGo()
     }
 
     /// Has a todo page take the band's shape, puts the band up covered underneath it, and lets the
@@ -79,22 +80,17 @@ extension StandaloneBarController {
         takeOver.letGo()
     }
 
-    /// Uncovers the left side over the overflow's last stretch of sliding out: Accessibility has its
-    /// final frames well before then.
+    /// Uncovers the left side once the overflow has slid out: until then the app menus still draw
+    /// over the band there, and fading the cover any sooner shows them through it.
     private func showLeftSide(
         openedAt opened: ContinuousClock.Instant, notch: ClosedRange<CGFloat>, end: CGFloat,
         over duration: TimeInterval?
     ) async {
-        var uncovering: Task<Void, Never>?
-        if let duration {
-            try? await Task.sleep(until: opened + .seconds(AgentOverflow.slide - duration))
-            uncovering = Task { await tab.uncover(.left, over: duration) }
-        }
         try? await Task.sleep(until: opened + .seconds(AgentOverflow.slide))
         // Read again once the overflow is out: a batch can still arrive after it looked settled.
         let landed = await AgentItems.frames()
         tab.extend(to: NotchSplit.band(over: landed, notch: notch, end: end), over: duration)
-        if let uncovering { await uncovering.value } else { await tab.uncover(.left, over: nil) }
+        await tab.uncover(.left, over: duration)
     }
 
     /// Keeps the band's right end past the section's last item through a Cmd-drag, as items dragged
@@ -136,6 +132,28 @@ extension StandaloneBarController {
         }
     }
 
+    /// An app launching or quitting adds or takes away its items, landing them outside the band.
+    /// Watched through the list of apps: most with items are agents, which the launch
+    /// notification leaves out.
+    private func refitWhenAppsComeAndGo() {
+        appsChange = NSWorkspace.shared.observe(\.runningApplications) { [weak self] _, _ in
+            Task { @MainActor in await self?.refitAfterItemsChange() }
+        }
+    }
+
+    /// An app makes its items around when it is listed, so the band fits what is there at once, as
+    /// soon as anything moves after, and once that has settled.
+    private func refitAfterItemsChange() async {
+        let now = await AgentItems.frames()
+        fitBand(to: now)
+        await AgentItems.change(from: now, within: Self.itemsArrive)
+        fitBand(to: await AgentItems.frames())
+        fitBand(to: await AgentItems.settled())
+    }
+
+    /// How long after an app is listed its items may still land.
+    private static let itemsArrive: Duration = .seconds(2)
+
     /// How long the items take to go once collapsed: the overflow back into the notch, the rest fading.
     private static let itemsLeave = 0.3
 
@@ -155,6 +173,7 @@ extension StandaloneBarController {
         menuBar.onHiddenDividerMove = nil
         appSwitches.map(NSWorkspace.shared.notificationCenter.removeObserver)
         appSwitches = nil
+        appsChange = nil
         // Measured only with the chevron open: closed, it holds just the right side.
         if AgentOverflow.state == .open,
            let end = menuBar.hiddenSectionEnd,

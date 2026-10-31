@@ -61,6 +61,7 @@ public final class StandaloneBarController {
     /// How the section lay when last closed in the bar, which the next open splits and bands it by.
     var lastLayout: NotchSplit.Layout? { get { .saved } set { NotchSplit.Layout.saved = newValue } }
     var appSwitches: NSObjectProtocol?
+    var appsChange: NSKeyValueObservation?
     /// What a todo page switching back hands the next open, to take the notch's shape before it shows.
     var takeOver: TakeOver?
 

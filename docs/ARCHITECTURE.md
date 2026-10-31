@@ -107,9 +107,9 @@ and takes its clicks, which would take the left side away and leave the band ove
 it holds the switch to the todo page instead. The layout read at close also places the band, so an open grows it both ways at once with a
 copy above the items in two halves, and reveals the section behind it. The right half fades as soon
 as the band is out: the right side lands some 30 ms after the reveal, while Accessibility stalls for
-some 300 ms, so it is not read. The left half fades over the last of the overflow's slide (400 ms
-after the chevron is pressed, well after Accessibility has its final frames); uncovered earlier,
-app menus draw over the band until the overflow pushes them aside. Closing runs the
+some 300 ms, so it is not read. The left half fades once the overflow has slid out (400 ms after the
+chevron is pressed): until then app menus draw over the band, and any fade before it shows them
+through. Closing runs the
 other way: the copy fades in, the section collapses behind it, then both shrink into the notch. macOS slides both sides out of the notch itself, so nothing is photographed or
 replicated, clicks reach the real items, and Screen Recording is not needed. The bar adds only
 `NotchTab`: a black band grown sideways out of the notch behind the items, at the menu bar's own
@@ -117,7 +117,9 @@ level, which the window server draws over the bar's backdrop and under its items
 across a collapse, and left open, every later reveal draws the overflow over the app menus. Another app coming to the
 front closes it, open or collapsed, taking the left side back into the notch, so the bar closes with
 it, and a layout is only measured while it is open. An item dragged in or out while the bar is open moves the section's ends, so
-every release reads the items again once they hold still and refits the band. Accessibility stalls through a
+every release reads the items again once they hold still and refits the band. An app launching or
+quitting adds or takes away items, so a change to the running apps, watched only while the bar is
+open, refits it too; the launch notification would miss agents, which own most items. Accessibility stalls through a
 drag, so during one the band's right end follows the divider, which items dragged in or out move
 and whose window moves say so. Items
 that fit on neither side are dropped by macOS and cannot be shown. Rearranging is not built there.

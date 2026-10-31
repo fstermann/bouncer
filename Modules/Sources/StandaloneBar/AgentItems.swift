@@ -65,9 +65,11 @@ enum AgentItems {
         return previous
     }
 
-    /// Waits for the bar to be laid out again after the divider changed width. A bounded poll.
-    static func change(from frames: [CGRect]) async {
-        for _ in 0..<attemptLimit {
+    /// Waits for the bar to be laid out again after the divider changed width, or for at most
+    /// `limit`. A bounded poll.
+    static func change(from frames: [CGRect], within limit: Duration = .milliseconds(300)) async {
+        let deadline = ContinuousClock.now + limit
+        while ContinuousClock.now < deadline {
             if await self.frames() != frames { return }
             try? await Task.sleep(for: .milliseconds(10))
         }
