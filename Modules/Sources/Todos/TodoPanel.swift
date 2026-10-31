@@ -368,4 +368,3 @@ private final class SurfaceView: NSView {
         onEnter?()
     }
 }
-
