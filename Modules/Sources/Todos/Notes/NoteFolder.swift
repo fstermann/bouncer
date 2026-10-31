@@ -5,8 +5,9 @@ import Foundation
 /// notes page is open.
 ///
 /// Either a local folder Bouncer keeps itself, or one the user picked, such as a meetings folder in
-/// an Obsidian vault, found through a security-scoped bookmark made when they picked it. Only the
-/// files directly in it are notes, so picking a vault's root does not list the whole vault.
+/// an Obsidian vault, found through a security-scoped bookmark made when they picked it. Every
+/// Markdown file in it or the folders under it, one per project, is a note, so picking a vault's root
+/// lists the whole vault. Hidden folders, such as the vault's settings, are passed over.
 @MainActor
 final class NoteFolder {
     private let url: URL
@@ -41,16 +42,21 @@ final class NoteFolder {
         self.url = url
     }
 
-    /// Every Markdown file in the folder, read whole: the page searches the notes' text too.
+    /// Every Markdown file in the folder and its projects' folders, read whole: the page searches the
+    /// notes' text too.
     func notes() -> [Note] {
         access {
-            let files = (try? FileManager.default.contentsOfDirectory(
-                at: url, includingPropertiesForKeys: [.contentModificationDateKey], options: [.skipsHiddenFiles]
-            )) ?? []
+            let files = FileManager.default.enumerator(
+                at: url, includingPropertiesForKeys: [.contentModificationDateKey],
+                options: [.skipsHiddenFiles, .skipsPackageDescendants]
+            )?.allObjects as? [URL] ?? []
+            // The files come with the links on the way to the folder resolved, so its path is compared resolved too.
+            let depth = url.resolvingSymlinksInPath().pathComponents.count
             return files.filter { $0.pathExtension.lowercased() == "md" }.compactMap { file in
                 guard let markdown = try? String(contentsOf: file, encoding: .utf8) else { return nil }
                 let modified = try? file.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
-                return Note(name: file.lastPathComponent, markdown: markdown, modified: modified)
+                let name = file.resolvingSymlinksInPath().pathComponents.dropFirst(depth).joined(separator: "/")
+                return Note(name: name, markdown: markdown, modified: modified)
             }
         }
     }
@@ -84,13 +90,17 @@ final class NoteFolder {
         }
     }
 
-    /// Renames `name` to `wanted`, or a free name like it; returns the name the file ends up with.
+    /// Renames `name` to `wanted`, or a free name like it, moving it into another project's folder if
+    /// `wanted` is in one; returns the name the file ends up with.
     func rename(_ name: String, to wanted: String) -> String {
         guard name != wanted else { return name }
         let target = free(wanted, besides: name)
         guard target != name else { return name }
         return access {
             do {
+                try FileManager.default.createDirectory(
+                    at: file(target).deletingLastPathComponent(), withIntermediateDirectories: true
+                )
                 try FileManager.default.moveItem(at: file(name), to: file(target))
                 return target
             } catch {

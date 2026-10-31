@@ -184,14 +184,16 @@ public final class NoteController {
         draft.saved = note
     }
 
-    /// Saves the note, and renames its file once its title or start has changed: not while it is
-    /// typed, when every letter would rename it.
+    /// Saves the note, renames its file once its title or start has changed, and moves it into its
+    /// project's folder: not while it is typed, when every letter would rename it.
     private func finish(_ draft: NoteDraft) {
         save(draft)
-        guard let folder, draft.saved.title != draft.opened.title || draft.saved.start != draft.opened.start
+        let note = draft.saved
+        let isMisplaced = NoteName.folder(of: note.name) != NoteName.folder(for: note.project)
+        guard let folder, isMisplaced || note.title != draft.opened.title || note.start != draft.opened.start
         else { return }
         draft.saved.name = folder.rename(
-            draft.saved.name, to: NoteName.make(title: draft.saved.title, start: draft.saved.start)
+            note.name, to: NoteName.make(title: note.title, start: note.start, project: note.project)
         )
     }
 

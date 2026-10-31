@@ -44,43 +44,12 @@ struct NoteEditor: View {
             header
             VStack(alignment: .leading, spacing: 6) {
                 times
-                if shows(.people) {
-                    MetaRow(symbol: Field.people.symbol, help: "People") {
-                        ChipField(
-                            placeholder: "People", items: $draft.people,
-                            offered: { ListCompletion.suggestions(for: $0, carrying: $1, from: known.people) },
-                            item: ListCompletion.name(from:), focusesOnAppear: revealed.contains(.people)
-                        )
-                    }
+                if shows(.people) { property(.people) }
+                // Set once and seldom looked at again, so they share a line, each in its place.
+                Flow {
+                    if !shows(.people) { property(.people) }
+                    ForEach([Field.project, .tags, .link], id: \.self, content: property)
                 }
-                if shows(.project) || shows(.link) {
-                    HStack(spacing: 12) {
-                        if shows(.project) {
-                            MetaRow(symbol: Field.project.symbol, help: "Project") {
-                                ChipField(
-                                    placeholder: "Project", items: project,
-                                    offered: {
-                                        ListCompletion.suggestions(for: $0, carrying: $1, from: known.projects)
-                                    },
-                                    item: ListCompletion.name(from:), isSingle: true,
-                                    focusesOnAppear: revealed.contains(.project)
-                                )
-                            }
-                        }
-                        if shows(.link) { location }
-                    }
-                }
-                if shows(.tags) {
-                    MetaRow(symbol: Field.tags.symbol, help: "Tags") {
-                        ChipField(
-                            placeholder: "Tags", items: $draft.tags,
-                            offered: { TagCompletion.suggestions(for: $0, carrying: $1, from: known.tags) },
-                            item: TagCompletion.tag(from:), breaks: " ,", color: known.color(of:),
-                            focusesOnAppear: revealed.contains(.tags)
-                        )
-                    }
-                }
-                adders
             }
             .font(.callout)
             Divider().overlay(.white.opacity(0.1))
@@ -122,9 +91,9 @@ struct NoteEditor: View {
         .foregroundStyle(.secondary)
     }
 
-    /// The properties left out while empty, added from the row under the others.
-    private enum Field: CaseIterable {
-        case people, project, link, tags
+    /// The properties left out while empty, added from where they would be.
+    private enum Field {
+        case people, project, tags, link
 
         var symbol: String {
             switch self {
@@ -155,26 +124,56 @@ struct NoteEditor: View {
         }
     }
 
-    @ViewBuilder private var adders: some View {
-        let hidden = Field.allCases.filter { !shows($0) }
-        if !hidden.isEmpty {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Image(systemName: "plus")
-                    .frame(width: TodoPage.markWidth)
-                    .foregroundStyle(.tertiary)
-                ForEach(hidden, id: \.self) { field in
-                    Button {
-                        revealed.insert(field)
-                        // A turn later, once the field is in the window.
-                        if field == .link { Task { isTypingLocation = true } }
-                    } label: {
-                        Label(field.title, systemImage: field.symbol)
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
+    @ViewBuilder private func property(_ field: Field) -> some View {
+        if !shows(field) {
+            adder(field)
+        } else {
+            switch field {
+            case .people:
+                MetaRow(symbol: field.symbol, help: field.title) {
+                    ChipField(
+                        placeholder: field.title, items: $draft.people,
+                        offered: { ListCompletion.suggestions(for: $0, carrying: $1, from: known.people) },
+                        item: ListCompletion.name(from:), focusesOnAppear: revealed.contains(field)
+                    )
                 }
+            case .project:
+                MetaRow(symbol: field.symbol, help: field.title) {
+                    ChipField(
+                        placeholder: field.title, items: project,
+                        offered: { ListCompletion.suggestions(for: $0, carrying: $1, from: known.projects) },
+                        item: { ListCompletion.name(from: $0).flatMap(NoteName.folder(for:)) }, isSingle: true,
+                        // Uncoloured, but nested as a tag is: `Work` dimmed before `Bouncer`.
+                        color: { _ in nil }, nests: true, focusesOnAppear: revealed.contains(field)
+                    )
+                }
+            case .tags:
+                MetaRow(symbol: field.symbol, help: field.title) {
+                    ChipField(
+                        placeholder: field.title, items: $draft.tags,
+                        offered: { TagCompletion.suggestions(for: $0, carrying: $1, from: known.tags) },
+                        item: TagCompletion.tag(from:), breaks: " ,", color: known.color(of:),
+                        focusesOnAppear: revealed.contains(field)
+                    )
+                }
+            case .link:
+                location
             }
         }
+    }
+
+    /// An empty property in its place, which a click adds.
+    private func adder(_ field: Field) -> some View {
+        Button {
+            revealed.insert(field)
+            // A turn later, once the field is in the window.
+            if field == .link { Task { isTypingLocation = true } }
+        } label: {
+            MetaRow(symbol: field.symbol, help: "Add \(field.title.lowercased())") {
+                Text(field.title).foregroundStyle(.secondary)
+            }
+        }
+        .buttonStyle(.plain)
     }
 
     private var location: some View {
@@ -221,5 +220,57 @@ private struct MetaRow<Content: View>: View {
                 .help(help)
             content
         }
+    }
+}
+
+/// Its views in a line, starting another where the width runs out.
+private struct Flow: Layout {
+    var spacing: CGFloat = 12
+    var lineSpacing: CGFloat = 6
+
+    private struct Line {
+        var indices: [Int] = []
+        var width: CGFloat = 0
+        var height: CGFloat = 0
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let lines = lines(of: subviews, in: proposal.width ?? .infinity)
+        let height = lines.map(\.height).reduce(0, +) + lineSpacing * CGFloat(max(lines.count - 1, 0))
+        return CGSize(width: lines.map(\.width).max() ?? 0, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var top = bounds.minY
+        for line in lines(of: subviews, in: bounds.width) {
+            var left = bounds.minX
+            for index in line.indices {
+                let size = subviews[index].sizeThatFits(.unspecified)
+                let width = min(size.width, bounds.maxX - left)
+                subviews[index].place(
+                    at: CGPoint(x: left, y: top + (line.height - size.height) / 2),
+                    proposal: ProposedViewSize(width: width, height: size.height)
+                )
+                left += width + spacing
+            }
+            top += line.height + lineSpacing
+        }
+    }
+
+    private func lines(of subviews: Subviews, in width: CGFloat) -> [Line] {
+        var lines: [Line] = []
+        var line = Line()
+        for (index, subview) in subviews.enumerated() {
+            let size = subview.sizeThatFits(.unspecified)
+            if !line.indices.isEmpty, line.width + spacing + size.width > width {
+                lines.append(line)
+                line = Line()
+            }
+            line.width += (line.indices.isEmpty ? 0 : spacing) + min(size.width, width)
+            line.height = max(line.height, size.height)
+            line.indices.append(index)
+        }
+        if !line.indices.isEmpty { lines.append(line) }
+        return lines
     }
 }
