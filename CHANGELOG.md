@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.0](https://github.com/fstermann/bouncer/compare/v0.6.0...v0.7.0) (2026-10-31)
+
+
+### Features
+
+* drive, photograph and record Bouncer Dev from a shell ([#36](https://github.com/fstermann/bouncer/issues/36)) ([7247278](https://github.com/fstermann/bouncer/commit/724727809929272e1dd4e2d2eb35204c2fbd3487))
+* make Bouncer work on macOS 27 ([#35](https://github.com/fstermann/bouncer/issues/35)) ([683ca6e](https://github.com/fstermann/bouncer/commit/683ca6e34a4ecaf138dbcb37758e4ff3b5f9ac7e))
+
 ## [0.6.0](https://github.com/fstermann/bouncer/compare/v0.5.0...v0.6.0) (2026-10-29)
 
 
