@@ -1,8 +1,7 @@
 import AppKit
 import MenuBar
 
-/// The notch grown sideways behind the section's items, with the switch to the todo page where the
-/// chevron sits.
+/// The notch grown sideways behind the section's items, with the page button where the chevron sits.
 ///
 /// What the standalone bar is on macOS 27: the items stay in the menu bar either side of the notch,
 /// so all the bar adds is this black. It sits at the menu bar's own level, which the window server
@@ -25,22 +24,25 @@ final class NotchTab {
     /// goes behind its own.
     private let leftCover = CALayer()
     private let rightCover = CALayer()
-    private let switchView = SwitchView()
+    private let shadeView = ShadeView()
+    /// Over the chevron, which the shade hides.
+    let pageButton = PageButton()
+    /// The button again, on the right cover, so it shows while the cover hides the shade's.
+    let coverButton = PageButton()
+    /// Up but unseen, under a page still changing into the band: a window just ordered in can take
+    /// a few frames to show, so it goes up before it is needed.
+    var isConcealed = false { didSet { [window, coverWindow].forEach(conceal) } }
+
+    /// Shades `chevron`, and as far right of the notch as the button needs. No chevron, no shade.
+    func shade(over chevron: CGRect?, notch: ClosedRange<CGFloat>) {
+        let reach = pageButton.isHidden ? 0 : PageButton.gap * 2 + PageButton.size
+        shade(chevron.map { NotchSplit.shade(over: $0, notch: notch, reach: reach) })
+    }
     /// The notch the band grows out of and the window's frame, in window-server coordinates.
     private var tabFrame = CGRect.zero
     private var windowFrame = CGRect.zero
     /// The band's ends, in window-server x.
     private var span: ClosedRange<CGFloat> = 0...0
-
-    var onSwitch: (@MainActor () -> Void)? {
-        get { switchView.onSwitch }
-        set { switchView.onSwitch = newValue }
-    }
-
-    var switchImage: NSImage? {
-        get { switchView.glyph.image }
-        set { switchView.glyph.image = newValue }
-    }
 
     /// The band in AppKit coordinates, the bar's height tall: what the todo page grows from.
     var outline: CGRect? {
@@ -101,7 +103,9 @@ final class NotchTab {
         coverWindow = covering
         covering.setFrame(cgFrame: windowFrame)
         moveCovers(over: nil)
+        placeCoverButton()
         for side in [Side.left, .right] { fade(cover(on: side), to: 1, over: duration) }
+        if let layer = coverButton.layer { fade(layer, to: 1, over: duration) }
         covering.orderFrontRegardless()
     }
 
@@ -109,6 +113,7 @@ final class NotchTab {
     func uncover(_ side: Side, over duration: TimeInterval?) async {
         guard coverWindow != nil else { return }
         fade(cover(on: side), to: 0, over: duration)
+        if side == .right, let layer = coverButton.layer { fade(layer, to: 0, over: duration) }
         if let duration { try? await Task.sleep(for: .seconds(duration)) }
         // Still up on the other side, or covering again for a close.
         guard leftCover.opacity == 0, rightCover.opacity == 0 else { return }
@@ -136,7 +141,15 @@ final class NotchTab {
         window?.setFrame(cgFrame: whole)
         coverWindow?.setFrame(cgFrame: whole)
         content.frame = CGRect(origin: .zero, size: whole.size)
+        placeCoverButton()
         moveBand(over: nil)
+    }
+
+    /// Where the shade's button is, right of the notch, on whole points like every page's. Measured from
+    /// where the window landed, which is on whole pixels, not from the frame it was given.
+    private func placeCoverButton() {
+        let windowMinX = coverWindow?.frame.minX ?? windowFrame.minX
+        coverButton.place(atX: tabFrame.maxX.rounded(.down) + PageButton.gap - windowMinX, midY: tabFrame.height / 2)
     }
 
     private func moveBand(over duration: TimeInterval?) {
@@ -157,8 +170,8 @@ final class NotchTab {
         )
     }
 
-    /// Covers `frame`, in window-server coordinates, above the items, with the switch to the todo
-    /// page at its right end, which takes its clicks. `nil` takes the cover away.
+    /// Covers `frame`, in window-server coordinates, above the items, with the page button at its left
+    /// end, which takes its clicks. `nil` takes the cover away.
     func shade(_ frame: CGRect?) {
         guard let frame else {
             shadeWindow?.orderOut(nil)
@@ -168,9 +181,11 @@ final class NotchTab {
         let shade = shadeWindow ?? BarWindow(frame: frame, level: CoverWindow.aboveItems)
         shadeWindow = shade
         shade.backgroundColor = .black
-        shade.contentView = switchView
+        shade.contentView = shadeView
         shade.setFrame(cgFrame: frame)
-        switchView.placeGlyph()
+        if pageButton.superview == nil { shadeView.addSubview(pageButton) }
+        // Centred on the bar, as the cover's copy is, though the shade stops short of its foot.
+        pageButton.place(atX: PageButton.gap, midY: shadeView.bounds.height - tabFrame.height / 2)
         // Under the cover, so the switch shows and goes with the items.
         if let coverWindow {
             shade.order(.below, relativeTo: coverWindow.windowNumber)
@@ -183,6 +198,8 @@ final class NotchTab {
         guard window != nil else { return }
         span = tabFrame.minX...tabFrame.maxX
         moveBand(over: duration)
+        // Gone before the band's end passes it on its way into the notch.
+        if let layer = coverButton.layer { fade(layer, to: 0, over: duration.map { $0 / 2 }) }
         if let duration { try? await Task.sleep(for: .seconds(duration)) }
         window?.orderOut(nil)
         window = nil
@@ -230,6 +247,7 @@ final class NotchTab {
 
     private func make(_ frame: CGRect) -> BarWindow {
         let tab = BarWindow(frame: frame, level: .mainMenu)
+        conceal(tab)
         content.wantsLayer = true
         Self.shape(band)
         content.layer?.addSublayer(band)
@@ -245,6 +263,7 @@ final class NotchTab {
     private func makeCover() -> BarWindow {
         let covering = BarWindow(frame: windowFrame, level: CoverWindow.aboveItems)
         covering.ignoresMouseEvents = true
+        conceal(covering)
         let content = NSView(frame: CGRect(origin: .zero, size: windowFrame.size))
         content.wantsLayer = true
         for side in [Side.left, .right] {
@@ -252,8 +271,15 @@ final class NotchTab {
             cover(on: side).opacity = 0
             content.layer?.addSublayer(cover(on: side))
         }
+        coverButton.wantsLayer = true
+        coverButton.layer?.opacity = 0
+        content.addSubview(coverButton)
         covering.contentView = content
         return covering
+    }
+
+    private func conceal(_ window: BarWindow?) {
+        window?.alphaValue = isConcealed ? 0 : 1
     }
 
     private static func shape(_ layer: CALayer) {
@@ -263,21 +289,7 @@ final class NotchTab {
     }
 }
 
-private final class SwitchView: NSView {
-    var onSwitch: (@MainActor () -> Void)?
-    let glyph = PageSwitchGlyph.make()
-
-    /// Over where the chevron sits, at the shade's right end.
-    func placeGlyph() {
-        if glyph.superview == nil { addSubview(glyph) }
-        glyph.isHidden = onSwitch == nil
-        let size = PageSwitchGlyph.size
-        glyph.frame = CGRect(
-            x: bounds.maxX - size - PageSwitchGlyph.inset, y: (bounds.height - size) / 2, width: size, height: size
-        )
-    }
-
-    override func mouseDown(with event: NSEvent) {
-        onSwitch?()
-    }
+/// Takes the clicks meant for the chevron, which would take the left side away.
+private final class ShadeView: NSView {
+    override func mouseDown(with event: NSEvent) {}
 }

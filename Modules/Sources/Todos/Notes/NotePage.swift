@@ -89,8 +89,6 @@ final class NotePage: TagFiltering {
     var draft = ""
     var editing: NoteDraft?
     var menuBarHeight: CGFloat = 24
-    /// The other pages, switched to from the top right.
-    var switches: [NotchPage] = []
     var listHeight: CGFloat = 0
     var contentHeight: CGFloat?
     /// Now, as of the panel opening, which the list's headings are reckoned from.
@@ -103,7 +101,6 @@ final class NotePage: TagFiltering {
     @ObservationIgnored var onEdit: (@MainActor (NoteDraft) -> Void)?
     @ObservationIgnored var onDelete: (@MainActor (Note) -> Void)?
     @ObservationIgnored var onPopOut: (@MainActor () -> Void)?
-    @ObservationIgnored var onSwitch: (@MainActor (NotchPage) -> Void)?
     @ObservationIgnored var onColor: (@MainActor (String, String?) -> Void)?
     @ObservationIgnored var onOrder: (@MainActor ([String]) -> Void)?
     @ObservationIgnored var onResize: (@MainActor () -> Void)?

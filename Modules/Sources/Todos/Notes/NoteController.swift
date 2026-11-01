@@ -10,11 +10,18 @@ import SwiftUI
 /// until it closes. A note being written is saved a moment after each change,
 /// and at once when it is left.
 @MainActor
+@Observable
 public final class NoteController {
     /// Switches the notch panel to another page.
-    public var onSwitchPage: (@MainActor (NotchPage) -> Void)?
-    /// The other pages, offered at the top right while they are on.
-    public var pageSwitches: [NotchPage] = []
+    public var onSwitchPage: (@MainActor (NotchPage) -> Void)? {
+        get { panel.pageButton.onPick }
+        set { panel.pageButton.onPick = newValue }
+    }
+    /// The pages that are on, offered right of the notch.
+    public var pages: [NotchPage] {
+        get { panel.pageButton.pages }
+        set { panel.pageButton.pages = newValue }
+    }
     public private(set) var isOpen = false
     /// Pressing ⌘⇧N anywhere. The shortcut is registered only while this is set.
     public var onShortcut: (@MainActor () -> Void)? {
@@ -39,13 +46,13 @@ public final class NoteController {
 
     public init(settings: SettingsStore) {
         self.settings = settings
+        panel.pageButton.current = .notes
         page.onCreate = { [weak self] title in self?.create(title) }
         page.onOpen = { [weak self] note in self?.openNote(note) }
         page.onBack = { [weak self] in self?.back() }
         page.onEdit = { [weak self] draft in self?.scheduleSave(draft) }
         page.onDelete = { [weak self] note in self?.delete(note) }
         page.onPopOut = { [weak self] in self?.popOut() }
-        page.onSwitch = { [weak self] target in self?.onSwitchPage?(target) }
         page.onResize = { [weak self] in self.map { $0.panel.fit($0.page) } }
         page.onColor = { [weak self] tag, color in self?.settings.preferences.tagColors[tag] = color }
         page.onOrder = { [weak self] order in self?.settings.preferences.tagOrder = order }
@@ -88,7 +95,6 @@ public final class NoteController {
         isOpen = true
         self.closesOnLeave = closesOnLeave
         self.folder = folder
-        page.switches = pageSwitches
         page.tagColors = settings.preferences.tagColors
         page.tagOrder = settings.preferences.tagOrder
         page.now = Date()

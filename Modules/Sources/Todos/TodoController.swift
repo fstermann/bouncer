@@ -8,11 +8,18 @@ import SwiftUI
 /// Nothing runs while the page is closed: the file is read when it opens and watched only until it
 /// closes. A change synced in from another device while it is closed is simply read on the next open.
 @MainActor
+@Observable
 public final class TodoController {
     /// Switches the notch panel to another page.
-    public var onSwitchPage: (@MainActor (NotchPage) -> Void)?
-    /// The other pages, offered at the top right while they are on.
-    public var pageSwitches: [NotchPage] = []
+    public var onSwitchPage: (@MainActor (NotchPage) -> Void)? {
+        get { panel.pageButton.onPick }
+        set { panel.pageButton.onPick = newValue }
+    }
+    /// The pages that are on, offered right of the notch.
+    public var pages: [NotchPage] {
+        get { panel.pageButton.pages }
+        set { panel.pageButton.pages = newValue }
+    }
     public private(set) var isOpen = false
     /// Pressing ⌘⇧B anywhere. The shortcut is registered only while this is set.
     public var onShortcut: (@MainActor () -> Void)? {
@@ -43,6 +50,7 @@ public final class TodoController {
 
     public init(settings: SettingsStore) {
         self.settings = settings
+        panel.pageButton.current = .todos
         page.onToggle = { [weak self] todo in self?.toggle(todo) }
         page.onAdd = { [weak self] text in self?.add(text) }
         page.onEdit = { [weak self] todo, text, note in self?.edit(todo, to: text, note: note) }
@@ -50,7 +58,6 @@ public final class TodoController {
         page.onRestore = { [weak self] todo in self?.restore(todo) }
         page.onAddCategory = { [weak self] name in self?.addCategory(name) }
         page.onRemoveCategory = { [weak self] name in self?.removeCategory(name) }
-        page.onSwitch = { [weak self] target in self?.onSwitchPage?(target) }
         page.onResize = { [weak self] in self.map { $0.panel.fit($0.page) } }
         page.onColor = { [weak self] tag, color in self?.settings.preferences.tagColors[tag] = color }
         page.onOrder = { [weak self] order in self?.settings.preferences.tagOrder = order }
@@ -101,7 +108,6 @@ public final class TodoController {
         isOpen = true
         self.closesOnLeave = closesOnLeave
         self.file = file
-        page.switches = pageSwitches
         page.tagColors = settings.preferences.tagColors
         page.tagOrder = settings.preferences.tagOrder
         reload()

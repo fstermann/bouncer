@@ -37,7 +37,7 @@ public final class CoverWindow {
     private let surface = NSView()
     /// Drawn on the surface rather than on the shield, so it travels and comes into focus with the
     /// panel. The shield above it is what takes the click.
-    let pageSwitch = PageSwitchGlyph.make()
+    let pageButton = PageButton()
     /// The notch the cover grows out of, found when it is shown. The cover reaches it from
     /// wherever the section sits, and wears shoulders where it meets the top of the display.
     private(set) var notch: Notch?
@@ -45,7 +45,7 @@ public final class CoverWindow {
     public init() {
         surface.autoresizingMask = [.width, .height]
         surface.wantsLayer = true
-        surface.addSubview(pageSwitch)
+        surface.addSubview(pageButton)
     }
 
     /// The part that moves. Parked and run by the controller, with the shelf's, so the two
@@ -120,22 +120,36 @@ public final class CoverWindow {
         window?.orderOut(nil)
         window = nil
         // The surface outlives the window, and a notch-style close leaves the switch faded out.
-        pageSwitch.alphaValue = 1
-        pageSwitch.contentFilters = []
+        pageButton.alphaValue = 1
+        pageButton.contentFilters = []
     }
 
-    /// Puts the switch over the section's last item, where the shield takes its click, pinned to the
-    /// surface's right edge so it rides that edge as the surface grows.
+    /// Puts the page button right of the notch, where every page has it, pinned to the surface's left
+    /// edge, which stays at the notch as the surface grows. Without a notch it goes over the section's
+    /// right end, pinned to the surface's right edge. The shield takes its clicks either way.
     ///
     /// - Parameter rect: what the cover is shown over: the section and the bleed either side.
     private func placeSwitch(over rect: CGRect, in frame: CGRect) {
-        let size = PageSwitchGlyph.size
-        let section = rect.maxX - ReplicaBar.padding
-        let fromRight = frame.maxX - margin - (section - PageSwitchGlyph.inset)
-        pageSwitch.frame = CGRect(
-            x: surface.bounds.width - fromRight - size, y: ((surface.bounds.height - size) / 2).rounded(),
-            width: size, height: size
-        )
+        let midY = surface.bounds.height / 2
+        let surfaceMinX = frame.minX + margin
+        if let notch {
+            pageButton.place(atX: notch.range.upperBound + PageButton.gap - surfaceMinX, midY: midY)
+            pageButton.autoresizingMask = [.maxXMargin, .minYMargin, .maxYMargin]
+        } else {
+            let section = rect.maxX - ReplicaBar.padding - Self.buttonInset
+            pageButton.place(atX: section - PageButton.size - surfaceMinX, midY: midY)
+            pageButton.autoresizingMask = [.minXMargin, .minYMargin, .maxYMargin]
+        }
+    }
+
+    /// How far in from the section's right end the button sits on a display without a notch.
+    private static let buttonInset: CGFloat = 2
+
+    /// The button's left and right ends, in window-server x, while it shows.
+    var buttonSpan: ClosedRange<CGFloat>? {
+        guard let window, !pageButton.isHidden else { return nil }
+        let minX = window.frame.minX + pageButton.convert(CGPoint.zero, to: nil).x
+        return minX...(minX + pageButton.bounds.width)
     }
 
     private func make(_ rect: CGRect) -> BarWindow {

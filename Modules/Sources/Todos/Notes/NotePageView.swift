@@ -55,9 +55,7 @@ struct NotePageView: View {
             Text(page.notes.count == 1 ? "1 meeting" : "\(page.notes.count) meetings")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            // The notch lies between the count and the rest.
             Spacer()
-            PageSwitches(pages: page.switches) { page.onSwitch?($0) }
         }
         .padding(.horizontal, 14)
         .frame(height: page.menuBarHeight)
@@ -116,42 +114,6 @@ struct NotePageView: View {
         // A turn later, once the field is back in the window after the editor: focus set before
         // then is lost.
         .onChange(of: page.focusRequests, initial: true) { Task { isTyping = true } }
-    }
-}
-
-/// The other pages of the notch panel, one icon each.
-struct PageSwitches: View {
-    let pages: [NotchPage]
-    let action: (NotchPage) -> Void
-
-    var body: some View {
-        HStack(spacing: 10) {
-            ForEach(pages, id: \.self) { page in
-                Button { action(page) } label: { Image(systemName: page.symbol) }
-                    .help(page.help)
-            }
-        }
-        .buttonStyle(.plain)
-        .font(.callout)
-        .foregroundStyle(.secondary)
-    }
-}
-
-extension NotchPage {
-    public var symbol: String {
-        switch self {
-        case .items: "menubar.rectangle"
-        case .todos: "checklist"
-        case .notes: "note.text"
-        }
-    }
-
-    public var help: String {
-        switch self {
-        case .items: "Show hidden items"
-        case .todos: "Show todos"
-        case .notes: "Show meeting notes"
-        }
     }
 }
 

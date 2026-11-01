@@ -28,6 +28,8 @@ class BarWindow: NSWindow {
         isOpaque = false
         backgroundColor = .clear
         hasShadow = false
+        // Ordered in at once: the system's zoom in drew a band showing up a few points short of its ends.
+        animationBehavior = .none
         // The bar belongs to no space in particular and must not be cycled to.
         // Auxiliary rather than none: a window that does not participate in full screen is
         // kept out of a full screen space altogether, which leaves the section revealed and

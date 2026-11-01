@@ -1,22 +1,27 @@
 import AppKit
+import MenuBar
+import Settings
 
 extension StandaloneBarController {
-    /// Switches the notch panel to another page. `nil` hides the switch, which sits at the right
-    /// end of the menu bar row, over the section's last item.
-    public var onSwitchPage: (@MainActor () -> Void)? {
-        get { shield.onSwitchPage }
+    /// Switches the notch panel to another page, picked from the page button.
+    public var onSwitchPage: (@MainActor (NotchPage) -> Void)? {
+        get { cover.pageButton.onPick }
         set {
-            shield.onSwitchPage = newValue
-            tab.onSwitch = newValue
-            cover.pageSwitch.isHidden = newValue == nil
+            cover.pageButton.onPick = newValue
+            tab.pageButton.onPick = newValue
         }
     }
 
-    /// The SF Symbol the switch shows: the page it switches to.
-    public func setPageSwitch(symbol: String, help: String) {
-        let image = NSImage(systemSymbolName: symbol, accessibilityDescription: help)
-        cover.pageSwitch.image = image
-        tab.switchImage = image
+    /// The pages that are on, offered right of the notch, or over the section's right end on a
+    /// display without one.
+    public var pages: [NotchPage] {
+        get { cover.pageButton.pages }
+        set {
+            for button in [cover.pageButton, tab.pageButton, tab.coverButton] {
+                button.pages = newValue
+                button.current = .items
+            }
+        }
     }
 
     /// Opens the panel under another that takes its shape first, the way the todo page turns into
@@ -27,6 +32,7 @@ extension StandaloneBarController {
     /// revealed beneath them. Shown any sooner, they stick out past the panel still changing shape,
     /// and the section, revealed with them hidden, shows its real items in the menu bar.
     public func open(closingWhenLeft: Bool, takingShape shape: @escaping @MainActor (CGRect) async -> Void) async {
+        closing.waitsForPointer = true
         if #available(macOS 27, *) {
             // Returns once the band covers the section, so the page fades off it as the bar opens.
             let takeOver = TakeOver(shape: shape)
@@ -76,6 +82,9 @@ extension StandaloneBarController {
     }
 }
 
+/// Opens a page growing out of the bar, handed `covered` to call once it covers the bar.
+public typealias PageOpening = @MainActor (_ covered: @MainActor () async -> Void) async -> Void
+
 /// A todo or notes page turning into the bar on macOS 27: it takes the band's shape, and is let go once the
 /// band covers the section underneath it.
 @MainActor
@@ -90,27 +99,5 @@ final class TakeOver {
     func letGo() {
         covered?.resume()
         covered = nil
-    }
-}
-
-/// The switch to another page: dimmed white on a dark disc, so it reads on black, on grey and on
-/// glass alike without knowing which the cover is painted with, and sits back like the todo page's.
-@MainActor
-enum PageSwitchGlyph {
-    static let size: CGFloat = 20
-    /// How far in from the section's right end it sits.
-    static let inset: CGFloat = 2
-
-    static func make() -> NSImageView {
-        let glyph = NSImageView()
-        glyph.image = NSImage(systemSymbolName: "checklist", accessibilityDescription: "Show todos")
-        glyph.symbolConfiguration = .init(pointSize: 11, weight: .regular)
-        glyph.contentTintColor = .white.withAlphaComponent(0.6)
-        glyph.wantsLayer = true
-        glyph.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.35).cgColor
-        glyph.layer?.cornerRadius = size / 2
-        glyph.autoresizingMask = [.minXMargin, .minYMargin, .maxYMargin]
-        glyph.isHidden = true
-        return glyph
     }
 }

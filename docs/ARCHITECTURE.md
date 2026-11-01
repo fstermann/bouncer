@@ -106,7 +106,7 @@ picks the shift that lands it evenly on both sides, from the width measured at t
 (and on the first open only: a reading taken while the overflow still arrives, in batches up to
 100 ms apart, splits it differently each time). A black shade above the items hides the chevron
 and takes its clicks, which would take the left side away and leave the band over the app menus;
-it holds the switch to the todo page instead. The layout read at close also places the band, so an open grows it both ways at once with a
+it holds the page button instead. The layout read at close also places the band, so an open grows it both ways at once with a
 copy above the items in two halves, and reveals the section behind it. The right half fades 200 ms after
 the reveal, opening or switching from the todo page alike: the right side lands an item at a time
 from some 30 ms in, while Accessibility stalls for some 300 ms, so it is not read. The left half fades once the overflow has slid out (400 ms after the
@@ -288,11 +288,17 @@ event source; a change synced in while it is closed is read on the next open. Ed
 file as it is on disk at that moment, and a tick or edit whose line no longer holds the todo is dropped
 rather than landing on another line.
 
-Each page switches to the other from the top right of the panel, while both are on. On the items page the
-`ClickShield` takes its click, since it already swallows clicks over the section's last item, so the
-switch costs the user nothing; it follows the section through every open and rearrangement because
-the shield does. The cover draws it, so it rides the panel's edge and comes into focus with the
-replicas instead of appearing once the panel has landed.
+Every page draws the same `PageButton` just right of the notch: the icon of the page showing, which
+lists every page that is on (`Preferences.notchPages`) when clicked. Pages differ in width, so the
+notch is the one place they share, and the button stays put while the pages change around it. It is
+one icon wide however many pages there are, because right of the notch on macOS 27 every point it
+takes is a point of an item. The todo and notes panels pin it to the notch in their top row. On macOS
+27 it sits on the shade over the chevron, which is wider than the button. Before macOS 27 the cover draws it, pinned to the surface's
+left edge, which stays at the notch as the cover grows, and the `ClickShield` reaches left over it to
+take its clicks. On a display without a notch the items page has it over the section's right end
+instead. ⌘⇧← and ⌘⇧→ step to the page before or after, round past either end. They are hot keys
+registered only while a page is open (`PageKeys`), and in a field of Bouncer's with text in it they
+still select to the line's start or end.
 
 Both pages move alike, on the same `Motion` springs: the panel grows, and its content is cut to the
 panel's shape and pinned to its top, so the panel reveals it rather than the content appearing
@@ -326,9 +332,7 @@ Bouncer's Application Support folder, or one the user picked, such as a meetings
 reached through a security-scoped bookmark like the todo file. Only the files directly in the
 folder are notes, so picking a vault's root does not list the whole vault. Its panel is the todo
 page's (`PagePanel`), opened with the other page, and it switches to and from the others the same
-way: the panel arriving grows out of the one open and takes it away once covering it. The items
-page has room for one switch, so it goes to the todo page while that is on, and to the notes page
-otherwise.
+way: the panel arriving grows out of the one open and takes it away once covering it.
 
 What the meeting was is kept in the file's frontmatter, as Obsidian properties: `date` and `end`
 as date-times, `attendees` and `project` as `[[links]]` so the vault's graph joins meetings to

@@ -23,6 +23,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var todos = TodoController(settings: settings)
     private lazy var notes = NoteController(settings: settings)
     private var pageSwitches: ObservationLoop?
+    private let pageKeys = PageKeys()
+    private var pageKeysArming: ObservationLoop?
     /// A page turning into the other, which nothing else may open or close until it has.
     private var isSwitching = false
     private let permissions = StandaloneBarPermissions()
@@ -45,6 +47,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menuBar.onIconClick = { [weak self] in self?.handleIconClick() }
         reveal.onHoverReveal = { [weak self] screen, atNotch in self?.handleHoverReveal(on: screen, atNotch: atNotch) }
         pageSwitches = ObservationLoop { [weak self] in self?.wirePageSwitches() }
+        pageKeys.onStep = { [weak self] in self?.stepPage(by: $0) }
+        pageKeysArming = ObservationLoop { [weak self] in self?.armPageKeys() }
         if settings.isFirstLaunch { showWelcome() }
         #if DEV
         harness = DevHarness(controller: standaloneBar, menuBar: menuBar)
@@ -161,36 +165,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task { await standaloneBar.open(closingWhenLeft: !settings.preferences.revealOnHover) }
     }
 
-    /// The notch panel's pages that are on, in the order their switches show them.
-    private var notchPages: [NotchPage] {
-        let preferences = settings.preferences
-        return [
-            preferences.enableMenuBarItems && preferences.showItemsInBar ? NotchPage.items : nil,
-            preferences.enableTodos ? .todos : nil,
-            preferences.enableNotes ? .notes : nil
-        ].compactMap(\.self)
-    }
-
     /// The todo or the notes page, whichever the switch last chose while both are on.
     private var contentPage: NotchPage? {
-        let pages = notchPages.filter { $0 != .items }
+        let pages = settings.preferences.notchPages.filter { $0 != .items }
         return pages.contains(settings.preferences.notchPage) ? settings.preferences.notchPage : pages.first
     }
 
-    /// Each page offers the others only while they are on, and a page switched off closes. The items
-    /// page has room for one switch, to the todo page, or to the notes page without it.
+    /// Every page's button offers the pages that are on, and a page switched off closes.
     private func wirePageSwitches() {
         let preferences = settings.preferences
-        let pages = notchPages
-        todos.pageSwitches = pages.filter { $0 != .todos }
+        let pages = preferences.notchPages
+        todos.pages = pages
         todos.onSwitchPage = { [weak self] in self?.switchPage(to: $0) }
-        notes.pageSwitches = pages.filter { $0 != .notes }
+        notes.pages = pages
         notes.onSwitchPage = { [weak self] in self?.switchPage(to: $0) }
-        standaloneBar.onSwitchPage = nil
-        if let target = pages.first(where: { $0 != .items }) {
-            standaloneBar.setPageSwitch(symbol: target.symbol, help: target.help)
-            standaloneBar.onSwitchPage = { [weak self] in self?.switchPage(to: target) }
-        }
+        standaloneBar.pages = pages
+        standaloneBar.onSwitchPage = { [weak self] in self?.switchPage(to: $0) }
         // Assigned only on a change, since assigning registers the shortcut again.
         if preferences.enableTodos != (todos.onShortcut != nil) {
             todos.onShortcut = nil
@@ -224,17 +214,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             // Grown out of the band as it rests: one still opening has no outline yet.
             if standaloneBar.isShowing { await standaloneBar.opening() }
-            let (from, closeUnderneath): (CGRect?, @MainActor () async -> Void) = if standaloneBar.isOpen {
-                (standaloneBar.panelFrame, { await standaloneBar.close(animated: false) })
-            } else if page == .notes {
-                (todos.panelFrame, { await todos.close(animated: false) })
-            } else {
-                (notes.panelFrame, { await notes.close(animated: false) })
+            let open: @MainActor (CGRect?, @MainActor () async -> Void) async -> Void = { from, covered in
+                if page == .notes {
+                    await notes.open(from: from, onceCovered: covered)
+                } else {
+                    await todos.open(from: from, onceCovered: covered)
+                }
             }
-            if page == .notes {
-                await notes.open(from: from, onceCovered: closeUnderneath)
+            if standaloneBar.isOpen {
+                let from = standaloneBar.panelFrame
+                await standaloneBar.close(into: { await open(from, $0) })
+            } else if page == .notes {
+                await open(todos.panelFrame, { await todos.close(animated: false) })
             } else {
-                await todos.open(from: from, onceCovered: closeUnderneath)
+                await open(notes.panelFrame, { await notes.close(animated: false) })
             }
         }
     }
@@ -246,6 +239,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let isOpen = page == .notes ? notes.isOpen : todos.isOpen
         guard isOpen || !(standaloneBar.isShowing || todos.isOpen || notes.isOpen) else { return switchPage(to: page) }
         toggle(page)
+    }
+
+    /// The page showing in the notch panel, or on its way.
+    private var openPage: NotchPage? {
+        if todos.isOpen { return .todos }
+        if notes.isOpen { return .notes }
+        return standaloneBar.isShowing ? .items : nil
+    }
+
+    /// ⌘⇧← and ⌘⇧→ are Bouncer's only while one of its pages is open.
+    private func armPageKeys() {
+        pageKeys.isActive = openPage != nil
+    }
+
+    private func stepPage(by step: Int) {
+        guard let page = openPage, let next = page.stepped(by: step, in: settings.preferences.notchPages),
+              next != page
+        else { return }
+        switchPage(to: next)
     }
 
     /// Opened from the keyboard or the icon, with the pointer anywhere, so leaving does not close it.

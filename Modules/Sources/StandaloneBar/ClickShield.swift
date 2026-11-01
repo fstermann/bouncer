@@ -1,4 +1,5 @@
 import AppKit
+import MenuBar
 
 /// Swallows clicks on the stretch of bar the section was revealed into.
 ///
@@ -11,8 +12,8 @@ import AppKit
 /// through, and this takes back the one stretch that should not.
 ///
 /// Nothing is drawn. The window exists to be hit first and do nothing about it, but for the page
-/// switch the cover draws over the section's last item: an item hidden under the cover, whose
-/// clicks this swallows anyway, so the switch takes nothing from the user.
+/// button the cover draws: right of the notch, or over the section's last item, all of it under the
+/// cover, so the button takes nothing from the user.
 @MainActor
 final class ClickShield {
     private var window: BarWindow?
@@ -20,17 +21,20 @@ final class ClickShield {
     /// Kept invisible while the todo panel shrinks into its shape over the top, and shown once it has.
     var isConcealed = false { didSet { window?.alphaValue = isConcealed ? 0 : 1 } }
 
-    /// Switches the notch panel to the todo page. `nil` hides the switch.
-    var onSwitchPage: (@MainActor () -> Void)? {
-        get { view.onSwitch }
-        set { view.onSwitch = newValue }
+    /// The page button the cover draws, whose clicks this takes and hands on.
+    weak var pageButton: PageButton? {
+        get { view.pageButton }
+        set { view.pageButton = newValue }
     }
+    /// Where the button is, in window-server x, which the shield reaches out to cover.
+    var buttonSpan: (@MainActor () -> ClosedRange<CGFloat>?)?
 
     /// The shield's own window, so a capture of the bar can leave it out.
     var windowID: UInt32? { window.map { UInt32($0.windowNumber) } }
 
     /// Covers `rect`, in window-server coordinates.
     func show(over rect: CGRect) {
+        let rect = buttonSpan?().map { rect.union(CGRect(x: $0.lowerBound, y: rect.minY, width: 0, height: 0)) } ?? rect
         let shield = window ?? make(rect)
         window = shield
         shield.ignoresMouseEvents = false
@@ -110,18 +114,16 @@ final class ClickShield {
     }
 }
 
-/// Swallows every click except one on the page switch, which the cover draws underneath.
+/// Swallows every click except one on the page button, which the cover draws underneath.
 @MainActor
 private final class ShieldView: NSView {
-    var onSwitch: (@MainActor () -> Void)?
+    weak var pageButton: PageButton?
 
     override func mouseDown(with event: NSEvent) {
-        let size = PageSwitchGlyph.size
-        let glyph = CGRect(
-            x: bounds.maxX - size - PageSwitchGlyph.inset, y: (bounds.height - size) / 2, width: size, height: size
-        )
-        guard let onSwitch, glyph.insetBy(dx: -4, dy: -4).contains(convert(event.locationInWindow, from: nil))
-        else { return }
-        onSwitch()
+        guard let pageButton, let buttonWindow = pageButton.window, let window else { return }
+        let clickX = window.frame.minX + event.locationInWindow.x
+        let buttonMinX = buttonWindow.frame.minX + pageButton.convert(CGPoint.zero, to: nil).x
+        guard clickX >= buttonMinX, clickX < buttonMinX + pageButton.bounds.width else { return }
+        pageButton.showPages()
     }
 }

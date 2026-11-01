@@ -23,6 +23,12 @@ public enum NotchPage: Codable, Hashable, Sendable {
     case items
     case todos
     case notes
+
+    /// The page `step` places on from this one in `pages`, going round past either end.
+    public func stepped(by step: Int, in pages: [NotchPage]) -> NotchPage? {
+        guard let index = pages.firstIndex(of: self) else { return pages.first }
+        return pages[((index + step) % pages.count + pages.count) % pages.count]
+    }
 }
 
 /// The complete user-facing configuration. One value type so it round-trips as a
@@ -103,6 +109,15 @@ public struct Preferences: Codable, Hashable, Sendable {
         self.notchPage = notchPage
         self.tagColors = tagColors
         self.tagOrder = tagOrder
+    }
+
+    /// The notch panel's pages that are on, in the order the page button lists them.
+    public var notchPages: [NotchPage] {
+        [
+            enableMenuBarItems && showItemsInBar ? NotchPage.items : nil,
+            enableTodos ? .todos : nil,
+            enableNotes ? .notes : nil
+        ].compactMap(\.self)
     }
 
     /// A blob stored before a key existed must keep the user's other settings, not throw

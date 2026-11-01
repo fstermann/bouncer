@@ -31,8 +31,6 @@ final class TodoPage: TagFiltering {
     var searchFocusRequests = 0
     /// The row beside the notch, which the page starts below.
     var menuBarHeight: CGFloat = 24
-    /// The other pages, switched to from the top right.
-    var switches: [NotchPage] = []
     var showsDone = false
     /// Just ticked, and kept in the list a moment so a mis-click can be taken back.
     var lingering: Set<Todo> = []
@@ -71,7 +69,6 @@ final class TodoPage: TagFiltering {
     @ObservationIgnored var onColor: (@MainActor (String, String?) -> Void)?
     /// The order the chips were dragged into, once the drag ends.
     @ObservationIgnored var onOrder: (@MainActor ([String]) -> Void)?
-    @ObservationIgnored var onSwitch: (@MainActor (NotchPage) -> Void)?
     /// The page's height changed, so the panel has to refit.
     @ObservationIgnored var onResize: (@MainActor () -> Void)?
 
@@ -261,15 +258,15 @@ struct TodoPageView: View {
             Text("\(page.openCount) open")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            // The notch lies between the open count and the rest.
-            Spacer()
+            // Left of the notch, since the page button takes the right.
             if !page.done.isEmpty || page.showsDone {
-                Button(page.showsDone ? "Hide done" : "Show \(page.done.count) done") { page.showsDone.toggle() }
+                Button(page.showsDone ? "Hide done" : "\(page.done.count) done") { page.showsDone.toggle() }
                     .buttonStyle(.plain)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.tertiary)
+                    .help(page.showsDone ? "Hide done todos" : "Show done todos")
             }
-            PageSwitches(pages: page.switches) { page.onSwitch?($0) }
+            Spacer()
         }
         .padding(.horizontal, 14)
         .frame(height: page.menuBarHeight)
