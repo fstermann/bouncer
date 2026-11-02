@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 import SwiftUI
 
 /// A time edited the way macOS edits one: a click picks the hour or the minutes, digits replace
@@ -58,7 +59,7 @@ private final class EditingDatePicker: NSDatePicker {
 
     /// Return and Escape end the edit, keeping what was typed.
     override func keyDown(with event: NSEvent) {
-        if [36, 76, 53].contains(event.keyCode) {
+        if [kVK_Return, kVK_ANSI_KeypadEnter, kVK_Escape].contains(Int(event.keyCode)) {
             window?.makeFirstResponder(nil)
         } else {
             super.keyDown(with: event)

@@ -38,7 +38,7 @@ final class NoteFolder {
         return NoteFolder(url: url)
     }
 
-    private init(url: URL) {
+    init(url: URL) {
         self.url = url
     }
 
@@ -77,12 +77,14 @@ final class NoteFolder {
     }
 
     /// A name for a new file, `name` itself while no file has it, numbered after it otherwise.
+    /// `current`, the file being renamed, is free to take in any case, as a volume ignoring case finds it.
     func free(_ name: String, besides current: String? = nil) -> String {
         access {
             let base = String(name.dropLast(3))
             var candidate = name
             var number = 2
-            while candidate != current, FileManager.default.fileExists(atPath: file(candidate).path) {
+            while current.map({ candidate.caseInsensitiveCompare($0) != .orderedSame }) ?? true,
+                  FileManager.default.fileExists(atPath: file(candidate).path) {
                 candidate = "\(base) \(number).md"
                 number += 1
             }

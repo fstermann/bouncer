@@ -98,6 +98,27 @@ import Testing
         #expect(bare.body == "Just text")
     }
 
+    @Test func readsAndKeepsAFileWithWindowsLineEndings() {
+        let file = "---\r\nproject: X\r\nstatus: draft\r\n---\r\nText\r\n"
+        var note = Note(name: "a.md", markdown: file, calendar: calendar)
+        #expect(note.project == "X")
+        #expect(note.body == "Text\r\n")
+        note.project = "Y"
+        #expect(
+            note.markdown(over: file, calendar: calendar) == "---\nproject: \"[[Y]]\"\nstatus: draft\n---\nText\r\n"
+        )
+    }
+
+    @MainActor @Test func renamesAFileOnlyInCase() throws {
+        let url = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let folder = NoteFolder(url: url)
+        folder.write("x", to: "weekly sync.md")
+        #expect(folder.rename("weekly sync.md", to: "Weekly sync.md") == "Weekly sync.md")
+        #expect(folder.free("Weekly sync.md") == "Weekly sync 2.md")
+    }
+
     @Test func takesTheStartFromTheNameWithoutADateProperty() {
         let note = Note(name: "2026-10-28 0915 Retro.md", markdown: "", calendar: calendar)
         #expect(note.start == date(28, 9, 15))

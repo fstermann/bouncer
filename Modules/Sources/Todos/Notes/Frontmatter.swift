@@ -65,11 +65,13 @@ struct Frontmatter: Equatable {
     /// of it is the body.
     static func split(_ markdown: String) -> (frontmatter: Frontmatter, body: String) {
         let lines = markdown.components(separatedBy: "\n")
-        guard lines.first == "---", let end = lines.dropFirst().firstIndex(of: "---") else {
+        // A file written with Windows line endings keeps a carriage return on every line.
+        let isFence = { (line: String) in line == "---" || line == "---\r" }
+        guard lines.first.map(isFence) == true, let end = lines.dropFirst().firstIndex(where: isFence) else {
             return (Frontmatter(properties: []), markdown)
         }
         var properties: [Property] = []
-        for line in lines[1..<end] {
+        for line in lines[1..<end].map({ $0.hasSuffix("\r") ? String($0.dropLast()) : $0 }) {
             if let key = key(of: line) {
                 properties.append(Property(key: key, lines: [line]))
             } else if !properties.isEmpty {

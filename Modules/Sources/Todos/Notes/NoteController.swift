@@ -39,6 +39,8 @@ public final class NoteController {
     private var shortcut: HotKey?
     private var closesOnLeave = true
     private var windows: [NoteWindow] = []
+    /// The folder each popped-out note came from, which it keeps saving to.
+    private var poppedOutFolders: [ObjectIdentifier: NoteFolder] = [:]
     /// The wait before the latest change to each note open is written.
     private var saves: [ObjectIdentifier: Task<Void, Never>] = [:]
 
@@ -118,8 +120,7 @@ public final class NoteController {
         page.closeSearch()
         if let draft = page.editing { finish(draft) }
         folder?.stopWatching()
-        // Kept for the notes popped out, which are still being saved to it.
-        if windows.isEmpty { folder = nil }
+        folder = nil
         await panel.close(over: animated ? duration : nil, into: items)
     }
 
@@ -128,7 +129,6 @@ public final class NoteController {
     public var panelFrame: CGRect? { panel.frame }
 
     private func resolveFolder() -> NoteFolder? {
-        if let folder { return folder }
         guard let bookmark = settings.preferences.notesFolder else { return NoteFolder.local() }
         guard let resolved = NoteFolder.resolve(bookmark) else {
             Log.todos.error("Notes folder: the bookmark no longer resolves")
@@ -184,7 +184,7 @@ public final class NoteController {
     /// Writes the note over the file as it is now, keeping whatever properties it has of its own.
     private func save(_ draft: NoteDraft) {
         saves.removeValue(forKey: draft.id)?.cancel()
-        guard let folder, draft.note != draft.saved else { return }
+        guard let folder = folder(for: draft), draft.note != draft.saved else { return }
         let note = draft.note
         folder.write(note.markdown(over: folder.read(note.name) ?? ""), to: note.name)
         draft.saved = note
@@ -196,7 +196,8 @@ public final class NoteController {
         save(draft)
         let note = draft.saved
         let isMisplaced = NoteName.folder(of: note.name) != NoteName.folder(for: note.project)
-        guard let folder, isMisplaced || note.title != draft.opened.title || note.start != draft.opened.start
+        guard let folder = folder(for: draft),
+              isMisplaced || note.title != draft.opened.title || note.start != draft.opened.start
         else { return }
         draft.saved.name = folder.rename(
             note.name, to: NoteName.make(title: note.title, start: note.start, project: note.project)
@@ -215,9 +216,10 @@ public final class NoteController {
 
     /// Moves the note open in the panel into a window of its own, and puts the panel away.
     private func popOut() {
-        guard let draft = page.editing else { return }
+        guard let draft = page.editing, let folder else { return }
         save(draft)
         page.editing = nil
+        poppedOutFolders[draft.id] = folder
         let window = NoteWindow(
             draft: draft, known: NoteSuggestions(page),
             onEdit: { [weak self] in self?.scheduleSave($0) },
@@ -236,18 +238,19 @@ public final class NoteController {
         windows.removeAll { $0 === window }
         window.onClose = nil
         window.close()
-        folder?.trash(draft.saved.name)
-        if isOpen { reload() } else if windows.isEmpty { folder = nil }
+        poppedOutFolders.removeValue(forKey: draft.id)?.trash(draft.saved.name)
+        if isOpen { reload() }
     }
 
     private func closed(_ window: NoteWindow) {
         finish(window.draft)
         windows.removeAll { $0 === window }
-        if isOpen {
-            reload()
-        } else if windows.isEmpty {
-            folder = nil
-        }
+        poppedOutFolders[window.draft.id] = nil
+        if isOpen { reload() }
+    }
+
+    private func folder(for draft: NoteDraft) -> NoteFolder? {
+        poppedOutFolders[draft.id] ?? folder
     }
 }
 

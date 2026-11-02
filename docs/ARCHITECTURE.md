@@ -329,8 +329,10 @@ count todos ticked here. Indented lines under a task are its note. Preset catego
 
 The third page keeps meeting notes, one Markdown file per meeting in a folder: `Notes` in
 Bouncer's Application Support folder, or one the user picked, such as a meetings folder in a vault,
-reached through a security-scoped bookmark like the todo file. Only the files directly in the
-folder are notes, so picking a vault's root does not list the whole vault. Its panel is the todo
+reached through a security-scoped bookmark like the todo file. A note with a project is kept in the
+project's folder under it, nested as `Work/Bouncer` is, so every Markdown file in the folder and the
+folders under it is a note, hidden folders passed over, and picking a vault's root lists the whole
+vault. Its panel is the todo
 page's (`PagePanel`), opened with the other page, and it switches to and from the others the same
 way: the panel arriving grows out of the one open and takes it away once covering it.
 
@@ -339,13 +341,15 @@ as date-times, `attendees` and `project` as `[[links]]` so the vault's graph joi
 people, `location`, and `tags`. The title is the file's name after the day and time it starts with,
 so the folder sorts by when meetings took place. A note is rewritten over the file as it stands, so
 properties Bouncer does not know survive; one of its own is added only once it has a value. The
-file is saved a moment after each change, and renamed to follow its title only once the note is
-left, not on every letter.
+file is saved a moment after each change, and renamed to follow its title and start, and moved into
+its project's folder, only once the note is left, not on every letter.
 
 The folder is read whole when the page opens, the notes' text included, since the search covers it,
-and its entries are watched while the page is open. A note open in the editor stays open across
+and its own entries are watched while the page is open; a file another app adds in a project's
+folder shows on the next open. A note open in the editor stays open across
 closes of the panel, which a click elsewhere in a meeting would otherwise lose; popping it out puts
-it in a window of its own, floating and on every space, until that is closed. ⌘⇧N is a system-wide
+it in a window of its own, floating and on every space, until that is closed. The window keeps
+saving to the folder it came from, even after another is picked in Settings. ⌘⇧N is a system-wide
 hot key like ⌘⇧B, so while notes are on it no longer reaches other apps, Finder's new folder and the
 browsers' private windows among them.
 
