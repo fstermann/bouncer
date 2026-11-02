@@ -92,6 +92,8 @@ struct Chip: View {
     var parent: String?
     var color: Color?
     var isSelected = false
+    /// Tinted a little brighter than the rest, for a likely choice.
+    var isNear = false
     var count: Int?
 
     var body: some View {
@@ -115,6 +117,7 @@ struct Chip: View {
 
     private var fill: Color {
         if isSelected { return color ?? .white }
+        if isNear { return (color ?? .white).opacity(0.22) }
         return (color ?? .white).opacity(color == nil ? 0.15 : 0.2)
     }
 }

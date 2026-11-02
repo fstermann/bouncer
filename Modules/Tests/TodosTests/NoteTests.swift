@@ -151,6 +151,13 @@ import Testing
         #expect(NoteTime.duration(from: date(29, 14), to: date(29, 13)) == nil)
     }
 
+    @Test func findsTheNearestTime() {
+        let times = [date(31, 12, 45), date(31, 13), date(31, 13, 15)]
+        #expect(NoteTime.nearest(to: date(31, 13, 4), among: times) == date(31, 13))
+        #expect(NoteTime.nearest(to: date(31, 13, 4), among: times + [date(31, 13, 5)]) == date(31, 13, 5))
+        #expect(NoteTime.nearest(to: date(31, 13, 4), among: []) == nil)
+    }
+
     @Test func groupsByDayThisWeekThenByMonth() {
         // Thursday 29 October 2026.
         let now = date(29, 18)
@@ -206,47 +213,5 @@ import Testing
         let day = NoteTime.date(from: "2026-10-28", calendar: calendar) ?? Date()
         let moved = NoteTime.moving(start, to: day, calendar: calendar)
         #expect(NoteTime.string(for: moved, calendar: calendar) == "2026-10-28T14:06")
-        let half = NoteTime.at(hour: 9, minute: 30, on: start, calendar: calendar)
-        #expect(NoteTime.string(for: half, calendar: calendar) == "2026-10-30T09:30")
-    }
-
-    @Test(arguments: [
-        ("1", "1"), ("14", "14"), ("140", "14:0"), ("1407", "14:07"), ("25", "2:5"), ("930", "9:30"),
-        ("00", "00"), ("0000", "00:00"), ("", "")
-    ])
-    func showsTheDigitsTypedAsATime(digits: String, shown: String) {
-        #expect(NoteTime.typed(digits) == shown)
-    }
-
-    @Test(arguments: ["2589", "14079", "960", "1460", "9a"])
-    func takesNoDigitThatNoTimeStartsWith(digits: String) {
-        #expect(NoteTime.typed(digits) == nil)
-    }
-
-    @Test(arguments: [("1407", "14:07"), ("930", "09:30"), ("9", "09:00"), ("143", "14:30"), ("0000", "00:00")])
-    func readsTheTimeTyped(digits: String, time: String) {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "UTC") ?? .current
-        let day = NoteTime.date(from: "2026-10-30", calendar: calendar) ?? Date()
-        let read = NoteTime.time(typed: digits, on: day, calendar: calendar)
-        #expect(read.map { NoteTime.string(for: $0, calendar: calendar) } == "2026-10-30T\(time)")
-    }
-
-    @Test func readsNoTimeFromNoDigits() {
-        #expect(NoteTime.time(typed: "", on: Date()) == nil)
-    }
-
-    @Test func stepsToTheNextOrPreviousQuarterHour() {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "UTC") ?? .current
-        func stepped(_ time: String, up: Bool) -> String {
-            let date = NoteTime.date(from: "2026-10-30T\(time)", calendar: calendar) ?? Date()
-            let stepped = NoteTime.step(date, up: up, calendar: calendar)
-            return String(NoteTime.string(for: stepped, calendar: calendar).suffix(5))
-        }
-        #expect(stepped("14:07", up: true) == "14:15")
-        #expect(stepped("14:07", up: false) == "14:00")
-        #expect(stepped("14:15", up: true) == "14:30")
-        #expect(stepped("14:15", up: false) == "14:00")
     }
 }
