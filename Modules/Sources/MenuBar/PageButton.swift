@@ -55,7 +55,12 @@ public final class PageButton: NSView {
             item.state = page == current ? .on : .off
             menu.addItem(item)
         }
-        menu.popUp(positioning: nil, at: CGPoint(x: 0, y: -4), in: self)
+        guard let window, let screen = window.screen else { return }
+        let button = window.convertToScreen(convert(bounds, to: nil))
+        // AppKit scrolls a menu whose window reaches into the menu bar, hiding its first page behind an
+        // arrow, and the window starts 5 pt above the point it is given.
+        let top = min(button.minY - 4, screen.visibleFrame.maxY - 6)
+        menu.popUp(positioning: nil, at: CGPoint(x: button.minX, y: top), in: nil)
     }
 
     @objc private func picked(_ item: NSMenuItem) {
@@ -64,7 +69,8 @@ public final class PageButton: NSView {
     }
 
     private static func image(for page: NotchPage) -> NSImage? {
-        NSImage(systemSymbolName: page.symbol, accessibilityDescription: page.help)
+        if page == .claude { return ClaudeMark.image(side: 13) }
+        return NSImage(systemSymbolName: page.symbol, accessibilityDescription: page.help)
     }
 }
 
@@ -74,6 +80,7 @@ extension NotchPage {
         case .items: "menubar.rectangle"
         case .todos: "checklist"
         case .notes: "note.text"
+        case .claude: "sparkle"
         }
     }
 
@@ -82,6 +89,7 @@ extension NotchPage {
         case .items: "Hidden items"
         case .todos: "Todos"
         case .notes: "Meeting notes"
+        case .claude: "Claude"
         }
     }
 
@@ -91,6 +99,7 @@ extension NotchPage {
         case .items: nil
         case .todos: "b"
         case .notes: "n"
+        case .claude: "c"
         }
     }
 }

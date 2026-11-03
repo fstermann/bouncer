@@ -22,7 +22,7 @@ public struct WelcomeView: View {
 
             ForEach(Mode.allCases) { mode in
                 HStack(alignment: .top, spacing: 12) {
-                    Image(systemName: mode.symbol)
+                    mode.icon
                         .font(.title2)
                         .frame(width: 28)
                     VStack(alignment: .leading, spacing: 2) {

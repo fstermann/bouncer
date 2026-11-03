@@ -22,6 +22,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var standaloneBar = StandaloneBarController(menuBar: menuBar, settings: settings)
     private lazy var todos = TodoController(settings: settings)
     private lazy var notes = NoteController(settings: settings)
+    private lazy var claude = ClaudeController(settings: settings)
+    /// Every page but the items page, in the order the page button lists them.
+    private lazy var contentPages: [(page: NotchPage, controller: any NotchPageController)] = [
+        (.todos, todos), (.notes, notes), (.claude, claude)
+    ]
     private var pageSwitches: ObservationLoop?
     private let pageKeys = PageKeys()
     private var pageKeysArming: ObservationLoop?
@@ -106,7 +111,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// A left click either walks the menu bar open, or opens Bouncer's own bar, or, with menu bar
-    /// items off, the todo or the notes page.
+    /// items off, the page the switch last chose.
     ///
     /// The permissions are normally asked for when the bar is turned on, in Settings; this
     /// re-asks only as a fallback for a user who dismissed those prompts. Accessibility
@@ -121,8 +126,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             menuBar.toggle()
             return
         }
-        // The todo and notes pages share the notch with the bar, so the bar takes their place.
-        guard !todos.isOpen, !notes.isOpen else { return switchPage(to: .items) }
+        // The other pages share the notch with the bar, so the bar takes their place.
+        guard openContentPage == nil else { return switchPage(to: .items) }
         permissions.refresh()
         guard !StandaloneBarController.needsScreenRecording || permissions.screenRecording == .granted else {
             Log.app.error("Standalone bar: Screen Recording not granted; requesting")
@@ -139,8 +144,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// request for the bar, and prompting on it would put a dialog up for simply moving the
     /// mouse. The bar stays behind a click until both are granted.
     ///
-    /// The notch opens the todo or the notes page, whichever the switch last chose. With the items bar
-    /// there to share it, it opens whichever of the three the switch last chose.
+    /// The notch opens whichever page the switch last chose, the items bar among them while it is there
+    /// to share it.
     private func handleHoverReveal(on screen: NSScreen, atNotch: Bool) {
         guard !isSwitching else { return }
         let preferences = settings.preferences
@@ -149,23 +154,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
            showsItemsBar ? preferences.notchPage == page : atNotch || !preferences.enableMenuBarItems {
             // One page at a time: the other is switched to, not opened over it.
             guard !standaloneBar.isShowing else { return }
-            Task { [todos, notes] in
-                if page == .notes { await notes.open(on: screen) } else { await todos.open(on: screen) }
-            }
+            let controller = controller(of: page)
+            Task { await controller?.open(on: screen, from: nil, closesOnLeave: true, onceCovered: {}) }
             return
         }
         guard showsItemsBar else {
             menuBar.setVisibility(.revealed)
             return
         }
-        guard !todos.isOpen, !notes.isOpen,
+        guard openContentPage == nil,
               !StandaloneBarController.needsScreenRecording || StandaloneBarPermissions.screenRecordingGranted
         else { return }
         // With hover over the whole menu bar off, only the notch could have opened it.
         Task { await standaloneBar.open(closingWhenLeft: !settings.preferences.revealOnHover) }
     }
 
-    /// The todo or the notes page, whichever the switch last chose while both are on.
+    /// The page other than the items page that the switch last chose, or the first one on.
     private var contentPage: NotchPage? {
         let pages = settings.preferences.notchPages.filter { $0 != .items }
         return pages.contains(settings.preferences.notchPage) ? settings.preferences.notchPage : pages.first
@@ -175,77 +179,75 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func wirePageSwitches() {
         let preferences = settings.preferences
         let pages = preferences.notchPages
-        todos.pages = pages
-        todos.onSwitchPage = { [weak self] in self?.switchPage(to: $0) }
-        notes.pages = pages
-        notes.onSwitchPage = { [weak self] in self?.switchPage(to: $0) }
         standaloneBar.pages = pages
         standaloneBar.onSwitchPage = { [weak self] in self?.switchPage(to: $0) }
-        // Assigned only on a change, since assigning registers the shortcut again.
-        if preferences.enableTodos != (todos.onShortcut != nil) {
-            todos.onShortcut = nil
-            if preferences.enableTodos { todos.onShortcut = { [weak self] in self?.handleShortcut(for: .todos) } }
+        for (page, controller) in contentPages {
+            controller.pages = pages
+            controller.onSwitchPage = { [weak self] in self?.switchPage(to: $0) }
+            let isOn = pages.contains(page)
+            // Assigned only on a change, since assigning registers the shortcut again.
+            if isOn != (controller.onShortcut != nil) {
+                controller.onShortcut = nil
+                if isOn { controller.onShortcut = { [weak self] in self?.handleShortcut(for: page) } }
+            }
+            if !isOn { Task { await controller.close(animated: true, into: nil) } }
         }
-        if preferences.enableNotes != (notes.onShortcut != nil) {
-            notes.onShortcut = nil
-            if preferences.enableNotes { notes.onShortcut = { [weak self] in self?.handleShortcut(for: .notes) } }
-        }
-        if !preferences.enableTodos { Task { [todos] in await todos.close() } }
-        if !preferences.enableNotes { Task { [notes] in await notes.close() } }
         if !pages.contains(.items) { Task { [standaloneBar] in await standaloneBar.close() } }
     }
 
-    /// Turns the open page into `page`, which hover then opens next time. The todo and notes panels
-    /// do the moving: one grows out of the panel open and takes it away once covering it, or, going
-    /// to the items page, has it built underneath itself and shrinks into its shape before it shows.
+    /// Turns the open page into `page`, which hover then opens next time. The pages other than the
+    /// items page do the moving: one grows out of the panel open and takes it away once covering it,
+    /// or, going to the items page, has it built underneath itself and shrinks into its shape before
+    /// it shows.
     private func switchPage(to page: NotchPage) {
         guard !isSwitching else { return }
         isSwitching = true
         settings.preferences.notchPage = page
-        Task { [weak self, standaloneBar, todos, notes, settings] in
+        let current = openContentPage.flatMap(controller(of:))
+        let target = controller(of: page)
+        Task { [weak self, standaloneBar, settings] in
             defer { self?.isSwitching = false }
             let closingWhenLeft = !settings.preferences.revealOnHover
-            if page == .items {
-                let intoItems: (@escaping Shaping) async -> Void = { shape in
+            guard let target else {
+                await current?.close(animated: true) { shape in
                     await standaloneBar.open(closingWhenLeft: closingWhenLeft, takingShape: shape)
                 }
-                if todos.isOpen { await todos.close(into: intoItems) } else { await notes.close(into: intoItems) }
                 return
             }
             // Grown out of the band as it rests: one still opening has no outline yet.
             if standaloneBar.isShowing { await standaloneBar.opening() }
             let open: @MainActor (CGRect?, @MainActor () async -> Void) async -> Void = { from, covered in
-                if page == .notes {
-                    await notes.open(from: from, onceCovered: covered)
-                } else {
-                    await todos.open(from: from, onceCovered: covered)
-                }
+                await target.open(on: nil, from: from, closesOnLeave: true, onceCovered: covered)
             }
             if standaloneBar.isOpen {
                 let from = standaloneBar.panelFrame
                 await standaloneBar.close(into: { await open(from, $0) })
-            } else if page == .notes {
-                await open(todos.panelFrame, { await todos.close(animated: false) })
             } else {
-                await open(notes.panelFrame, { await notes.close(animated: false) })
+                await open(current?.panelFrame, { await current?.close(animated: false, into: nil) })
             }
         }
     }
 
-    /// ⌘⇧B opens the todo page and ⌘⇧N the notes page, from another page if one is up, and closes it
-    /// again.
+    /// ⌘⇧B opens the todo page, ⌘⇧N the notes page and ⌘⇧C the Claude page, from another page if one
+    /// is up, and closes it again.
     private func handleShortcut(for page: NotchPage) {
         guard !isSwitching else { return }
-        let isOpen = page == .notes ? notes.isOpen : todos.isOpen
-        guard isOpen || !(standaloneBar.isShowing || todos.isOpen || notes.isOpen) else { return switchPage(to: page) }
+        guard openContentPage == page || openPage == nil else { return switchPage(to: page) }
         toggle(page)
     }
 
     /// The page showing in the notch panel, or on its way.
     private var openPage: NotchPage? {
-        if todos.isOpen { return .todos }
-        if notes.isOpen { return .notes }
-        return standaloneBar.isShowing ? .items : nil
+        openContentPage ?? (standaloneBar.isShowing ? .items : nil)
+    }
+
+    /// The page other than the items page that is open.
+    private var openContentPage: NotchPage? {
+        contentPages.first { $0.controller.isOpen }?.page
+    }
+
+    private func controller(of page: NotchPage) -> (any NotchPageController)? {
+        contentPages.first { $0.page == page }?.controller
     }
 
     /// ⌘⇧← and ⌘⇧→ are Bouncer's only while one of its pages is open.
@@ -262,11 +264,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Opened from the keyboard or the icon, with the pointer anywhere, so leaving does not close it.
     private func toggle(_ page: NotchPage) {
-        Task { [todos, notes] in
-            switch page {
-            case .todos: todos.isOpen ? await todos.close() : await todos.open(closesOnLeave: false)
-            case .notes: notes.isOpen ? await notes.close() : await notes.open(closesOnLeave: false)
-            case .items: break
+        guard let controller = controller(of: page) else { return }
+        Task {
+            if controller.isOpen {
+                await controller.close(animated: true, into: nil)
+            } else {
+                await controller.open(on: nil, from: nil, closesOnLeave: false, onceCovered: {})
             }
         }
     }

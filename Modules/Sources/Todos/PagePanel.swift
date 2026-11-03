@@ -41,6 +41,10 @@ final class PagePanel<Page: PanelPage> {
     private var menu: CGRect?
     /// Set while the surface is springing, which a refit must not cut short.
     private var isMoving = false
+    /// Set while the surface is springing to a refit, which a later refit takes over from.
+    private var isReshaping = false
+    /// Counts refits, so a spring a later one took over does not settle the panel under it.
+    private var reshapes = 0
     /// Installed only while the pointer is outside the panel, between leaving and coming back.
     private var leaveMonitors: [Any] = []
     private var leaveGrace: Task<Void, Never>?
@@ -130,6 +134,8 @@ final class PagePanel<Page: PanelPage> {
         menuHost = nil
         menu = nil
         isMoving = false
+        isReshaping = false
+        reshapes += 1
         if let duration, let content { Motion(duration: duration * 1.6, bounce: 0).focusOut([content]) }
         var isShaped = false
         await items? { [self] frame in
@@ -166,8 +172,8 @@ final class PagePanel<Page: PanelPage> {
         let previous = rest
         rest = CGRect(x: rest.minX, y: rest.maxY - page.height, width: rest.width, height: page.height)
         menu = page.menuFrame(in: rest)
-        guard !isMoving else { return }
-        if rest.height < previous.height { shrink(window, from: previous) } else { settle(window) }
+        guard !isMoving || isReshaping else { return }
+        if rest.height != previous.height { reshape(window) } else if !isReshaping { settle(window) }
     }
 
     /// Sizes the window to the panel at rest.
@@ -366,19 +372,28 @@ extension PagePanel {
         rect.offsetBy(dx: -window.frame.minX, dy: -window.frame.minY)
     }
 
-    /// Springs the panel shorter alongside the rows the page takes out, which cutting it short at once
-    /// would hide mid-motion. The page's `.snappy`, so the two move as one.
-    fileprivate func shrink(_ window: NSWindow, from previous: CGRect) {
-        guard let surface else { return }
+    /// Springs the panel from where it is drawn, mid-flight if need be, to the page's new height: with the
+    /// rows leaving, or revealing the page at full height. The page's `.snappy`, so the two move as one.
+    fileprivate func reshape(_ window: NSWindow) {
+        guard let surface, let content else { return }
+        let shown = (surface.layer?.presentation()?.frame ?? surface.frame)
+            .offsetBy(dx: window.frame.minX, dy: window.frame.minY)
         isMoving = true
-        window.setFrame(frame(around: [previous, rest] + [menu].compactMap(\.self)), display: false)
-        place(at: previous, in: window)
+        isReshaping = true
+        reshapes += 1
+        let reshape = reshapes
+        for view in body(surface) + [content] { view.layer?.removeAllAnimations() }
+        window.setFrame(frame(around: [shown, rest] + [menu].compactMap(\.self)), display: false)
+        place(at: shown, in: window)
+        let height = max(shown.height, rest.height)
+        content.frame = CGRect(x: 0, y: surface.bounds.height - height, width: rest.width, height: height)
         let motion = Motion(duration: 0.5, bounce: 0.15)
         shape(surface, to: local(rest, in: window), on: motion)
         Task { [weak self] in
             await motion.finished()
-            guard let self, window === self.window else { return }
+            guard let self, window === self.window, reshape == reshapes else { return }
             isMoving = false
+            isReshaping = false
             settle(window)
         }
     }

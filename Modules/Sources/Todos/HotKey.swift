@@ -13,6 +13,7 @@ final class HotKey {
         case notes = 2
         case previousPage = 3
         case nextPage = 4
+        case claude = 5
 
         var code: Int {
             switch self {
@@ -20,6 +21,7 @@ final class HotKey {
             case .notes: kVK_ANSI_N
             case .previousPage: kVK_LeftArrow
             case .nextPage: kVK_RightArrow
+            case .claude: kVK_ANSI_C
             }
         }
 
@@ -29,6 +31,7 @@ final class HotKey {
             case .notes: "⌘⇧N"
             case .previousPage: "⌘⇧←"
             case .nextPage: "⌘⇧→"
+            case .claude: "⌘⇧C"
             }
         }
     }
