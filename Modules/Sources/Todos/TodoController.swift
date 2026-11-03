@@ -59,7 +59,7 @@ public final class TodoController {
         page.onAddCategory = { [weak self] name in self?.addCategory(name) }
         page.onRemoveCategory = { [weak self] name in self?.removeCategory(name) }
         page.onResize = { [weak self] in self.map { $0.panel.fit($0.page) } }
-        page.onColor = { [weak self] tag, color in self?.settings.preferences.tagColors[tag] = color }
+        page.onColor = { [weak self] tag, color in self?.setColor(color, of: tag) }
         page.onOrder = { [weak self] order in self?.settings.preferences.tagOrder = order }
         panel.mayCloseOnLeave = { [weak self] in self.map { $0.closesOnLeave && $0.page.isIdle } ?? true }
         panel.onDismiss = { [weak self] in Task { await self?.close() } }
@@ -108,7 +108,6 @@ public final class TodoController {
         isOpen = true
         self.closesOnLeave = closesOnLeave
         self.file = file
-        page.tagColors = settings.preferences.tagColors
         page.tagOrder = settings.preferences.tagOrder
         reload()
         file.watch { [weak self] in self?.reload() }
@@ -154,6 +153,22 @@ public final class TodoController {
         let markdown = file?.read() ?? ""
         page.todos = TodoList.parse(markdown)
         page.categories = Categories.parse(markdown)
+        // The file's colours, once it keeps any; until then the ones set on this device, which the
+        // first colour set writes to it. Kept in the preferences too, for the notes page.
+        let colors = FileTagColors.parse(markdown)
+        page.tagColors = colors ?? settings.preferences.tagColors
+        if let colors {
+            let merged = settings.preferences.tagColors.merging(colors) { $1 }
+            if merged != settings.preferences.tagColors { settings.preferences.tagColors = merged }
+        }
+    }
+
+    /// The page has taken the colour already; every colour it shows goes to the file.
+    private func setColor(_ color: String?, of tag: String) {
+        settings.preferences.tagColors[tag] = color
+        guard let file else { return }
+        file.write(FileTagColors.setting(page.tagColors, in: file.read() ?? ""))
+        reload()
     }
 
     /// Edits the file as it is now, not as it was read: a sync may have changed it since.

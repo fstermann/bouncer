@@ -34,6 +34,7 @@ public final class NoteController {
     private let settings: SettingsStore
     private let page = NotePage()
     private let panel = PagePanel<NotePage>()
+    private let clock = PresentationClock()
     private var folder: NoteFolder?
     private var duration: TimeInterval?
     private var shortcut: HotKey?
@@ -49,6 +50,7 @@ public final class NoteController {
     public init(settings: SettingsStore) {
         self.settings = settings
         panel.pageButton.current = .notes
+        page.clock = clock
         page.onCreate = { [weak self] title in self?.create(title) }
         page.onOpen = { [weak self] note in self?.openNote(note) }
         page.onBack = { [weak self] in self?.back() }
@@ -221,7 +223,7 @@ public final class NoteController {
         page.editing = nil
         poppedOutFolders[draft.id] = folder
         let window = NoteWindow(
-            draft: draft, known: NoteSuggestions(page),
+            draft: draft, known: NoteSuggestions(page), clock: clock,
             onEdit: { [weak self] in self?.scheduleSave($0) },
             onDelete: { [weak self] in self?.deletePoppedOut(draft) }
         )

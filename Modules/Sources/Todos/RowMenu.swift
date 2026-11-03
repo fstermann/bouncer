@@ -78,13 +78,15 @@ struct RowMenuView: View {
     let page: TodoPage
     let todo: Todo?
     let kind: RowMenu.Kind
-    @State private var isPickingDate = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             switch kind {
             case .due:
-                DueChoices(due: due, isPickingDate: $isPickingDate)
+                DueChoices(
+                    due: due, typed: todo == nil || isEditing ? page.typedDue : nil,
+                    highlighted: todo == nil || isEditing ? page.highlightedDue : nil, choose: setDue
+                )
             case .tags:
                 let carried = TaskText(isEditing ? page.editTitle : todo?.text ?? page.draft).tags
                 ForEach(page.tags, id: \.self) { tag in
@@ -112,19 +114,12 @@ struct RowMenuView: View {
     /// Whether the todo is open in the editor, whose choices wait for it to be saved.
     private var isEditing: Bool { todo != nil && page.editing == todo }
 
-    /// Written straight to the file, or to the todo being typed or edited; one day is all a todo
-    /// takes, so the choices close on it.
-    private var due: Binding<String?> {
-        Binding { isEditing ? page.editDue : todo.map { TaskText($0.text).due } ?? page.draftDue } set: { day in
-            page.menu = nil
-            if isEditing {
-                page.editDue = day
-            } else if let todo {
-                page.setDue(of: todo, to: day)
-            } else {
-                page.draftDue = day
-            }
-        }
+    private var due: String? {
+        isEditing ? page.editDue : todo.map { TaskText($0.text).due } ?? page.draftDue
+    }
+
+    private func setDue(_ day: String?, closes: Bool) {
+        page.chooseDue(day, closing: closes)
     }
 
     private func toggle(_ tag: String) {

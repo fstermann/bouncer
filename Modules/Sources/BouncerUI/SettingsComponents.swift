@@ -241,8 +241,9 @@ struct TodoOptions: View {
                 }
             }
             Text("Bouncer shows the open `- [ ]` lines of this Markdown file under the notch, and adds new "
-                 + "ones at its end. Without a chosen file, it keeps them in a local one. Hover near the notch "
-                 + "or press ⌘⇧B to open it.")
+                 + "ones at its end. Without a chosen file, it keeps them in a local one. Tag colours are kept "
+                 + "in its frontmatter. Type // in a todo to set its due day. Hover near the notch or press ⌘⇧B "
+                 + "to open it.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
         }

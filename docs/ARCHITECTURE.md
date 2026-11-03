@@ -323,7 +323,10 @@ of its open (`isShowing`), and a switch away from it waits for that open to fini
 The file is read the way the Tasks plugin writes it: `#tags` anywhere in a task, `📅` before its due
 day and `✅` before the day it was done, which Bouncer stamps when ticking so the vault's queries
 count todos ticked here. Indented lines under a task are its note. Preset categories are a
-`categories` list in the file's frontmatter.
+`categories` list in the file's frontmatter, and the tags' colours a `tag-colors` map beside it, so
+both sync with the file. Until a file has that map, the colours set on this device show, and the
+first colour set writes them all to it. The notes page has no one file, so it reads the colours from
+the preferences, which take in the file's on every read.
 
 ### The notes page
 
@@ -349,7 +352,14 @@ and its own entries are watched while the page is open; a file another app adds 
 folder shows on the next open. A note open in the editor stays open across
 closes of the panel, which a click elsewhere in a meeting would otherwise lose; popping it out puts
 it in a window of its own, floating and on every space, until that is closed. The window keeps
-saving to the folder it came from, even after another is picked in Settings. ⌘⇧N is a system-wide
+saving to the folder it came from, even after another is picked in Settings.
+
+A note's header starts a presentation timer, counting down or up, which outlives the panel: while
+it runs, a black tab grown out of the notch's left side shows it (`PresentationClock`). Its digits
+are SwiftUI's timer text, which the system redraws; Bouncer waits once for each change of colour,
+orange for a countdown's last minute and red past its end, and nothing runs once it is stopped.
+
+⌘⇧N is a system-wide
 hot key like ⌘⇧B, so while notes are on it no longer reaches other apps, Finder's new folder and the
 browsers' private windows among them.
 

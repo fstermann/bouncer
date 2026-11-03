@@ -34,6 +34,10 @@ struct NoteEditor: View {
     let onDelete: () -> Void
     /// Fills its window rather than keeping the panel's height.
     var fillsHeight = false
+    var clock: PresentationClock?
+    @State private var isTypingMinutes = false
+    @State private var minutes = ""
+    @FocusState private var isMinutesFocused: Bool
     @FocusState private var isWritingBody: Bool
     @FocusState private var isTypingLocation: Bool
     /// Empty properties shown since their adder was clicked.
@@ -83,6 +87,7 @@ struct NoteEditor: View {
                 .textFieldStyle(.plain)
                 .font(.headline)
                 .onSubmit { draft.bodyFocusRequests += 1 }
+            if let clock { timer(clock) }
             if let onPopOut {
                 Button(action: onPopOut) { Image(systemName: "macwindow.on.rectangle") }
                     .help("Open in a window")
@@ -92,6 +97,47 @@ struct NoteEditor: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(.secondary)
+    }
+
+    /// A countdown or a stopwatch for presenting, which shows beside the notch while it runs.
+    @ViewBuilder private func timer(_ clock: PresentationClock) -> some View {
+        if isTypingMinutes {
+            TextField("Minutes", text: $minutes)
+                .textFieldStyle(.plain)
+                .frame(width: 56)
+                .focused($isMinutesFocused)
+                .onAppear { isMinutesFocused = true }
+                .onSubmit {
+                    if let count = Int(minutes.trimmingCharacters(in: .whitespaces)), count > 0 {
+                        clock.startCountdown(minutes: count)
+                    }
+                    minutes = ""
+                    isTypingMinutes = false
+                }
+                .onExitCommand { isTypingMinutes = false }
+        }
+        Menu {
+            if clock.timer != nil {
+                Button("Stop Timer", action: clock.stop)
+                Divider()
+            }
+            ForEach(PresentationClock.minutes, id: \.self) { count in
+                Button("Count Down \(count) min") { clock.startCountdown(minutes: count) }
+            }
+            Button("Count Down…") { isTypingMinutes = true }
+            Divider()
+            Button("Stopwatch", action: clock.startStopwatch)
+        } label: {
+            if let timer = clock.timer {
+                TimerText(timer: timer, phase: clock.phase)
+            } else {
+                Image(systemName: "timer")
+            }
+        }
+        .menuStyle(.button)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Presentation timer")
     }
 
     /// The properties left out while empty, added from where they would be.

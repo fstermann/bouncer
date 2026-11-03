@@ -5,8 +5,12 @@ struct TodoRow: View {
     let page: TodoPage
     let todo: Todo
     @State private var isHovered = false
+    /// Hovered long enough to be read: its title and note show in full.
+    @State private var isRead = false
+    @State private var reading: Task<Void, Never>?
     @State private var height: CGFloat = 0
     static let verticalPadding: CGFloat = 6
+    private static let readDelay: Duration = .milliseconds(800)
 
     var body: some View {
         let text = TaskText(todo.text)
@@ -43,7 +47,7 @@ struct TodoRow: View {
                     Text(page.marked(todo.note))
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .lineLimit(page.expanded.contains(todo.line) ? nil : 1)
+                        .lineLimit(isRead || page.expanded.contains(todo.line) ? nil : 1)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(Rectangle())
                         .onTapGesture {
@@ -59,14 +63,14 @@ struct TodoRow: View {
         )
         .contentShape(Rectangle())
         .onTapGesture { edit() }
-        .onHover { isHovered = $0 }
+        .onHover(perform: hover)
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
     }
 
     private func titleLine(_ text: TaskText, isDeleting: Bool, showsTags: Bool) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             Text(page.marked(text.title))
-                .lineLimit(3)
+                .lineLimit(isRead ? nil : 3)
                 .truncationMode(.tail)
                 .strikethrough(todo.isDone || isDeleting)
                 .foregroundStyle(isDeleting ? .red : todo.isDone ? .secondary : .primary)
@@ -87,6 +91,20 @@ struct TodoRow: View {
 
     private func tagChips(_ text: TaskText) -> some View {
         ForEach(text.tags, id: \.self) { Chip(tag: $0, color: page.color(of: $0)).fixedSize() }
+    }
+
+    private func hover(_ isInside: Bool) {
+        isHovered = isInside
+        reading?.cancel()
+        guard isInside else {
+            if isRead { withAnimation(.snappy) { isRead = false } }
+            return
+        }
+        reading = Task {
+            try? await Task.sleep(for: Self.readDelay)
+            guard !Task.isCancelled else { return }
+            withAnimation(.snappy) { isRead = true }
+        }
     }
 
     private func edit(at click: CGPoint? = nil) {
