@@ -36,7 +36,7 @@ struct SettingsForm: View {
                                     .foregroundStyle(.secondary)
                             }
                         } icon: {
-                            Image(systemName: mode.symbol)
+                            mode.icon
                         }
                     }
                     .disabled(mode.isLastOn(in: settings.preferences))

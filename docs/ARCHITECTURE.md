@@ -304,7 +304,9 @@ still select to the line's start or end.
 Both pages move alike, on the same `Motion` springs: the panel grows, and its content is cut to the
 panel's shape and pinned to its top, so the panel reveals it rather than the content appearing
 beside a panel still on its way. The content comes into focus as the panel lands and goes out of
-focus as it leaves.
+focus as it leaves. A page whose height changes while it is open springs to the new height either
+way (`PagePanel.reshape`), from wherever a spring still under way has the panel, so a page added
+later gets the same motion by reporting its height.
 With both pages on, hover opens whichever the switch last chose (`Preferences.notchPage`). Without
 the items page, the notch opens the todo page and the rest of the menu bar reveals the items. Switching morphs
 rather than closing one panel and opening the other, and the todo panel does all the moving: it
@@ -369,10 +371,18 @@ browsers' private windows among them.
 The fourth page asks Claude Code. A question runs `claude -p` with streamed JSON output in the
 folder set in Settings, the home folder by default, through the user's login shell started
 interactive: that is where `claude` is on their path, and where a shell function wrapping it is
-defined. Follow-ups resume the conversation by its session ID, until the folder changes or a new
-conversation is started. Nothing runs between questions. An answer still arriving when the panel
-closes goes on arriving, and shows on the next open. Bouncer makes no request of its own; the CLI
-does, with the user's own login. ⌘⇧C is a system-wide hot key while the page is on.
+defined. Follow-ups resume the conversation by its session ID, in the folder it began in. Nothing
+runs between questions. An answer still arriving when the panel closes goes on arriving, and shows
+on the next open. Bouncer makes no request of its own; the CLI does, with the user's own login.
+⌘⇧C is a system-wide hot key while the page is on.
+
+The page opens on the chats started from it, newest first, with the input below; a question starts
+a new chat and a picked one goes on. Each is a JSON file in Bouncer's Application Support folder,
+written when an answer ends, with Bouncer's own copy of the turns: a shell function can point
+Claude Code's config folder elsewhere by directory, so its transcripts are not where Bouncer can
+count on them. Sessions are named `Bouncer · <first question>` so `claude --resume` lists them.
+Terminal takes a chat over through a `.command` file handed to Terminal.app by name, which needs no
+Automation permission; turns added there stay in Claude Code's transcript only.
 
 The pages other than the items page share `NotchPageController`, so the app opens, closes and
 switches between them alike.

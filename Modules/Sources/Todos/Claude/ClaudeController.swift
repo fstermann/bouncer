@@ -5,7 +5,8 @@ import SwiftUI
 /// Opens and closes the Claude page, and asks Claude Code the questions typed into it.
 ///
 /// Nothing runs while no question is being answered. An answer still arriving when the panel closes
-/// goes on arriving, and the conversation is there on the next open, until a new one is started.
+/// goes on arriving, and the conversation is there on the next open, until the user goes back to the
+/// list of chats. Each chat is saved as its answers end, and can be picked up from that list.
 @MainActor
 @Observable
 public final class ClaudeController {
@@ -34,8 +35,8 @@ public final class ClaudeController {
     private var duration: TimeInterval?
     private var shortcut: HotKey?
     private var closesOnLeave = true
-    /// The conversation the next question is asked in, and the folder it was started in.
-    private var session: (id: String, folder: String)?
+    /// The conversation showing, `nil` while the list of chats is.
+    private var chat: ClaudeChat?
     private var run: ClaudeRun?
 
     public init(settings: SettingsStore) {
@@ -43,7 +44,9 @@ public final class ClaudeController {
         panel.pageButton.current = .claude
         page.onAsk = { [weak self] question in self?.ask(question) }
         page.onStop = { [weak self] in self?.run?.stop() }
-        page.onNew = { [weak self] in self?.startOver() }
+        page.onBack = { [weak self] in self?.backToChats() }
+        page.onPick = { [weak self] in self?.pickUp($0) }
+        page.onHandOff = { [weak self] in self?.handOff() }
         page.onResize = { [weak self] in self.map { $0.panel.fit($0.page) } }
         panel.mayCloseOnLeave = { [weak self] in self.map { $0.closesOnLeave && $0.page.isIdle } ?? true }
         panel.onDismiss = { [weak self] in Task { await self?.close() } }
@@ -64,6 +67,7 @@ public final class ClaudeController {
         isOpen = true
         self.closesOnLeave = closesOnLeave
         page.folderName = URL(filePath: folder).lastPathComponent
+        page.chats = ClaudeChats.all()
         duration = settings.preferences.animateBar ? settings.preferences.barAnimationDuration : nil
         await panel.open(page, on: screen, over: duration, from: start, onceCovered: onceCovered)
     }
@@ -84,17 +88,23 @@ public final class ClaudeController {
         settings.preferences.claudeFolder ?? FileManager.default.homeDirectoryForCurrentUser.path(percentEncoded: false)
     }
 
-    /// In the conversation so far, unless the folder has changed since it began.
+    /// In the chat showing, in the folder it began in, or in a new one in the folder set in Settings.
     private func ask(_ question: String) {
-        let folder = folder
-        if session?.folder != folder { session = nil }
+        var chat = chat ?? ClaudeChat(
+            id: "", folder: folder, title: ClaudeChat.title(for: question), updated: .now, exchanges: []
+        )
+        let resuming = chat.id.isEmpty ? nil : chat.id
+        chat.updated = .now
+        self.chat = chat
         let index = page.exchanges.count
         page.exchanges.append(ClaudeExchange(id: index, question: question))
         let run = ClaudeRun()
         self.run = run
         Task { [weak self] in
-            let outcome = await run.ask(question, in: folder, resuming: self?.session?.id) { event in
-                self?.take(event, into: index, folder: folder)
+            let outcome = await run.ask(
+                question, in: chat.folder, resuming: resuming, naming: resuming == nil ? chat.sessionName : nil
+            ) { event in
+                self?.take(event, into: index)
             }
             guard let self, page.exchanges.indices.contains(index), page.exchanges[index].id == index else { return }
             if self.run === run { self.run = nil }
@@ -104,15 +114,17 @@ public final class ClaudeController {
             }
             exchange.isAnswered = true
             page.exchanges[index] = exchange
+            save()
         }
     }
 
-    private func take(_ event: ClaudeEvent, into index: Int, folder: String) {
+    private func take(_ event: ClaudeEvent, into index: Int) {
         guard page.exchanges.indices.contains(index), page.exchanges[index].id == index else { return }
         var exchange = page.exchanges[index]
         switch event {
         case .session(let id):
-            session = (id, folder)
+            chat?.id = id
+            page.canHandOff = true
         case .textStart:
             exchange.activity = nil
             if !exchange.answer.isEmpty { exchange.answer += "\n\n" }
@@ -132,12 +144,51 @@ public final class ClaudeController {
         page.exchanges[index] = exchange
     }
 
-    private func startOver() {
-        run?.stop()
-        run = nil
-        session = nil
+    private func save() {
+        guard var chat else { return }
+        chat.exchanges = page.exchanges
+        chat.updated = .now
+        self.chat = chat
+        ClaudeChats.save(chat)
+    }
+
+    /// Stops an answer still arriving, keeping what came of it.
+    private func backToChats() {
+        if let run {
+            run.stop()
+            self.run = nil
+            if let last = page.exchanges.indices.last, !page.exchanges[last].isAnswered {
+                page.exchanges[last].isAnswered = true
+                page.exchanges[last].activity = nil
+                if page.exchanges[last].answer.isEmpty { page.exchanges[last].failure = "Stopped." }
+            }
+            // Answers that ended were saved then; resaving them would date the chat to now.
+            save()
+        }
+        chat = nil
         page.exchanges = []
+        page.canHandOff = false
+        page.chats = ClaudeChats.all()
         page.focusRequests += 1
+    }
+
+    private func pickUp(_ picked: ClaudeChat) {
+        chat = picked
+        // Numbered by position, which is how an answer arriving finds its exchange.
+        page.exchanges = picked.exchanges.enumerated().map { index, exchange in
+            var exchange = exchange
+            exchange.id = index
+            return exchange
+        }
+        page.canHandOff = true
+        page.focusRequests += 1
+    }
+
+    /// Not while an answer is arriving, which the terminal's session would then race.
+    private func handOff() {
+        guard let chat, !chat.id.isEmpty, !page.isAnswering else { return }
+        TerminalHandoff.open(session: chat.id, in: chat.folder)
+        Task { await close() }
     }
 
     /// Why Claude did not answer, in the shell's words; a missing `claude` is the likely cause.

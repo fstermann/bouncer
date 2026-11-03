@@ -18,16 +18,16 @@ enum Mode: CaseIterable, Identifiable {
         case .menuBarItems: "Menu bar items"
         case .todos: "Todos"
         case .notes: "Meeting notes"
-        case .claude: "Ask Claude"
+        case .claude: "Claude"
         }
     }
 
-    var symbol: String {
+    var icon: Image {
         switch self {
-        case .menuBarItems: "menubar.rectangle"
-        case .todos: "checklist"
-        case .notes: "note.text"
-        case .claude: "sparkle"
+        case .menuBarItems: Image(systemName: "menubar.rectangle")
+        case .todos: Image(systemName: "checklist")
+        case .notes: Image(systemName: "note.text")
+        case .claude: Image(nsImage: ClaudeMark.image(side: 15))
         }
     }
 
@@ -36,7 +36,7 @@ enum Mode: CaseIterable, Identifiable {
         case .menuBarItems: "Hide menu bar items behind dividers and reveal them when you need them."
         case .todos: "Keep a todo list from a Markdown file under the notch."
         case .notes: "Write meeting notes under the notch, one Markdown file per meeting."
-        case .claude: "Ask Claude Code a quick question under the notch."
+        case .claude: "Chat with Claude Code under the notch, and pick up past chats."
         }
     }
 
@@ -231,7 +231,7 @@ struct ClaudeOptions: View {
     @Binding var preferences: Preferences
 
     var body: some View {
-        Section("Ask Claude", systemImage: "sparkle") {
+        Section {
             LabeledContent("Folder") {
                 HStack(spacing: 8) {
                     Text(folderName)
@@ -246,10 +246,12 @@ struct ClaudeOptions: View {
             }
             Text("Bouncer runs Claude Code's `claude -p` in this folder, through your login shell, so it "
                  + "answers with the folder's files and CLAUDE.md in mind and uses your own login. It needs "
-                 + "Claude Code installed. Press ⌘⇧C to open it; while it is on, ⌘⇧C no longer reaches other "
-                 + "apps.")
+                 + "Claude Code installed. New chats start in this folder; a past chat goes on in the folder it "
+                 + "began in. Press ⌘⇧C to open it; while it is on, ⌘⇧C no longer reaches other apps.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
+        } header: {
+            Label { Text("Claude") } icon: { Mode.claude.icon }
         }
     }
 
