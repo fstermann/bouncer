@@ -94,6 +94,8 @@ final class NotePage: TagFiltering {
     /// Now, as of the panel opening, which the list's headings are reckoned from.
     var now = Date()
 
+    /// The presentation timer, which outlives the panel.
+    @ObservationIgnored var clock: PresentationClock?
     @ObservationIgnored var onCreate: (@MainActor (String) -> Void)?
     @ObservationIgnored var onOpen: (@MainActor (Note) -> Void)?
     /// Back to the list from the editor.

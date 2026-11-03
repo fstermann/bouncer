@@ -49,7 +49,7 @@ struct InputRow: View {
 }
 
 /// Offers tags while one is typed after `#` into `text`, unless another of the field's menus is open,
-/// and takes the highlighted one on Return or Tab.
+/// and takes the highlighted one on Return or Tab. `//` opens the due choices, picked from the same way.
 struct SuggestsTags: ViewModifier {
     let page: TodoPage
     let text: String
@@ -57,6 +57,7 @@ struct SuggestsTags: ViewModifier {
     let line: Int?
 
     private var suggesting: RowMenu { RowMenu(line: line, kind: .suggestions) }
+    private var choosingDue: RowMenu { RowMenu(line: line, kind: .due) }
 
     func body(content: Content) -> some View {
         content
@@ -71,6 +72,7 @@ struct SuggestsTags: ViewModifier {
     }
 
     private func suggest() {
+        page.followDueQuery()
         page.suggestion = 0
         if !page.suggestions.isEmpty, page.menu == nil || page.menu == suggesting {
             page.menu = suggesting
@@ -80,6 +82,11 @@ struct SuggestsTags: ViewModifier {
     }
 
     private func completeIfSuggesting() -> KeyPress.Result {
+        if page.menu == choosingDue, page.dueQuery != nil {
+            // With nothing to take, Return leaves the `//` rather than adding it with the todo.
+            if let day = page.highlightedDue { page.chooseDue(day, closing: true) } else { page.menu = nil }
+            return .handled
+        }
         let suggestions = page.suggestions
         guard page.menu == suggesting, suggestions.indices.contains(page.suggestion) else { return .ignored }
         page.complete(with: suggestions[page.suggestion])
@@ -87,6 +94,10 @@ struct SuggestsTags: ViewModifier {
     }
 
     private func moveSuggestion(by step: Int) -> KeyPress.Result {
+        if page.menu == choosingDue, page.dueQuery != nil {
+            page.stepDue(by: step)
+            return .handled
+        }
         let count = page.suggestions.count
         guard page.menu == suggesting, count > 0 else { return .ignored }
         page.suggestion = (page.suggestion + step + count) % count

@@ -1,4 +1,5 @@
 import CoreGraphics
+import Foundation
 import Testing
 
 @testable import Todos
@@ -37,6 +38,19 @@ import Testing
         #expect(page.done == [todos[2]])
         page.editing = nil
         #expect(page.open == [todos[0]])
+    }
+
+    @Test func todosDueByTodayLeadTheList() {
+        let page = TodoPage()
+        let later = Todo(line: 0, text: "Later 📅 2999-01-01", isDone: false)
+        let undated = Todo(line: 1, text: "Undated", isDone: false)
+        let overdue = Todo(line: 2, text: "Overdue 📅 2000-01-01", isDone: false)
+        let today = Todo(line: 3, text: "Today 📅 \(TaskDay.string(for: Date()))", isDone: false)
+        page.todos = [later, undated, overdue, today]
+        #expect(page.open == [overdue, today, later, undated])
+        #expect(page.dueTodayCount == 2)
+        page.todos = [later, undated]
+        #expect(page.dueTodayCount == 0)
     }
 
     @Test func doneTodosAreListedOnlyOnRequest() {

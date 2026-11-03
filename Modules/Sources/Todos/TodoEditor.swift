@@ -115,16 +115,41 @@ struct DueLabel: View {
 
 /// When a todo is due. Clicking the chosen day again clears it.
 struct DueChoices: View {
-    @Binding var due: String?
-    @Binding var isPickingDate: Bool
+    let due: String?
+    /// Sets the day, and closes the choices when `closes`.
+    let choose: (String?, _ closes: Bool) -> Void
+    /// The day typed after `//`, offered ahead of the quick choices.
+    var typed: String?
+    /// The day Return takes, after `//`.
+    var highlighted: String?
+    /// Open from the start for a day picked from it before, so it can be changed.
+    @State private var isPickingDate: Bool
+
+    init(
+        due: String?, typed: String? = nil, highlighted: String? = nil,
+        choose: @escaping (String?, _ closes: Bool) -> Void
+    ) {
+        self.due = due
+        self.typed = typed
+        self.highlighted = highlighted
+        self.choose = choose
+        _isPickingDate = State(initialValue: Self.pickedLabel(of: due) != nil)
+    }
+
+    /// Today, tomorrow and Friday, which the keyboard steps through.
+    static let quick: [(title: String, choice: DueChoice)] = [
+        ("Today", .today), ("Tomorrow", .tomorrow), ("Friday", .thisWeek)
+    ]
 
     var body: some View {
-        choice("Today", .today)
-        choice("Tomorrow", .tomorrow)
-        choice("Friday", .thisWeek)
-        Button {
-            if pickedLabel != nil, !isPickingDate { due = nil } else { isPickingDate.toggle() }
-        } label: {
+        let today = Date()
+        if let typed, !Self.quick.map({ TaskDay.string(for: $0.choice, today: today) }).contains(typed) {
+            choice(TaskDay.label(for: typed, today: today).text, day: typed)
+        }
+        ForEach(Self.quick, id: \.title) { quick in
+            choice(quick.title, day: TaskDay.string(for: quick.choice, today: today))
+        }
+        Button { isPickingDate.toggle() } label: {
             Chip(text: pickedLabel ?? "Date…", isSelected: isPickingDate || pickedLabel != nil)
         }
         .buttonStyle(.plain)
@@ -135,32 +160,40 @@ struct DueChoices: View {
                 .fixedSize()
                 .frame(maxWidth: .infinity)
         }
+        if due != nil {
+            Button { choose(nil, true) } label: { Chip(text: "No date") }
+                .buttonStyle(.plain)
+        }
     }
 
-    private func choice(_ title: String, _ choice: DueChoice) -> some View {
-        let day = TaskDay.string(for: choice, today: Date())
+    private func choice(_ title: String, day: String) -> some View {
         let isChosen = due == day && !isPickingDate
         return Button {
-            due = isChosen ? nil : day
-            isPickingDate = false
+            choose(isChosen ? nil : day, true)
         } label: {
-            Chip(text: title, isSelected: isChosen)
+            // Filled while highlighted, as a highlighted tag suggestion is.
+            Chip(text: title, isSelected: highlighted == nil ? isChosen : highlighted == day)
         }
         .buttonStyle(.plain)
     }
 
+    private var pickedLabel: String? { Self.pickedLabel(of: due) }
+
     /// The chosen day, when it is none of the quick choices.
-    private var pickedLabel: String? {
+    private static func pickedLabel(of due: String?) -> String? {
         let today = Date()
-        guard let due,
-              ![DueChoice.today, .tomorrow, .thisWeek].map({ TaskDay.string(for: $0, today: today) }).contains(due)
-        else { return nil }
+        guard let due, !quick.map({ TaskDay.string(for: $0.choice, today: today) }).contains(due) else { return nil }
         return TaskDay.label(for: due, today: today).text
     }
 
+    /// The calendar's month arrows move the date by a month and keep its day, so only a change of day
+    /// is a day clicked, which closes the choices.
     private var pickedDay: Binding<Date> {
-        Binding {
-            due.flatMap { TaskDay.date(from: $0, calendar: .current) } ?? Date()
-        } set: { due = TaskDay.string(for: $0) }
+        let shown = due.flatMap { TaskDay.date(from: $0, calendar: .current) } ?? Date()
+        return Binding { shown } set: { picked in
+            let calendar = Calendar.current
+            let isNewDay = calendar.component(.day, from: picked) != calendar.component(.day, from: shown)
+            choose(TaskDay.string(for: picked), isNewDay)
+        }
     }
 }

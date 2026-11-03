@@ -9,7 +9,7 @@ final class TodoPage: TagFiltering {
     var todos: [Todo] = []
     /// From the file's frontmatter; offered as filters even before any todo carries them.
     var categories: [String] = []
-    /// Tag to colour name, from the preferences.
+    /// Tag to colour name, from the file, or from the preferences while it keeps none.
     var tagColors: [String: String] = [:]
     /// The order the tags' chips were dragged into, from the preferences.
     var tagOrder: [String] = []
@@ -38,6 +38,8 @@ final class TodoPage: TagFiltering {
     var deleting: Set<Todo> = []
     /// The lines of todos whose note is shown in full.
     var expanded: Set<Int> = []
+    /// How far down the list was scrolled, which the next open scrolls back to.
+    @ObservationIgnored var scrollOffset: CGFloat = 0
     /// The list's natural height and the whole page's, as last laid out.
     var listHeight: CGFloat = 0
     var contentHeight: CGFloat?
@@ -54,6 +56,10 @@ final class TodoPage: TagFiltering {
     @ObservationIgnored var editHeight: CGFloat = 0
     /// The choices open under one of a row's icons.
     var menu: RowMenu?
+    /// What is typed after `//`, while the due choices are open from it.
+    var dueQuery: String?
+    /// The due choice the arrows stepped to, among `keyboardDays`.
+    var dueStep: Int?
     /// The open menu's icon, in the page's coordinates, and the menu's size, for the panel to place it.
     @ObservationIgnored var menuIcon: CGRect = .zero
     @ObservationIgnored var menuSize: CGSize = .zero
@@ -83,6 +89,11 @@ final class TodoPage: TagFiltering {
     /// The listed todos still to do; one just ticked no longer counts while it lingers.
     var openCount: Int { open.filter { !$0.isDone }.count }
     var rows: [Todo] { showsDone ? open + done : open }
+    /// The listed todos due today or before, which lead the list, sorted as it is, and are set apart.
+    var dueTodayCount: Int {
+        let today = TaskDay.string(for: Date())
+        return open.prefix { TaskText($0.text).due.map { $0 <= today } ?? false }.count
+    }
 
     /// Nothing half-entered that the pointer leaving would throw away.
     var isIdle: Bool {
@@ -241,6 +252,10 @@ struct TodoPageView: View {
         }
         .onChange(of: page.menu) {
             if $1 == nil { page.menuSize = .zero }
+            if $1?.kind != .due {
+                page.dueQuery = nil
+                page.dueStep = nil
+            }
             page.onResize?()
         }
         .fixedSize(horizontal: false, vertical: true)
@@ -273,9 +288,14 @@ struct TodoPageView: View {
     }
 
     private var list: some View {
-        ScrollView {
+        let todayCount = page.dueTodayCount
+        let openCount = page.open.count
+        return ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                ForEach(page.rows) { todo in
+                ForEach(Array(page.rows.enumerated()), id: \.element.id) { index, todo in
+                    if todayCount > 0, index == 0 || index == todayCount {
+                        heading(index == 0 ? "Today" : index < openCount ? "Later" : "Done")
+                    }
                     if page.editing == todo {
                         TodoEditor(page: page, todo: todo)
                     } else {
@@ -296,9 +316,19 @@ struct TodoPageView: View {
                 return geometry.frame(in: .named(Self.list)).maxY - visible
             } action: { belowBottom = $0 }
             .background(OverlayScrollers())
+            .background(ScrollMemory(offset: page.scrollOffset) { page.scrollOffset = $0 })
         }
         .coordinateSpace(.named(Self.list))
         .mask(EdgeFade(axis: .vertical, beforeStart: aboveTop, pastEnd: belowBottom, ramp: TodoRow.verticalPadding))
         .frame(height: min(page.listHeight, TodoPage.maxListHeight))
+    }
+
+    private func heading(_ title: String) -> some View {
+        Text(title)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.tertiary)
+            .padding(.horizontal, 14)
+            .padding(.top, 8)
+            .padding(.bottom, 2)
     }
 }
