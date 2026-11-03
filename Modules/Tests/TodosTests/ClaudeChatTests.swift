@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 @testable import Todos
@@ -7,6 +8,14 @@ import Testing
         #expect(ClaudeChat.title(for: "What changed?\nIn detail please") == "What changed?")
         let long = String(repeating: "a", count: 100)
         #expect(ClaudeChat.title(for: long) == String(repeating: "a", count: 79) + "…")
+    }
+
+    @Test func pastFoldersComeNewestFirstOnceEachWithoutTheDefault() {
+        let chats = [("/a", 1.0), ("/home", 5), ("/b/", 4), ("/a", 3)].map { folder, time in
+            ClaudeChat(id: "", folder: folder, title: "", updated: Date(timeIntervalSince1970: time), exchanges: [])
+        }
+        #expect(ClaudeChat.folders(of: chats, besides: "/home") == ["/b", "/a"])
+        #expect(ClaudeChat.folders(of: chats, besides: "/home/") == ["/b", "/a"])
     }
 
     @Test func theHandoffResumesInTheChatsFolderThroughTheLoginShell() {

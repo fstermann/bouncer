@@ -21,8 +21,13 @@ final class ClaudePage {
     /// Past chats, newest first, offered while no chat is showing.
     var chats: [ClaudeChat] = []
     var draft = ""
-    /// The folder a new chat is started in, by name.
-    var folderName = ""
+    /// The folder the next new chat starts in.
+    var folder = ""
+    /// What the folder menu offers: the folder set in Settings, then those past chats began in.
+    var folders: [String] = []
+    var isChoosingFolder = false
+    @ObservationIgnored var folderAnchor: CGRect = .zero
+    @ObservationIgnored var menuSize: CGSize = .zero
     /// Whether the chat showing has a session the terminal can resume.
     var canHandOff = false
     var menuBarHeight: CGFloat = 24
@@ -36,15 +41,20 @@ final class ClaudePage {
     @ObservationIgnored var onBack: (@MainActor () -> Void)?
     @ObservationIgnored var onPick: (@MainActor (ClaudeChat) -> Void)?
     @ObservationIgnored var onHandOff: (@MainActor () -> Void)?
+    @ObservationIgnored var onPickFolder: (@MainActor (String) -> Void)?
+    /// Picks a folder the menu does not offer, in an Open dialog.
+    @ObservationIgnored var onChooseFolder: (@MainActor () -> Void)?
     @ObservationIgnored var onResize: (@MainActor () -> Void)?
 
     var isInChat: Bool { !exchanges.isEmpty }
 
+    var folderName: String { URL(filePath: folder).lastPathComponent }
+
     var isAnswering: Bool { exchanges.last.map { !$0.isAnswered } ?? false }
 
-    /// Nothing half-typed that the pointer leaving would throw away. An answer on its way, or one
-    /// being read, is there again on the next open.
-    var isIdle: Bool { draft.isEmpty }
+    /// Nothing half-typed that the pointer leaving would throw away, and no menu open. An answer on
+    /// its way, or one being read, is there again on the next open.
+    var isIdle: Bool { draft.isEmpty && !isChoosingFolder }
 
     func ask() {
         let question = draft.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -61,9 +71,10 @@ final class ClaudePage {
 
 extension ClaudePage: PanelPage {
     var width: CGFloat { Self.width }
-    func menuFrame(in panel: CGRect) -> CGRect? { nil }
+    func menuFrame(in panel: CGRect) -> CGRect? { folderMenuFrame(in: panel) }
+
     var view: ClaudePageView { ClaudePageView(page: self) }
-    var menuView: EmptyView { EmptyView() }
+    var menuView: FolderMenu { FolderMenu(page: self) }
 }
 
 struct ClaudePageView: View {
@@ -93,6 +104,7 @@ struct ClaudePageView: View {
             }
             inputRow
         }
+        .modifier(FolderMenuAnchoring(page: page))
         .fixedSize(horizontal: false, vertical: true)
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
             page.contentHeight = height
@@ -112,10 +124,10 @@ struct ClaudePageView: View {
                     Button { page.onBack?() } label: { Label("Chats", systemImage: "chevron.left") }
                         .help("Back to your chats, where the next question starts a new one")
                 } else {
-                    Text(page.folderName)
-                        .foregroundStyle(.secondary)
+                    Button { page.isChoosingFolder.toggle() } label: { Label(page.folderName, systemImage: "folder") }
                         .lineLimit(1)
-                        .help("The folder new chats start in, set in Settings")
+                        .help("The folder the next chat starts in")
+                        .anchorPreference(key: MenuAnchor.self, value: .bounds) { page.isChoosingFolder ? $0 : nil }
                 }
             }
             .frame(maxWidth: Self.leftOfNotch, alignment: .leading)

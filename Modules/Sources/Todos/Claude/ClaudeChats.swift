@@ -23,6 +23,17 @@ struct ClaudeChat: Codable, Identifiable, Equatable {
         let line = question.split(whereSeparator: \.isNewline).first.map(String.init) ?? question
         return line.count > 80 ? String(line.prefix(79)) + "…" : line
     }
+
+    /// The folders `chats` began in, most recent first, once each and without `besides`.
+    static func folders(of chats: [ClaudeChat], besides: String) -> [String] {
+        var seen: Set = [trimmed(besides)]
+        return chats.sorted { $0.updated > $1.updated }.map { trimmed($0.folder) }.filter { seen.insert($0).inserted }
+    }
+
+    /// The folder written without a trailing slash, which a home folder path comes with.
+    static func trimmed(_ folder: String) -> String {
+        folder.count > 1 && folder.hasSuffix("/") ? String(folder.dropLast()) : folder
+    }
 }
 
 /// The chats on disk, one JSON file each in Bouncer's Application Support folder, read when the page

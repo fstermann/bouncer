@@ -37,6 +37,8 @@ public final class ClaudeController {
     private var closesOnLeave = true
     /// The conversation showing, `nil` while the list of chats is.
     private var chat: ClaudeChat?
+    /// Picked on the page for the next new chat only, over the folder set in Settings.
+    private var pickedFolder: String?
     private var run: ClaudeRun?
 
     public init(settings: SettingsStore) {
@@ -47,10 +49,24 @@ public final class ClaudeController {
         page.onBack = { [weak self] in self?.backToChats() }
         page.onPick = { [weak self] in self?.pickUp($0) }
         page.onHandOff = { [weak self] in self?.handOff() }
+        page.onPickFolder = { [weak self] in self?.pickFolder($0) }
+        page.onChooseFolder = { [weak self] in Task { await self?.chooseFolder() } }
         page.onResize = { [weak self] in self.map { $0.panel.fit($0.page) } }
         panel.mayCloseOnLeave = { [weak self] in self.map { $0.closesOnLeave && $0.page.isIdle } ?? true }
         panel.onDismiss = { [weak self] in Task { await self?.close() } }
-        panel.onEscape = { [weak self] in Task { await self?.close() } }
+        panel.onClickOutsideMenu = { [weak self] in
+            guard let page = self?.page, page.isChoosingFolder else { return false }
+            page.isChoosingFolder = false
+            return true
+        }
+        panel.onEscape = { [weak self] in
+            guard let self else { return }
+            if page.isChoosingFolder {
+                page.isChoosingFolder = false
+            } else {
+                Task { await self.close() }
+            }
+        }
     }
 
     public func toggle() async {
@@ -66,8 +82,8 @@ public final class ClaudeController {
         guard !isOpen else { return }
         isOpen = true
         self.closesOnLeave = closesOnLeave
-        page.folderName = URL(filePath: folder).lastPathComponent
         page.chats = ClaudeChats.all()
+        showFolders()
         duration = settings.preferences.animateBar ? settings.preferences.barAnimationDuration : nil
         await panel.open(page, on: screen, over: duration, from: start, onceCovered: onceCovered)
     }
@@ -77,6 +93,7 @@ public final class ClaudeController {
     public func close(animated: Bool = true, into items: ((@escaping Shaping) async -> Void)? = nil) async {
         guard isOpen else { return }
         isOpen = false
+        page.isChoosingFolder = false
         await panel.close(over: animated ? duration : nil, into: items)
     }
 
@@ -84,15 +101,44 @@ public final class ClaudeController {
     /// out of when switched to.
     public var panelFrame: CGRect? { panel.frame }
 
-    private var folder: String {
-        settings.preferences.claudeFolder ?? FileManager.default.homeDirectoryForCurrentUser.path(percentEncoded: false)
+    private var settingsFolder: String {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path(percentEncoded: false)
+        return ClaudeChat.trimmed(settings.preferences.claudeFolder ?? home)
     }
 
-    /// In the chat showing, in the folder it began in, or in a new one in the folder set in Settings.
+    private func showFolders() {
+        page.folder = pickedFolder ?? settingsFolder
+        page.folders = [settingsFolder] + ClaudeChat.folders(of: page.chats, besides: settingsFolder)
+    }
+
+    private func pickFolder(_ folder: String) {
+        pickedFolder = folder == settingsFolder ? nil : folder
+        page.isChoosingFolder = false
+        showFolders()
+    }
+
+    /// The Open dialog would take the page's focus, which closes it; so the page goes, and comes back.
+    private func chooseFolder() async {
+        await close()
+        let dialog = NSOpenPanel()
+        dialog.canChooseFiles = false
+        dialog.canChooseDirectories = true
+        dialog.prompt = "Choose"
+        dialog.directoryURL = URL(filePath: pickedFolder ?? settingsFolder)
+        NSApp.activate(ignoringOtherApps: true)
+        if dialog.runModal() == .OK, let url = dialog.url {
+            pickedFolder = ClaudeChat.trimmed(url.path(percentEncoded: false))
+        }
+        await open(closesOnLeave: closesOnLeave)
+    }
+
+    /// In the chat showing, in the folder it began in, or in a new one in the folder picked for it.
     private func ask(_ question: String) {
         var chat = chat ?? ClaudeChat(
-            id: "", folder: folder, title: ClaudeChat.title(for: question), updated: .now, exchanges: []
+            id: "", folder: pickedFolder ?? settingsFolder, title: ClaudeChat.title(for: question), updated: .now,
+            exchanges: []
         )
+        if self.chat == nil { pickedFolder = nil }
         let resuming = chat.id.isEmpty ? nil : chat.id
         chat.updated = .now
         self.chat = chat
@@ -169,6 +215,7 @@ public final class ClaudeController {
         page.exchanges = []
         page.canHandOff = false
         page.chats = ClaudeChats.all()
+        showFolders()
         page.focusRequests += 1
     }
 
