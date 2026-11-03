@@ -38,6 +38,7 @@ struct NoteEditor: View {
     @FocusState private var isTypingLocation: Bool
     /// Empty properties shown since their adder was clicked.
     @State private var revealed: Set<Field> = []
+    @State private var lineMoveKeys = LineMoveKeys()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -57,6 +58,8 @@ struct NoteEditor: View {
                 .font(.system(size: 13))
                 .scrollContentBackground(.hidden)
                 .focused($isWritingBody)
+                .onChange(of: isWritingBody, initial: true) { lineMoveKeys.isActive = $1 }
+                .onDisappear { lineMoveKeys.isActive = false }
                 .frame(height: fillsHeight ? nil : NotePage.bodyHeight)
                 .frame(maxHeight: fillsHeight ? .infinity : nil)
                 .background(OverlayScrollers())
