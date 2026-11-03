@@ -19,6 +19,17 @@ import Testing
         #expect(TagCompletion.suggestions(for: "Call #work #wo", from: tags) == ["homework"])
     }
 
+    @Test func offersANoteTheTagsItLacksForWhatIsTyped() {
+        #expect(TagCompletion.suggestions(for: "", carrying: ["home"], from: tags) == ["work", "homework", "errands"])
+        #expect(TagCompletion.suggestions(for: "#wo", carrying: ["work"], from: tags) == ["homework"])
+    }
+
+    @Test func readsTheTagTypedIntoANote() {
+        #expect(TagCompletion.tag(from: "#work/bouncer, ") == "work/bouncer")
+        #expect(TagCompletion.tag(from: " ,") == nil)
+        #expect(TagCompletion.tag(from: "#") == nil)
+    }
+
     @Test func completingReplacesTheWordBeingTyped() {
         #expect(TagCompletion.completing("Call bank #wo", with: "work") == "Call bank #work ")
     }

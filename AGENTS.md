@@ -22,6 +22,10 @@ permitted"), with the sandbox disabled and through the user's `!` prefix alike. 
 `Logger` to debug; have temporary debug lines append to a file in the scratchpad and read
 that. The app is not sandboxed, so it can write there.
 
+To check how a SwiftUI view looks without driving the app, render it in a temporary test with
+`ImageRenderer` (scale 4), write the PNG to the scratchpad, Read it, then delete the test. It draws a
+`ScrollView` as a placeholder; render the scroll view's content instead.
+
 ## Checking it yourself
 
 Don't ask the user to try a bar change and report back; drive a running Bouncer Dev with
@@ -37,6 +41,9 @@ make ctl CMD="press 900 15"                 # a real left click there, the point
 make ctl CMD="drag 1209 960 1.5"            # Cmd-drag the item at x 1209 to x 960, held there 1.5 s
 make ctl CMD="shoot /path/bar.png"          # top 120 pt of the main display, then Read the PNG
 make ctl CMD="record /path/bar.mov 3"       # video, at most 30 s; run it in the background, then act
+make ctl CMD="key cmd+shift+n"              # a real key press: hot keys, focus and key equivalents
+make ctl CMD="type Weekly sync"             # text into whatever has focus
+make ctl CMD="tap 756 60"                   # like press, but the pointer stays, so a panel does not close
 ffmpeg -loglevel error -i bar.mov -vf "fps=5,scale=1512:-1,tile=1x15" -frames:v 1 sheet.png
 ```
 
@@ -49,6 +56,12 @@ For a glitch that lasts a frame, record at full rate (`record path secs height`:
 is the height in pt, not fps), split every frame with
 `ffmpeg -i bar.mov -fps_mode passthrough f/%04d.png`, and tile a crop of 6 to 15 consecutive
 frames. ffmpeg here has no drawtext and Python no PIL: count frames by position.
+
+To tell where something sits to the point, read pixels instead of looking: `ffmpeg -i f.png -vf
+"crop=3024:40:0:12,format=gray" -f rawvideo -` gives one byte per pixel, and the first column over
+a brightness threshold is an icon's edge. Pixels are half points on the built-in display.
+
+`key`, `type` and `tap` move the user's pointer and type into their apps: ask before using them.
 
 ## Rules
 
@@ -85,6 +98,13 @@ Two principles decide every tradeoff — see README. In practice:
 - **Measure an animation bug before fixing it.** Log the frames, model and presentation values
   involved to the scratchpad file and find where they disagree with what the recording shows.
   Don't ship a fix that only might help.
+- **Precision is the product.** A change that places or moves something on screen is checked by
+  measuring every frame of the transition, not by looking at stills: still frames hide a slide
+  or a gap that only lasts the animation. Record each way it can happen (every direction of a
+  switch, opening and closing), 3 runs each, and report the positions found. An element meant to
+  stay put across pages is placed in screen coordinates, on whole points, from the frame its
+  window actually got, never inside a view that animates. Never claim "it does not move" from
+  eyeballing.
 - `App/Resources/Logo.svg` is the source of truth for the mark. The app icon, the
   README lockups, `MenuBarIcon.imageset`, `MenuBarIconOpen.imageset`,
   `SectionEndIcon.imageset` and its mirror `SectionStartIcon.imageset` are derived from

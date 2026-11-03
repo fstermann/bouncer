@@ -42,8 +42,8 @@ extension StandaloneBarController {
         }
         let revealed = reveal(shiftedFor: layout?.width, end: end, notch: notch.range)
         // The chevron's last place is shaded before it shows on the uncovered right.
-        if let layout { tab.shade(layout.chevron.map { NotchSplit.shade(over: $0, notch: notch.range) }) }
-        let rightSide = layout.map { _ in Task { await showRightSide(after: showing, revealedAt: revealed) } }
+        if let layout { tab.shade(over: layout.chevron, notch: notch.range) }
+        let rightSide = layout.map { _ in Task { await showRightSide(after: showing, revealedAt: revealed, takeOver) } }
         if layout == nil { _ = await AgentItems.revealed(in: notch.range.upperBound...end, height: height) }
         let settled = await settleBothSides(notch: notch.range, expectingOverflow: layout != nil)
         var frames = settled.frames
@@ -56,7 +56,7 @@ extension StandaloneBarController {
         }
         await showing?.value
         let reach = NotchSplit.band(over: frames, notch: notch.range, end: end)
-        tab.shade(AgentOverflow.frame.map { NotchSplit.shade(over: $0, notch: notch.range) })
+        tab.shade(over: AgentOverflow.frame, notch: notch.range)
         if layout == nil {
             await tab.show(at: tabFrame, reaching: reach, over: duration)
         } else {
@@ -69,21 +69,29 @@ extension StandaloneBarController {
         refitWhenAppsComeAndGo()
     }
 
-    /// Has a todo page take the band's shape, puts the band up covered underneath it, and lets the
-    /// page go to fade off it. With nothing measured yet, the page goes into the notch.
+    /// Puts the band up covered and unseen, and has a todo page take its shape over it. With nothing
+    /// measured yet, the page goes into the notch, and is let go at once.
     private func cover(for takeOver: TakeOver, at tabFrame: CGRect, reaching reach: ClosedRange<CGFloat>?) async {
         let band = NotchTab.frame(under: reach ?? tabFrame.minX...tabFrame.maxX, barHeight: tabFrame.height)
-        await takeOver.shape(BarWindow.appKitFrame(for: band))
+        tab.isConcealed = true
         if let reach { await tab.show(at: tabFrame, reaching: reach, covered: true, over: nil) }
-        takeOver.letGo()
+        await takeOver.shape(BarWindow.appKitFrame(for: band))
+        tab.isConcealed = false
+        if reach == nil { takeOver.letGo() }
     }
 
     /// Uncovers the right side once the band is out and the side has landed. It lands from some 30 ms
     /// after the reveal, an item at a time, and Accessibility stalls for some 300 ms after it, so it
     /// is given a fixed while rather than read.
-    private func showRightSide(after showing: Task<Void, Never>?, revealedAt revealed: ContinuousClock.Instant) async {
+    ///
+    /// A page turning into the band fades off it only then: the reveal has the menu bar drawn over the
+    /// band for a frame, which the page hides as long as it is up.
+    private func showRightSide(
+        after showing: Task<Void, Never>?, revealedAt revealed: ContinuousClock.Instant, _ takeOver: TakeOver?
+    ) async {
         await showing?.value
         try? await Task.sleep(until: revealed + .seconds(Self.rightSideLands))
+        takeOver?.letGo()
         await tab.uncover(.right, over: slide)
     }
 
@@ -123,7 +131,7 @@ extension StandaloneBarController {
               let notch = Notch.on(displayOf: CGRect(x: end, y: 0, width: 1, height: 1))
         else { return }
         tab.extend(to: NotchSplit.band(over: frames, notch: notch.range, end: end), over: slide)
-        tab.shade(AgentOverflow.frame.map { NotchSplit.shade(over: $0, notch: notch.range) })
+        tab.shade(over: AgentOverflow.frame, notch: notch.range)
     }
 
     /// Another app coming to the front closes the chevron, taking the left side back into the notch
@@ -131,9 +139,12 @@ extension StandaloneBarController {
     private func closeWhenTheOverflowCloses() {
         appSwitches = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
-        ) { [weak self] _ in
+        ) { [weak self] notification in
+            // Bouncer comes to the front itself for the page menu, which closes nothing.
+            let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            let isBouncer = app?.processIdentifier == ProcessInfo.processInfo.processIdentifier
             MainActor.assumeIsolated {
-                guard let self, self.isOpen, AgentOverflow.state != .open else { return }
+                guard let self, self.isOpen, !isBouncer, AgentOverflow.state != .open else { return }
                 Task { await self.close() }
             }
         }
@@ -183,11 +194,16 @@ extension StandaloneBarController {
 
     /// Closes the chevron before collapsing: left open, every later reveal, a plain click on the icon
     /// included, draws the overflow over the app menus.
-    func closeInTheBar(animated: Bool) async {
+    func closeInTheBar(animated: Bool, into page: PageOpening?) async {
         menuBar.onHiddenDividerMove = nil
         appSwitches.map(NSWorkspace.shared.notificationCenter.removeObserver)
         appSwitches = nil
         appsChange = nil
+        // The reverse of opening: both sides fade out together and leave behind the cover, which
+        // goes back into the notch once the app menus are back.
+        let leaving = animated ? slide : nil
+        let covering = ContinuousClock.now
+        tab.cover(over: leaving)
         // Measured only with the chevron open: closed, it holds just the right side.
         if AgentOverflow.state == .open,
            let end = menuBar.hiddenSectionEnd,
@@ -200,18 +216,18 @@ extension StandaloneBarController {
                 )
             }
         }
-        // The reverse of opening: both sides fade out together and leave behind the cover, which
-        // goes back into the notch once the app menus are back.
-        let leaving = animated ? slide : nil
-        tab.cover(over: leaving)
-        if let leaving { try? await Task.sleep(for: .seconds(leaving)) }
+        if let leaving { try? await Task.sleep(until: covering + .seconds(leaving)) }
         AgentOverflow.close()
         menuBar.setVisibility(.collapsed)
         menuBar.setBoundaryMarkersVisible(true)
         // Waited even unanimated: a todo page taking over covers the items only until it grows.
-        try? await Task.sleep(for: .seconds(Self.itemsLeave))
-        tab.shade(nil)
-        await tab.hide(over: animated ? slide : nil)
+        let left = ContinuousClock.now + .seconds(Self.itemsLeave)
+        let goes: @MainActor () async -> Void = { [self] in
+            try? await Task.sleep(until: left)
+            tab.shade(nil)
+            await tab.hide(over: animated && page == nil ? slide : nil)
+        }
+        if let page { await page(goes) } else { await goes() }
     }
 
     /// Opens the chevron, if the section overflowed, and returns every item once both sides have

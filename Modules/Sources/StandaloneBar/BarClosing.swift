@@ -16,6 +16,9 @@ final class BarClosing {
     /// Set for a bar the pointer opened at the notch, which goes the moment the pointer leaves it,
     /// the way the Dock does, whatever "Hide again" says.
     var closesOnLeave = false
+    /// Set for a bar a page turned into, which the pointer may never have been over: on the page
+    /// menu below it, or anywhere for a key. Leaving counts once the pointer has come up into it.
+    var waitsForPointer = false
     private var activationObserver: NSObjectProtocol?
 
     /// Watches for another app taking over, in the one mode that closes on it.
@@ -32,7 +35,7 @@ final class BarClosing {
 
     /// The pointer has left the bar: close once the delay is up, where there is one.
     func pointerLeft(for mode: AutoRehide, onClose: @MainActor @escaping () -> Void) {
-        guard pending == nil, let delay = delay(for: mode) else { return }
+        guard pending == nil, !waitsForPointer, let delay = delay(for: mode) else { return }
         pending = Task {
             try? await Task.sleep(for: delay)
             guard !Task.isCancelled else { return }
@@ -46,14 +49,16 @@ final class BarClosing {
         return .seconds(seconds)
     }
 
-    /// Taken back before the close came due.
-    func pointerReturned() {
+    /// Taken back before the close came due, or held off by a menu; `intoTheBar` once it is up there.
+    func pointerReturned(intoTheBar: Bool = false) {
         pending?.cancel()
         pending = nil
+        if intoTheBar { waitsForPointer = false }
     }
 
     func stop() {
         pointerReturned()
+        waitsForPointer = false
         if let activationObserver {
             NSWorkspace.shared.notificationCenter.removeObserver(activationObserver)
         }

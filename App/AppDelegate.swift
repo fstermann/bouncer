@@ -21,7 +21,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var reveal = RevealController(manager: menuBar, settings: settings)
     private lazy var standaloneBar = StandaloneBarController(menuBar: menuBar, settings: settings)
     private lazy var todos = TodoController(settings: settings)
+    private lazy var notes = NoteController(settings: settings)
     private var pageSwitches: ObservationLoop?
+    private let pageKeys = PageKeys()
+    private var pageKeysArming: ObservationLoop?
     /// A page turning into the other, which nothing else may open or close until it has.
     private var isSwitching = false
     private let permissions = StandaloneBarPermissions()
@@ -44,6 +47,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menuBar.onIconClick = { [weak self] in self?.handleIconClick() }
         reveal.onHoverReveal = { [weak self] screen, atNotch in self?.handleHoverReveal(on: screen, atNotch: atNotch) }
         pageSwitches = ObservationLoop { [weak self] in self?.wirePageSwitches() }
+        pageKeys.onStep = { [weak self] in self?.stepPage(by: $0) }
+        pageKeysArming = ObservationLoop { [weak self] in self?.armPageKeys() }
         if settings.isFirstLaunch { showWelcome() }
         #if DEV
         harness = DevHarness(controller: standaloneBar, menuBar: menuBar)
@@ -101,20 +106,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// A left click either walks the menu bar open, or opens Bouncer's own bar, or, with menu bar
-    /// items off, the todo page.
+    /// items off, the todo or the notes page.
     ///
     /// The permissions are normally asked for when the bar is turned on, in Settings; this
     /// re-asks only as a fallback for a user who dismissed those prompts. Accessibility
     /// missing still opens the bar — the items show, they are just not clickable yet.
     private func handleIconClick() {
         guard !isSwitching else { return }
-        guard settings.preferences.enableMenuBarItems else { return toggleTodos() }
+        guard settings.preferences.enableMenuBarItems else {
+            if let page = contentPage { toggle(page) }
+            return
+        }
         guard settings.preferences.showItemsInBar else {
             menuBar.toggle()
             return
         }
-        // The todo page shares the notch with the bar, so the bar takes its place.
-        guard !todos.isOpen else { return switchPage(to: .items) }
+        // The todo and notes pages share the notch with the bar, so the bar takes their place.
+        guard !todos.isOpen, !notes.isOpen else { return switchPage(to: .items) }
         permissions.refresh()
         guard !StandaloneBarController.needsScreenRecording || permissions.screenRecording == .granted else {
             Log.app.error("Standalone bar: Screen Recording not granted; requesting")
@@ -131,81 +139,135 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// request for the bar, and prompting on it would put a dialog up for simply moving the
     /// mouse. The bar stays behind a click until both are granted.
     ///
-    /// The notch opens the todo page unless the items bar is there to share it, in which case it
-    /// opens whichever page the switch last chose.
+    /// The notch opens the todo or the notes page, whichever the switch last chose. With the items bar
+    /// there to share it, it opens whichever of the three the switch last chose.
     private func handleHoverReveal(on screen: NSScreen, atNotch: Bool) {
         guard !isSwitching else { return }
         let preferences = settings.preferences
         let showsItemsBar = preferences.enableMenuBarItems && preferences.showItemsInBar
-        let opensTodos = preferences.enableTodos
-            && (showsItemsBar ? preferences.notchPage == .todos : atNotch || !preferences.enableMenuBarItems)
-        // One page at a time: the other is switched to, not opened over it.
-        if opensTodos {
+        if let page = contentPage,
+           showsItemsBar ? preferences.notchPage == page : atNotch || !preferences.enableMenuBarItems {
+            // One page at a time: the other is switched to, not opened over it.
             guard !standaloneBar.isShowing else { return }
-            Task { await todos.open(on: screen) }
+            Task { [todos, notes] in
+                if page == .notes { await notes.open(on: screen) } else { await todos.open(on: screen) }
+            }
             return
         }
         guard showsItemsBar else {
             menuBar.setVisibility(.revealed)
             return
         }
-        guard !todos.isOpen,
+        guard !todos.isOpen, !notes.isOpen,
               !StandaloneBarController.needsScreenRecording || StandaloneBarPermissions.screenRecordingGranted
         else { return }
         // With hover over the whole menu bar off, only the notch could have opened it.
         Task { await standaloneBar.open(closingWhenLeft: !settings.preferences.revealOnHover) }
     }
 
-    /// Each page offers the other only while the other is on, and a page switched off closes.
+    /// The todo or the notes page, whichever the switch last chose while both are on.
+    private var contentPage: NotchPage? {
+        let pages = settings.preferences.notchPages.filter { $0 != .items }
+        return pages.contains(settings.preferences.notchPage) ? settings.preferences.notchPage : pages.first
+    }
+
+    /// Every page's button offers the pages that are on, and a page switched off closes.
     private func wirePageSwitches() {
         let preferences = settings.preferences
-        let showsItemsBar = preferences.enableMenuBarItems && preferences.showItemsInBar
-        todos.onSwitchPage = nil
-        if showsItemsBar { todos.onSwitchPage = { [weak self] in self?.switchPage(to: .items) } }
-        standaloneBar.onSwitchPage = nil
-        if preferences.enableTodos { standaloneBar.onSwitchPage = { [weak self] in self?.switchPage(to: .todos) } }
+        let pages = preferences.notchPages
+        todos.pages = pages
+        todos.onSwitchPage = { [weak self] in self?.switchPage(to: $0) }
+        notes.pages = pages
+        notes.onSwitchPage = { [weak self] in self?.switchPage(to: $0) }
+        standaloneBar.pages = pages
+        standaloneBar.onSwitchPage = { [weak self] in self?.switchPage(to: $0) }
         // Assigned only on a change, since assigning registers the shortcut again.
         if preferences.enableTodos != (todos.onShortcut != nil) {
             todos.onShortcut = nil
-            if preferences.enableTodos { todos.onShortcut = { [weak self] in self?.handleTodoShortcut() } }
+            if preferences.enableTodos { todos.onShortcut = { [weak self] in self?.handleShortcut(for: .todos) } }
+        }
+        if preferences.enableNotes != (notes.onShortcut != nil) {
+            notes.onShortcut = nil
+            if preferences.enableNotes { notes.onShortcut = { [weak self] in self?.handleShortcut(for: .notes) } }
         }
         if !preferences.enableTodos { Task { [todos] in await todos.close() } }
-        if !showsItemsBar { Task { [standaloneBar] in await standaloneBar.close() } }
+        if !preferences.enableNotes { Task { [notes] in await notes.close() } }
+        if !pages.contains(.items) { Task { [standaloneBar] in await standaloneBar.close() } }
     }
 
-    /// Turns one page into the other, which hover then opens next time. The todo panel does the
-    /// moving both ways: it grows out of the items panel and takes it away once covering it, or
-    /// has it built underneath itself and shrinks into its shape before it shows.
+    /// Turns the open page into `page`, which hover then opens next time. The todo and notes panels
+    /// do the moving: one grows out of the panel open and takes it away once covering it, or, going
+    /// to the items page, has it built underneath itself and shrinks into its shape before it shows.
     private func switchPage(to page: NotchPage) {
         guard !isSwitching else { return }
         isSwitching = true
         settings.preferences.notchPage = page
-        Task { [weak self, standaloneBar, todos, settings] in
+        Task { [weak self, standaloneBar, todos, notes, settings] in
             defer { self?.isSwitching = false }
-            switch page {
-            case .todos:
-                // Grown out of the band as it rests: one still opening has no outline yet.
-                await standaloneBar.opening()
-                await todos.open(from: standaloneBar.panelFrame) { await standaloneBar.close(animated: false) }
-            case .items:
-                await todos.close { shape in
-                    await standaloneBar.open(closingWhenLeft: !settings.preferences.revealOnHover, takingShape: shape)
+            let closingWhenLeft = !settings.preferences.revealOnHover
+            if page == .items {
+                let intoItems: (@escaping Shaping) async -> Void = { shape in
+                    await standaloneBar.open(closingWhenLeft: closingWhenLeft, takingShape: shape)
                 }
+                if todos.isOpen { await todos.close(into: intoItems) } else { await notes.close(into: intoItems) }
+                return
+            }
+            // Grown out of the band as it rests: one still opening has no outline yet.
+            if standaloneBar.isShowing { await standaloneBar.opening() }
+            let open: @MainActor (CGRect?, @MainActor () async -> Void) async -> Void = { from, covered in
+                if page == .notes {
+                    await notes.open(from: from, onceCovered: covered)
+                } else {
+                    await todos.open(from: from, onceCovered: covered)
+                }
+            }
+            if standaloneBar.isOpen {
+                let from = standaloneBar.panelFrame
+                await standaloneBar.close(into: { await open(from, $0) })
+            } else if page == .notes {
+                await open(todos.panelFrame, { await todos.close(animated: false) })
+            } else {
+                await open(notes.panelFrame, { await notes.close(animated: false) })
             }
         }
     }
 
-    /// ⌘⇧B opens the todo page, from the items page if that is up, and closes it again.
-    private func handleTodoShortcut() {
+    /// ⌘⇧B opens the todo page and ⌘⇧N the notes page, from another page if one is up, and closes it
+    /// again.
+    private func handleShortcut(for page: NotchPage) {
         guard !isSwitching else { return }
-        guard !standaloneBar.isShowing else { return switchPage(to: .todos) }
-        toggleTodos()
+        let isOpen = page == .notes ? notes.isOpen : todos.isOpen
+        guard isOpen || !(standaloneBar.isShowing || todos.isOpen || notes.isOpen) else { return switchPage(to: page) }
+        toggle(page)
+    }
+
+    /// The page showing in the notch panel, or on its way.
+    private var openPage: NotchPage? {
+        if todos.isOpen { return .todos }
+        if notes.isOpen { return .notes }
+        return standaloneBar.isShowing ? .items : nil
+    }
+
+    /// ⌘⇧← and ⌘⇧→ are Bouncer's only while one of its pages is open.
+    private func armPageKeys() {
+        pageKeys.isActive = openPage != nil
+    }
+
+    private func stepPage(by step: Int) {
+        guard let page = openPage, let next = page.stepped(by: step, in: settings.preferences.notchPages),
+              next != page
+        else { return }
+        switchPage(to: next)
     }
 
     /// Opened from the keyboard or the icon, with the pointer anywhere, so leaving does not close it.
-    private func toggleTodos() {
-        Task { [todos] in
-            todos.isOpen ? await todos.close() : await todos.open(closesOnLeave: false)
+    private func toggle(_ page: NotchPage) {
+        Task { [todos, notes] in
+            switch page {
+            case .todos: todos.isOpen ? await todos.close() : await todos.open(closesOnLeave: false)
+            case .notes: notes.isOpen ? await notes.close() : await notes.open(closesOnLeave: false)
+            case .items: break
+            }
         }
     }
 

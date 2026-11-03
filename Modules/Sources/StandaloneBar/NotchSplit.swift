@@ -72,10 +72,12 @@ enum NotchSplit {
         return min(lower, notch.lowerBound)...max(upper, notch.upperBound)
     }
 
-    /// What hides the chevron: from the notch to just past it, the bar's full height. Pressed, it
-    /// takes the left side away and leaves the band over the app menus.
-    static func shade(over chevron: CGRect, notch: ClosedRange<CGFloat>) -> CGRect {
-        CGRect(x: notch.upperBound, y: 0, width: chevron.maxX + shadePadding - notch.upperBound, height: chevron.maxY)
+    /// What hides the chevron: from the notch to just past it, the bar's full height, and at least
+    /// `reach` wide, which the page button needs. Pressed, the chevron takes the left side away and
+    /// leaves the band over the app menus.
+    static func shade(over chevron: CGRect, notch: ClosedRange<CGFloat>, reach: CGFloat = 0) -> CGRect {
+        let width = max(chevron.maxX + shadePadding - notch.upperBound, reach)
+        return CGRect(x: notch.upperBound, y: 0, width: width, height: chevron.maxY)
     }
 
     /// Less than half the gap macOS keeps between the chevron and the next item.

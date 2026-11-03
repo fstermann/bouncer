@@ -37,6 +37,18 @@ enum TagCompletion {
         return lines.joined(separator: "\n")
     }
 
+    /// The tags offered for what is typed into a note's tag field, as for `#typed`, leaving out those
+    /// it carries.
+    static func suggestions(for typed: String, carrying carried: [String], from tags: [String]) -> [String] {
+        suggestions(for: "#" + typed.drop { $0 == "#" }, from: tags.filter { !carried.contains($0) })
+    }
+
+    /// The tag typed into a note's tag field, without its `#`, or `nil` for none.
+    static func tag(from typed: String) -> String? {
+        let tag = typed.trimmingCharacters(in: CharacterSet(charactersIn: " ,")).drop { $0 == "#" }
+        return tag.isEmpty ? nil : String(tag)
+    }
+
     private static func lastWord(of draft: String) -> String? {
         draft.split(separator: " ", omittingEmptySubsequences: false).last.map(String.init)
     }

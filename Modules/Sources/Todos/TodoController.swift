@@ -8,21 +8,30 @@ import SwiftUI
 /// Nothing runs while the page is closed: the file is read when it opens and watched only until it
 /// closes. A change synced in from another device while it is closed is simply read on the next open.
 @MainActor
+@Observable
 public final class TodoController {
-    /// Switches the notch panel to the hidden items. `nil` hides the switch.
-    public var onSwitchPage: (@MainActor () -> Void)?
+    /// Switches the notch panel to another page.
+    public var onSwitchPage: (@MainActor (NotchPage) -> Void)? {
+        get { panel.pageButton.onPick }
+        set { panel.pageButton.onPick = newValue }
+    }
+    /// The pages that are on, offered right of the notch.
+    public var pages: [NotchPage] {
+        get { panel.pageButton.pages }
+        set { panel.pageButton.pages = newValue }
+    }
     public private(set) var isOpen = false
     /// Pressing ⌘⇧B anywhere. The shortcut is registered only while this is set.
     public var onShortcut: (@MainActor () -> Void)? {
         didSet {
             shortcut?.unregister()
-            shortcut = onShortcut.flatMap { action in TodoShortcut(action: action) }
+            shortcut = onShortcut.flatMap { action in HotKey(.todos, action: action) }
         }
     }
 
     private let settings: SettingsStore
     private let page = TodoPage()
-    private let panel = TodoPanel()
+    private let panel = PagePanel<TodoPage>()
     private var file: TodoFile?
     /// How long the panel takes to grow, or `nil` while animation is off. Read once per open, so it
     /// leaves the way it arrived.
@@ -31,7 +40,7 @@ public final class TodoController {
     private var lingerings: [Todo: Task<Void, Never>] = [:]
     /// The wait before the todos being deleted leave the file, all at once.
     private var deletion: Task<Void, Never>?
-    private var shortcut: TodoShortcut?
+    private var shortcut: HotKey?
     /// Off for a page opened from the keyboard, with the pointer anywhere: only Escape or a click
     /// elsewhere closes that one.
     private var closesOnLeave = true
@@ -41,6 +50,7 @@ public final class TodoController {
 
     public init(settings: SettingsStore) {
         self.settings = settings
+        panel.pageButton.current = .todos
         page.onToggle = { [weak self] todo in self?.toggle(todo) }
         page.onAdd = { [weak self] text in self?.add(text) }
         page.onEdit = { [weak self] todo, text, note in self?.edit(todo, to: text, note: note) }
@@ -48,9 +58,9 @@ public final class TodoController {
         page.onRestore = { [weak self] todo in self?.restore(todo) }
         page.onAddCategory = { [weak self] name in self?.addCategory(name) }
         page.onRemoveCategory = { [weak self] name in self?.removeCategory(name) }
-        page.onSwitch = { [weak self] in self?.onSwitchPage?() }
         page.onResize = { [weak self] in self.map { $0.panel.fit($0.page) } }
         page.onColor = { [weak self] tag, color in self?.settings.preferences.tagColors[tag] = color }
+        page.onOrder = { [weak self] order in self?.settings.preferences.tagOrder = order }
         panel.mayCloseOnLeave = { [weak self] in self.map { $0.closesOnLeave && $0.page.isIdle } ?? true }
         panel.onDismiss = { [weak self] in Task { await self?.close() } }
         // Closes a menu the way a popover goes, spending the click; tag suggestions leave the field
@@ -98,8 +108,8 @@ public final class TodoController {
         isOpen = true
         self.closesOnLeave = closesOnLeave
         self.file = file
-        page.showsSwitch = onSwitchPage != nil
         page.tagColors = settings.preferences.tagColors
+        page.tagOrder = settings.preferences.tagOrder
         reload()
         file.watch { [weak self] in self?.reload() }
         duration = settings.preferences.animateBar ? settings.preferences.barAnimationDuration : nil
@@ -107,8 +117,9 @@ public final class TodoController {
     }
 
     /// Takes the page back into the notch, or, given `items`, into the panel `items` brings up
-    /// underneath it, which hands the page its frame through `Shaping` before it shows.
-    public func close(into items: ((@escaping Shaping) async -> Void)? = nil) async {
+    /// underneath it, which hands the page its frame through `Shaping` before it shows; without
+    /// `animated`, at once.
+    public func close(animated: Bool = true, into items: ((@escaping Shaping) async -> Void)? = nil) async {
         guard isOpen else { return }
         isOpen = false
         lingerings.values.forEach { $0.cancel() }
@@ -121,8 +132,12 @@ public final class TodoController {
         page.closeSearch()
         file?.stopWatching()
         file = nil
-        await panel.close(over: duration, into: items)
+        await panel.close(over: animated ? duration : nil, into: items)
     }
+
+    /// The panel's frame while it is open, in AppKit screen coordinates: what the next page grows
+    /// out of when switched to.
+    public var panelFrame: CGRect? { panel.frame }
 
     /// The picked file, or the local one while none is picked.
     private func resolveFile() -> TodoFile? {

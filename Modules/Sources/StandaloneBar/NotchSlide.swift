@@ -44,10 +44,10 @@ enum NotchSlide {
         grow.round(cover.panel, to: 0)
         for window in windows { grow.fade(window, to: 1) }
         let focusing = Motion(duration: duration * 1.6, bounce: 0, delay: duration * 0.6)
-        focusing.focusIn([replicas, cover.pageSwitch])
+        focusing.focusIn([replicas, cover.pageButton])
         await grow.finished()
         await focusing.finished()
-        Motion.unfocus([replicas, cover.pageSwitch])
+        Motion.unfocus([replicas, cover.pageButton])
     }
 
     /// Blurs the replicas out while `putAway` takes the section off the display, then takes the
@@ -66,7 +66,7 @@ enum NotchSlide {
               let gatheredCover = cover.surfaceGathered(into: notch)
         else { return await putAway() }
         let replicas = bar.replicas
-        Motion(duration: duration * 0.6, bounce: 0).focusOut([replicas, cover.pageSwitch])
+        Motion(duration: duration * 0.6, bounce: 0).focusOut([replicas, cover.pageButton])
         await putAway()
         let gather = Motion(duration: duration * 1.6, bounce: 0)
         gather.move(hanger, to: CGPoint(x: 0, y: bar.tuck))

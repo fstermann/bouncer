@@ -6,9 +6,10 @@ import SwiftUI
 import Todos
 import UniformTypeIdentifiers
 
-/// What Bouncer does: hide menu bar items, show todos, or both. At least one is always on.
+/// What Bouncer does: hide menu bar items, show todos, take meeting notes, or any of them together.
+/// At least one is always on.
 enum Mode: CaseIterable, Identifiable {
-    case menuBarItems, todos
+    case menuBarItems, todos, notes
 
     var id: Self { self }
 
@@ -16,6 +17,7 @@ enum Mode: CaseIterable, Identifiable {
         switch self {
         case .menuBarItems: "Menu bar items"
         case .todos: "Todos"
+        case .notes: "Meeting notes"
         }
     }
 
@@ -23,6 +25,7 @@ enum Mode: CaseIterable, Identifiable {
         switch self {
         case .menuBarItems: "menubar.rectangle"
         case .todos: "checklist"
+        case .notes: "note.text"
         }
     }
 
@@ -30,6 +33,7 @@ enum Mode: CaseIterable, Identifiable {
         switch self {
         case .menuBarItems: "Hide menu bar items behind dividers and reveal them when you need them."
         case .todos: "Keep a todo list from a Markdown file under the notch."
+        case .notes: "Write meeting notes under the notch, one Markdown file per meeting."
         }
     }
 
@@ -37,6 +41,7 @@ enum Mode: CaseIterable, Identifiable {
         switch self {
         case .menuBarItems: \.enableMenuBarItems
         case .todos: \.enableTodos
+        case .notes: \.enableNotes
         }
     }
 
@@ -170,6 +175,50 @@ struct HoverRevealOptions: View {
 
     private static func label(_ seconds: TimeInterval) -> String {
         "\(Int((seconds * 1000).rounded())) ms"
+    }
+}
+
+/// The folder the notch panel's notes page keeps meetings in.
+struct NoteOptions: View {
+    @Binding var preferences: Preferences
+
+    var body: some View {
+        Section("Meeting notes", systemImage: "note.text") {
+            LabeledContent("Folder") {
+                HStack(spacing: 8) {
+                    Text(folderName)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Button("Choose…", action: choose)
+                    if preferences.notesFolder != nil {
+                        Button("Use Local") { preferences.notesFolder = nil }
+                    }
+                }
+            }
+            Text("Each meeting is a Markdown file in this folder, its time, people, project, place and tags "
+                 + "kept as properties Obsidian shows. Choose a folder in your vault to see them there. Without "
+                 + "one, Bouncer keeps them in a local folder. Press ⌘⇧N to open them; while notes are on, "
+                 + "⌘⇧N no longer reaches other apps.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var folderName: String {
+        guard let bookmark = preferences.notesFolder else { return "Local" }
+        return NoteController.url(of: bookmark)?.lastPathComponent ?? "Not found"
+    }
+
+    private func choose() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.prompt = "Choose"
+        guard panel.runModal() == .OK, let url = panel.url, let bookmark = NoteController.bookmark(for: url)
+        else { return }
+        preferences.notesFolder = bookmark
     }
 }
 

@@ -69,6 +69,8 @@ public final class StandaloneBarController {
         self.menuBar = menuBar
         self.settings = settings
         handover = Handover(bar: bar, cover: cover, shield: shield, capture: itemCapture)
+        shield.pageButton = cover.pageButton
+        shield.buttonSpan = { [cover] in cover.buttonSpan }
         bar.onClick = { [weak self] item in self?.forward(to: item) }
         bar.onHandoff = { [weak self] item in
             guard self?.isInTheBar == false else { return }
@@ -261,8 +263,10 @@ public final class StandaloneBarController {
         handover.settleBack(onto: settled, over: nil, from: items)
     }
 
-    /// Puts everything away and hands hiding back to the divider.
-    public func close(animated: Bool = true) async {
+    /// Puts everything away and hands hiding back to the divider, under `page` if one grows out of the
+    /// bar, which takes the bar away once it covers it. The section goes first, while it is built.
+    public func close(animated: Bool = true, into page: PageOpening? = nil) async {
+        if let page, !isInTheBar { return await page { await close(animated: false) } }
         await opening()
         guard isOpen else { return }
         isOpen = false
@@ -285,7 +289,7 @@ public final class StandaloneBarController {
         itemCapture.stop()
         if isInTheBar {
             isInTheBar = false
-            await closeInTheBar(animated: animated)
+            await closeInTheBar(animated: animated, into: page)
             menuBar.isRevealHeld = false
             return
         }
@@ -374,13 +378,10 @@ public final class StandaloneBarController {
     /// dipping below it on the way across, should not put it away — and the pointer coming
     /// back cancels the close before it happens.
     func closeIfThePointerHasLeft() {
+        let isUp = NSEvent.mouseLocation.y >= panelBottomEdge
         // Not mid-handoff: the pointer is up in the menu bar, where the user has taken it.
-        let hasLeft = isOpen && !isMenuOpen && !handover.isUnderway
-            && NSEvent.mouseLocation.y < panelBottomEdge
-        guard hasLeft else {
-            closing.pointerReturned()
-            return
-        }
+        let hasLeft = isOpen && !isMenuOpen && !handover.isUnderway && !isUp
+        guard hasLeft else { return closing.pointerReturned(intoTheBar: isOpen && isUp) }
         closing.pointerLeft(for: settings.preferences.autoRehide) { [weak self] in
             guard let self else { return }
             // On macOS 27 the user clicks the real items, whose menus hang below the bar, and the

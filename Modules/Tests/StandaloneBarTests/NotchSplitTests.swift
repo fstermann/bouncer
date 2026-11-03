@@ -86,4 +86,11 @@ struct NotchSplitTests {
         #expect(shade.maxX == 904 + NotchSplit.shadePadding)
         #expect(shade.minY == 0)
     }
+
+    @Test("The shade reaches past the chevron to hold a page button wider than the chevron's place")
+    func shadeHoldsTheButton() {
+        let chevron = CGRect(x: 886, y: 1, width: 18, height: 30)
+        #expect(NotchSplit.shade(over: chevron, notch: notch, reach: 40).maxX == 904 + NotchSplit.shadePadding)
+        #expect(NotchSplit.shade(over: chevron, notch: notch, reach: 90).maxX == notch.upperBound + 90)
+    }
 }

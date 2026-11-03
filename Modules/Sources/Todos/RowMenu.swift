@@ -49,8 +49,8 @@ struct RowMenuHost: View {
 }
 
 /// Opens `menu` under itself, or closes it.
-struct MenuButton<Label: View>: View {
-    let page: TodoPage
+struct MenuButton<Page: TagFiltering, Label: View>: View {
+    let page: Page
     let menu: RowMenu
     let help: String
     @ViewBuilder let label: Label
@@ -89,14 +89,14 @@ struct RowMenuView: View {
                 let carried = TaskText(isEditing ? page.editTitle : todo?.text ?? page.draft).tags
                 ForEach(page.tags, id: \.self) { tag in
                     Button { toggle(tag) } label: {
-                        Chip(text: tag, color: page.color(of: tag), isSelected: carried.contains(tag))
+                        Chip(tag: tag, color: page.color(of: tag), isSelected: carried.contains(tag))
                     }
                     .buttonStyle(.plain)
                 }
             case .suggestions:
                 ForEach(Array(page.suggestions.enumerated()), id: \.element) { index, tag in
                     Button { page.complete(with: tag) } label: {
-                        Chip(text: tag, color: page.color(of: tag), isSelected: index == page.suggestion)
+                        Chip(tag: tag, color: page.color(of: tag), isSelected: index == page.suggestion)
                     }
                     .buttonStyle(.plain)
                 }
