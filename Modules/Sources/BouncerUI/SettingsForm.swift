@@ -47,6 +47,7 @@ struct SettingsForm: View {
             if settings.preferences.enableMenuBarItems { menuBarItemsSection }
             if settings.preferences.enableTodos { TodoOptions(preferences: $settings.preferences) }
             if settings.preferences.enableNotes { NoteOptions(preferences: $settings.preferences) }
+            if settings.preferences.enableClaude { ClaudeOptions(preferences: $settings.preferences) }
             updatesSection
         }
         .formStyle(.grouped)

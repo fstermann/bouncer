@@ -74,6 +74,7 @@ extension NotchPage {
         case .items: "menubar.rectangle"
         case .todos: "checklist"
         case .notes: "note.text"
+        case .claude: "sparkle"
         }
     }
 
@@ -82,6 +83,7 @@ extension NotchPage {
         case .items: "Hidden items"
         case .todos: "Todos"
         case .notes: "Meeting notes"
+        case .claude: "Ask Claude"
         }
     }
 
@@ -91,6 +93,7 @@ extension NotchPage {
         case .items: nil
         case .todos: "b"
         case .notes: "n"
+        case .claude: "c"
         }
     }
 }

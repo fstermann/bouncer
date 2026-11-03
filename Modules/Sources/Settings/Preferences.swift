@@ -18,11 +18,13 @@ public enum HoverDelay: Codable, Hashable, Sendable {
     public static let longest: TimeInterval = 2
 }
 
-/// The notch panel's pages: the hidden items, the todo list, and the meeting notes.
+/// The notch panel's pages: the hidden items, the todo list, the meeting notes, and quick questions
+/// to Claude.
 public enum NotchPage: Codable, Hashable, Sendable {
     case items
     case todos
     case notes
+    case claude
 
     /// The page `step` places on from this one in `pages`, going round past either end.
     public func stepped(by step: Int, in pages: [NotchPage]) -> NotchPage? {
@@ -40,6 +42,8 @@ public struct Preferences: Codable, Hashable, Sendable {
     public var enableTodos: Bool
     /// The meeting notes panel under the notch.
     public var enableNotes: Bool
+    /// The panel under the notch that asks Claude Code a quick question.
+    public var enableClaude: Bool
     public var autoRehide: AutoRehide
     public var enableAlwaysHiddenSection: Bool
     /// Reveal by moving the pointer into the menu bar, without a click.
@@ -66,6 +70,8 @@ public struct Preferences: Codable, Hashable, Sendable {
     /// A bookmark to the folder meeting notes are kept in, one Markdown file each; `nil` for a local
     /// folder in Application Support.
     public var notesFolder: Data?
+    /// The folder Claude Code is asked in, which it reads for context; `nil` for the home folder.
+    public var claudeFolder: String?
     /// The page the notch panel was last left on, which is the one hover opens next.
     public var notchPage: NotchPage
     /// The colour each todo tag's chip is drawn in, by name; a tag left out is grey.
@@ -77,6 +83,7 @@ public struct Preferences: Codable, Hashable, Sendable {
         enableMenuBarItems: Bool = true,
         enableTodos: Bool = true,
         enableNotes: Bool = false,
+        enableClaude: Bool = false,
         autoRehide: AutoRehide = .afterDelay(seconds: 10),
         enableAlwaysHiddenSection: Bool = false,
         revealOnHover: Bool = false,
@@ -88,6 +95,7 @@ public struct Preferences: Codable, Hashable, Sendable {
         barAnimationDuration: TimeInterval = 0.18,
         todoFile: Data? = nil,
         notesFolder: Data? = nil,
+        claudeFolder: String? = nil,
         notchPage: NotchPage = .items,
         tagColors: [String: String] = [:],
         tagOrder: [String] = []
@@ -95,6 +103,7 @@ public struct Preferences: Codable, Hashable, Sendable {
         self.enableMenuBarItems = enableMenuBarItems
         self.enableTodos = enableTodos
         self.enableNotes = enableNotes
+        self.enableClaude = enableClaude
         self.autoRehide = autoRehide
         self.enableAlwaysHiddenSection = enableAlwaysHiddenSection
         self.revealOnHover = revealOnHover
@@ -106,6 +115,7 @@ public struct Preferences: Codable, Hashable, Sendable {
         self.barAnimationDuration = barAnimationDuration
         self.todoFile = todoFile
         self.notesFolder = notesFolder
+        self.claudeFolder = claudeFolder
         self.notchPage = notchPage
         self.tagColors = tagColors
         self.tagOrder = tagOrder
@@ -116,7 +126,8 @@ public struct Preferences: Codable, Hashable, Sendable {
         [
             enableMenuBarItems && showItemsInBar ? NotchPage.items : nil,
             enableTodos ? .todos : nil,
-            enableNotes ? .notes : nil
+            enableNotes ? .notes : nil,
+            enableClaude ? .claude : nil
         ].compactMap(\.self)
     }
 
@@ -128,6 +139,7 @@ public struct Preferences: Codable, Hashable, Sendable {
         enableMenuBarItems = try container.decodeIfPresent(Bool.self, forKey: .enableMenuBarItems) ?? true
         enableTodos = try container.decodeIfPresent(Bool.self, forKey: .enableTodos) ?? true
         enableNotes = try container.decodeIfPresent(Bool.self, forKey: .enableNotes) ?? false
+        enableClaude = try container.decodeIfPresent(Bool.self, forKey: .enableClaude) ?? false
         // Clamped to what the slider can ask for, the way the animation duration below is:
         // a longer delay stored by an older build leaves the bar open past what any setting
         // can now express.
@@ -153,6 +165,7 @@ public struct Preferences: Codable, Hashable, Sendable {
         )
         todoFile = try container.decodeIfPresent(Data.self, forKey: .todoFile)
         notesFolder = try container.decodeIfPresent(Data.self, forKey: .notesFolder)
+        claudeFolder = try container.decodeIfPresent(String.self, forKey: .claudeFolder)
         notchPage = try container.decodeIfPresent(NotchPage.self, forKey: .notchPage) ?? .items
         tagColors = try container.decodeIfPresent([String: String].self, forKey: .tagColors) ?? [:]
         tagOrder = try container.decodeIfPresent([String].self, forKey: .tagOrder) ?? []

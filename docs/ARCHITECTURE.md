@@ -1,12 +1,13 @@
 # Architecture
 
-Bouncer has three modes, and the user picks any of them on first launch: **menu bar items**, which
-hides items behind dividers, **todos**, the todo page under the notch, and **meeting notes**, the
-notes page beside it. Each works without the others (`Preferences.enableMenuBarItems`,
-`Preferences.enableTodos`, `Preferences.enableNotes`). With menu bar items off there is no divider
-in the bar, Bouncer's icon opens the todo or notes page, and nothing of this section runs; with
-todos off there is no todo page, no switch to it and no ⌘⇧B, and with notes off no notes page and
-no ⌘⇧N.
+Bouncer has four modes, and the user picks any of them on first launch: **menu bar items**, which
+hides items behind dividers, **todos**, the todo page under the notch, **meeting notes**, the
+notes page beside it, and **ask Claude**, a page for quick questions to Claude Code. Each works
+without the others (`Preferences.enableMenuBarItems`, `Preferences.enableTodos`,
+`Preferences.enableNotes`, `Preferences.enableClaude`). With menu bar items off there is no divider
+in the bar, Bouncer's icon opens the page last switched to, and nothing of this section runs; with
+todos off there is no todo page, no switch to it and no ⌘⇧B, with notes off no notes page and no
+⌘⇧N, and with ask Claude off no Claude page and no ⌘⇧C.
 
 ## How hiding works
 
@@ -363,6 +364,19 @@ orange for a countdown's last minute and red past its end, and nothing runs once
 hot key like ⌘⇧B, so while notes are on it no longer reaches other apps, Finder's new folder and the
 browsers' private windows among them.
 
+### The Claude page
+
+The fourth page asks Claude Code. A question runs `claude -p` with streamed JSON output in the
+folder set in Settings, the home folder by default, through the user's login shell started
+interactive: that is where `claude` is on their path, and where a shell function wrapping it is
+defined. Follow-ups resume the conversation by its session ID, until the folder changes or a new
+conversation is started. Nothing runs between questions. An answer still arriving when the panel
+closes goes on arriving, and shows on the next open. Bouncer makes no request of its own; the CLI
+does, with the user's own login. ⌘⇧C is a system-wide hot key while the page is on.
+
+The pages other than the items page share `NotchPageController`, so the app opens, closes and
+switches between them alike.
+
 ### Checking the bar from a shell
 
 The bar's bugs are disagreements between where Bouncer draws something and where the real items
@@ -391,7 +405,8 @@ BouncerFoundation   Logging, signposts, observation helper, the panel's springs.
       └────── App ───────┘         AppDelegate: constructs the graph, owns the menu
                                    and window.
 
-Todos   The todo and notes pages: Markdown task lines, meeting notes, their files, the panel.
+Todos   The todo, notes and Claude pages: Markdown task lines, meeting notes, their files, the
+        panel, and the `claude` process a question runs.
         Depends on BouncerFoundation, Settings and MenuBar; BouncerUI and App depend on it.
 ```
 

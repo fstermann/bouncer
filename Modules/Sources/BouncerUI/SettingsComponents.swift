@@ -6,10 +6,10 @@ import SwiftUI
 import Todos
 import UniformTypeIdentifiers
 
-/// What Bouncer does: hide menu bar items, show todos, take meeting notes, or any of them together.
-/// At least one is always on.
+/// What Bouncer does: hide menu bar items, show todos, take meeting notes, ask Claude, or any of them
+/// together. At least one is always on.
 enum Mode: CaseIterable, Identifiable {
-    case menuBarItems, todos, notes
+    case menuBarItems, todos, notes, claude
 
     var id: Self { self }
 
@@ -18,6 +18,7 @@ enum Mode: CaseIterable, Identifiable {
         case .menuBarItems: "Menu bar items"
         case .todos: "Todos"
         case .notes: "Meeting notes"
+        case .claude: "Ask Claude"
         }
     }
 
@@ -26,6 +27,7 @@ enum Mode: CaseIterable, Identifiable {
         case .menuBarItems: "menubar.rectangle"
         case .todos: "checklist"
         case .notes: "note.text"
+        case .claude: "sparkle"
         }
     }
 
@@ -34,6 +36,7 @@ enum Mode: CaseIterable, Identifiable {
         case .menuBarItems: "Hide menu bar items behind dividers and reveal them when you need them."
         case .todos: "Keep a todo list from a Markdown file under the notch."
         case .notes: "Write meeting notes under the notch, one Markdown file per meeting."
+        case .claude: "Ask Claude Code a quick question under the notch."
         }
     }
 
@@ -42,6 +45,7 @@ enum Mode: CaseIterable, Identifiable {
         case .menuBarItems: \.enableMenuBarItems
         case .todos: \.enableTodos
         case .notes: \.enableNotes
+        case .claude: \.enableClaude
         }
     }
 
@@ -219,6 +223,48 @@ struct NoteOptions: View {
         guard panel.runModal() == .OK, let url = panel.url, let bookmark = NoteController.bookmark(for: url)
         else { return }
         preferences.notesFolder = bookmark
+    }
+}
+
+/// The folder the notch panel's Claude page asks Claude Code in.
+struct ClaudeOptions: View {
+    @Binding var preferences: Preferences
+
+    var body: some View {
+        Section("Ask Claude", systemImage: "sparkle") {
+            LabeledContent("Folder") {
+                HStack(spacing: 8) {
+                    Text(folderName)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Button("Choose…", action: choose)
+                    if preferences.claudeFolder != nil {
+                        Button("Use Home") { preferences.claudeFolder = nil }
+                    }
+                }
+            }
+            Text("Bouncer runs Claude Code's `claude -p` in this folder, through your login shell, so it "
+                 + "answers with the folder's files and CLAUDE.md in mind and uses your own login. It needs "
+                 + "Claude Code installed. Press ⌘⇧C to open it; while it is on, ⌘⇧C no longer reaches other "
+                 + "apps.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var folderName: String {
+        guard let path = preferences.claudeFolder else { return "Home" }
+        return URL(filePath: path).lastPathComponent
+    }
+
+    private func choose() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.prompt = "Choose"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        preferences.claudeFolder = url.path(percentEncoded: false)
     }
 }
 
