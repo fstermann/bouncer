@@ -90,10 +90,11 @@ public final class DevHarness {
         case "type":
             await DevInput.type(String(command.dropFirst("type ".count)))
             return "typed"
-        case "tap":
+        case "tap", "rtap":
             guard let left = Double(argument), let top = words.count > 2 ? Double(words[2]) : nil
-            else { return "usage: tap <x> <y>" }
-            await DevInput.tap(at: CGPoint(x: left, y: top))
+            else { return "usage: \(words[0]) <x> <y>" }
+            let point = CGPoint(x: left, y: top)
+            if words[0] == "rtap" { await DevInput.rightTap(at: point) } else { await DevInput.tap(at: point) }
             return "tapped"
         default:
             return nil

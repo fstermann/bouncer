@@ -1,4 +1,5 @@
 import AppKit
+import MenuBar
 import SwiftUI
 
 struct TodoRow: View {
@@ -15,14 +16,13 @@ struct TodoRow: View {
     var body: some View {
         let text = TaskText(todo.text)
         let isDeleting = page.deleting.contains(todo)
-        let showsAccessory = isDeleting || isHovered || page.menu?.line == todo.line
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Button { if !isDeleting { page.onToggle?(todo) } } label: {
-                Image(systemName: todo.isDone ? "checkmark.circle.fill" : "circle")
-                    .frame(width: TodoPage.markWidth)
+                StatusMark(todo: todo)
                     .foregroundStyle(isDeleting ? .red : .secondary)
             }
             .buttonStyle(.plain)
+            .help("Right-click to mark in progress")
             VStack(alignment: .leading, spacing: 2) {
                 // Tags beside a title that fits on one line with them; otherwise on a line of their own,
                 // so the title keeps the row's width.
@@ -30,13 +30,13 @@ struct TodoRow: View {
                     titleLine(text, isDeleting: isDeleting, showsTags: true)
                     VStack(alignment: .leading, spacing: 4) {
                         titleLine(text, isDeleting: isDeleting, showsTags: false)
-                        if !text.tags.isEmpty { HStack(spacing: 6) { tagChips(text) } }
+                        if !shownTags(text).isEmpty { HStack(spacing: 6) { tagChips(text) } }
                     }
                 }
                 // Laid over the first line rather than beside it, so showing them cannot rewrap the title.
                 .overlay(alignment: Alignment(horizontal: .trailing, vertical: .firstTextBaseline)) {
-                    if showsAccessory {
-                        accessory(isDeleting: isDeleting)
+                    if isDeleting {
+                        undoDelete
                             .padding(.leading, 28)
                             // Taller than the icons, to cover a chip's capsule too.
                             .background(backdrop.padding(.vertical, -4))
@@ -63,6 +63,8 @@ struct TodoRow: View {
         )
         .contentShape(Rectangle())
         .onTapGesture { edit() }
+        .modifier(ClickAnchor(point: page.menuClick, isOpen: page.menu == actions))
+        .overlay(RightClick(action: rightClick))
         .onHover(perform: hover)
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
     }
@@ -89,8 +91,30 @@ struct TodoRow: View {
         }
     }
 
+    private var actions: RowMenu { RowMenu(line: todo.line, kind: .actions) }
+
+    /// On the circle, takes the todo in or out of progress; anywhere else, opens its actions there.
+    private func rightClick(at point: CGPoint) {
+        guard !page.deleting.contains(todo) else { return }
+        if point.x < Self.circleEdge {
+            page.menu = nil
+            page.onMark?(todo, !todo.isInProgress)
+        } else {
+            page.menuClick = point
+            page.menu = page.menu == actions ? nil : actions
+        }
+    }
+
+    /// Past the circle and the space after it, from the row's left edge.
+    private static let circleEdge: CGFloat = 14 + TodoPage.markWidth + 4
+
+    /// Without `#claude`, which the todo's group and circle already show.
+    private func shownTags(_ text: TaskText) -> [String] {
+        text.tags.filter { $0 != ClaudeQueue.tag }
+    }
+
     private func tagChips(_ text: TaskText) -> some View {
-        ForEach(text.tags, id: \.self) { Chip(tag: $0, color: page.color(of: $0)).fixedSize() }
+        ForEach(shownTags(text), id: \.self) { Chip(tag: $0, color: page.color(of: $0)).fixedSize() }
     }
 
     private func hover(_ isInside: Bool) {
@@ -128,34 +152,31 @@ struct TodoRow: View {
         }
     }
 
-    @ViewBuilder private func accessory(isDeleting: Bool) -> some View {
-        if isDeleting {
-            Button { page.onRestore?(todo) } label: { Image(systemName: "arrow.uturn.backward") }
-                .buttonStyle(.plain)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .help("Undo delete")
-        } else {
-            actions
-        }
+    private var undoDelete: some View {
+        Button { page.onRestore?(todo) } label: { Image(systemName: "arrow.uturn.backward") }
+            .buttonStyle(.plain)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .help("Undo delete")
     }
+}
 
-    private var actions: some View {
-        // In the input row's order, so tag and calendar sit where they do under the list.
-        HStack(spacing: 10) {
-            if !page.tags.isEmpty {
-                MenuButton(page: page, menu: RowMenu(line: todo.line, kind: .tags), help: "Set tags") {
-                    Image(systemName: "tag")
-                }
+/// A todo's circle: open, in progress, with Claude, or done.
+struct StatusMark: View {
+    let todo: Todo
+
+    var body: some View {
+        Group {
+            if todo.isDone {
+                Image(systemName: "checkmark.circle.fill")
+            } else if todo.isInProgress && ClaudeQueue.isForClaude(todo) {
+                Image(nsImage: ClaudeMark.image(side: 13)).renderingMode(.template)
+            } else if todo.isInProgress {
+                Image(systemName: "circle.lefthalf.filled")
+            } else {
+                Image(systemName: "circle")
             }
-            MenuButton(page: page, menu: RowMenu(line: todo.line, kind: .due), help: "Set a due date") {
-                Image(systemName: "calendar")
-            }
-            Button { page.onDelete?(todo) } label: { Image(systemName: "trash") }
-                .help("Delete")
         }
-        .buttonStyle(.plain)
-        .font(.callout)
-        .foregroundStyle(.secondary)
+        .frame(width: TodoPage.markWidth)
     }
 }

@@ -78,6 +78,11 @@ public struct Preferences: Codable, Hashable, Sendable {
     public var tagColors: [String: String]
     /// The order todo tags' chips were dragged into; a tag left out follows those in it.
     public var tagOrder: [String]
+    /// The local repository each todo tag's todos are sent to Claude in, by path. Kept on this Mac only.
+    public var tagRepositories: [String: String]
+    /// The Claude Code session each todo sent to Claude was started in, and its folder, by the todo's
+    /// title. Kept on this Mac only, where the session is.
+    public var claudeSessions: [String: ClaudeSession]
 
     public init(
         enableMenuBarItems: Bool = true,
@@ -98,7 +103,9 @@ public struct Preferences: Codable, Hashable, Sendable {
         claudeFolder: String? = nil,
         notchPage: NotchPage = .items,
         tagColors: [String: String] = [:],
-        tagOrder: [String] = []
+        tagOrder: [String] = [],
+        tagRepositories: [String: String] = [:],
+        claudeSessions: [String: ClaudeSession] = [:]
     ) {
         self.enableMenuBarItems = enableMenuBarItems
         self.enableTodos = enableTodos
@@ -119,6 +126,8 @@ public struct Preferences: Codable, Hashable, Sendable {
         self.notchPage = notchPage
         self.tagColors = tagColors
         self.tagOrder = tagOrder
+        self.tagRepositories = tagRepositories
+        self.claudeSessions = claudeSessions
     }
 
     /// The notch panel's pages that are on, in the order the page button lists them.
@@ -169,5 +178,18 @@ public struct Preferences: Codable, Hashable, Sendable {
         notchPage = try container.decodeIfPresent(NotchPage.self, forKey: .notchPage) ?? .items
         tagColors = try container.decodeIfPresent([String: String].self, forKey: .tagColors) ?? [:]
         tagOrder = try container.decodeIfPresent([String].self, forKey: .tagOrder) ?? []
+        tagRepositories = try container.decodeIfPresent([String: String].self, forKey: .tagRepositories) ?? [:]
+        claudeSessions = try container.decodeIfPresent([String: ClaudeSession].self, forKey: .claudeSessions) ?? [:]
+    }
+}
+
+/// A Claude Code session started on some todos, which `claude --resume` picks up in its folder.
+public struct ClaudeSession: Codable, Hashable, Sendable {
+    public var id: String
+    public var folder: String
+
+    public init(id: String, folder: String) {
+        self.id = id
+        self.folder = folder
     }
 }

@@ -2,9 +2,10 @@ import SwiftUI
 
 /// Which choices are open, and for which todo. By line, so it stays open as the todo's text changes.
 struct RowMenu: Equatable, Hashable {
-    /// Suggestions hang under the field a tag is typed into, a tag's colours under its chip, and the
-    /// others under the icon that opened them.
-    enum Kind: Hashable { case due, tags, suggestions, colors(String) }
+    /// Suggestions hang under the field a tag is typed into, a tag's colours under its chip, a todo's
+    /// actions and the Claude group's where they were right-clicked, and the others under the icon
+    /// that opened them.
+    enum Kind: Hashable { case due, tags, suggestions, colors(String), actions, queue, working }
     /// `nil` for the todo being typed.
     let line: Int?
     let kind: Kind
@@ -14,7 +15,7 @@ struct RowMenu: Equatable, Hashable {
     /// from its top-left corner, the panel's top.
     func frame(size: CGSize, under anchor: CGRect, in panel: CGRect) -> CGRect {
         let left = switch kind {
-        case .suggestions, .colors: anchor.minX
+        case .suggestions, .colors, .actions, .queue, .working: anchor.minX
         case .due, .tags: anchor.maxX - size.width
         }
         let minX = max(panel.minX + 8, panel.minX + left)
@@ -63,6 +64,23 @@ struct MenuButton<Page: TagFiltering, Label: View>: View {
     }
 }
 
+/// Where a right-click opened `menu`, for it to hang from.
+struct ClickAnchor: ViewModifier {
+    let point: CGPoint
+    let isOpen: Bool
+
+    func body(content: Content) -> some View {
+        content.overlay(alignment: .topLeading) {
+            Color.clear
+                .frame(width: 1, height: 1)
+                .anchorPreference(key: MenuAnchor.self, value: .bounds) { isOpen ? $0 : nil }
+                .padding(.leading, point.x)
+                .padding(.top, point.y)
+                .allowsHitTesting(false)
+        }
+    }
+}
+
 /// The frame of what the open menu hangs under.
 struct MenuAnchor: PreferenceKey {
     static var defaultValue: Anchor<CGRect>? { nil }
@@ -80,6 +98,19 @@ struct RowMenuView: View {
     let kind: RowMenu.Kind
 
     var body: some View {
+        switch kind {
+        case .actions:
+            if let todo { RowActions(page: page, todo: todo) }
+        case .queue:
+            QueueActions(page: page)
+        case .working:
+            WorkingActions(page: page)
+        default:
+            choices
+        }
+    }
+
+    private var choices: some View {
         VStack(alignment: .leading, spacing: 4) {
             switch kind {
             case .due:
@@ -104,6 +135,9 @@ struct RowMenuView: View {
                 }
             case .colors(let tag):
                 Palette(page: page, tag: tag)
+                RepositoryLink(page: page, tag: tag)
+            case .actions, .queue, .working:
+                EmptyView()
             }
         }
         .padding(8)

@@ -44,6 +44,7 @@ make ctl CMD="record /path/bar.mov 3"       # video, at most 30 s; run it in the
 make ctl CMD="key cmd+shift+n"              # a real key press: hot keys, focus and key equivalents
 make ctl CMD="type Weekly sync"             # text into whatever has focus
 make ctl CMD="tap 756 60"                   # like press, but the pointer stays, so a panel does not close
+make ctl CMD="rtap 756 60"                  # the same as a right-click
 ffmpeg -loglevel error -i bar.mov -vf "fps=5,scale=1512:-1,tile=1x15" -frames:v 1 sheet.png
 ```
 

@@ -100,7 +100,7 @@ struct TagRow<Page: TagFiltering>: View {
                     .transaction { if dragged == tag { $0.animation = nil } }
                     .onTapGesture { withAnimation(.snappy) { page.toggleFilter(tag) } }
                     .gesture(drag(tag))
-                .overlay(RightClick { page.menu = coloring })
+                .overlay(RightClick { _ in page.menu = coloring })
                 .anchorPreference(key: MenuAnchor.self, value: .bounds) { page.menu == coloring ? $0 : nil }
             }
             if page.offersUntagged {

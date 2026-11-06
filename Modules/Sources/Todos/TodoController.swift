@@ -29,10 +29,10 @@ public final class TodoController {
         }
     }
 
-    private let settings: SettingsStore
-    private let page = TodoPage()
+    let settings: SettingsStore
+    let page = TodoPage()
     private let panel = PagePanel<TodoPage>()
-    private var file: TodoFile?
+    var file: TodoFile?
     /// How long the panel takes to grow, or `nil` while animation is off. Read once per open, so it
     /// leaves the way it arrived.
     private var duration: TimeInterval?
@@ -43,7 +43,7 @@ public final class TodoController {
     private var shortcut: HotKey?
     /// Off for a page opened from the keyboard, with the pointer anywhere: only Escape or a click
     /// elsewhere closes that one.
-    private var closesOnLeave = true
+    var closesOnLeave = true
 
     /// Long enough to see a mis-click and take it back.
     private static let linger: Duration = .seconds(3)
@@ -55,6 +55,11 @@ public final class TodoController {
         page.onAdd = { [weak self] text in self?.add(text) }
         page.onEdit = { [weak self] todo, text, note in self?.edit(todo, to: text, note: note) }
         page.onDelete = { [weak self] todo in self?.delete(todo) }
+        page.onMark = { [weak self] todo, inProgress in self?.mark(todo, inProgress: inProgress) }
+        page.onSend = { [weak self] todos, folder in self?.send(todos, to: folder) }
+        page.onResume = { [weak self] todo in self?.resume(todo) }
+        page.onFinish = { [weak self] todos in self?.finish(todos) }
+        page.onLink = { [weak self] tag, links in Task { await self?.link(tag, links: links) } }
         page.onRestore = { [weak self] todo in self?.restore(todo) }
         page.onAddCategory = { [weak self] name in self?.addCategory(name) }
         page.onRemoveCategory = { [weak self] name in self?.removeCategory(name) }
@@ -109,6 +114,10 @@ public final class TodoController {
         self.closesOnLeave = closesOnLeave
         self.file = file
         page.tagOrder = settings.preferences.tagOrder
+        page.repositories = settings.preferences.tagRepositories
+        page.sessions = settings.preferences.claudeSessions
+        let home = FileManager.default.homeDirectoryForCurrentUser.path(percentEncoded: false)
+        page.claudeFolder = ClaudeChat.trimmed(settings.preferences.claudeFolder ?? home)
         reload()
         file.watch { [weak self] in self?.reload() }
         duration = settings.preferences.animateBar ? settings.preferences.barAnimationDuration : nil
@@ -149,7 +158,7 @@ public final class TodoController {
         return resolved.file
     }
 
-    private func reload() {
+    func reload() {
         let markdown = file?.read() ?? ""
         page.todos = TodoList.parse(markdown)
         page.categories = Categories.parse(markdown)

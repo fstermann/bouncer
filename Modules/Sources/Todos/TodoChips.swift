@@ -63,7 +63,8 @@ struct Palette<Page: TagFiltering>: View {
 
 /// Catches a right-click on what it lies over, and lets every other click through to it.
 struct RightClick: NSViewRepresentable {
-    let action: @MainActor () -> Void
+    /// Given where the click landed, from the top-left corner.
+    let action: @MainActor (CGPoint) -> Void
 
     func makeNSView(context: Context) -> RightClickView {
         RightClickView()
@@ -75,14 +76,15 @@ struct RightClick: NSViewRepresentable {
 }
 
 final class RightClickView: NSView {
-    var action: (@MainActor () -> Void)?
+    var action: (@MainActor (CGPoint) -> Void)?
 
     override func hitTest(_ point: NSPoint) -> NSView? {
         NSApp.currentEvent?.type == .rightMouseDown ? super.hitTest(point) : nil
     }
 
     override func rightMouseDown(with event: NSEvent) {
-        action?()
+        let point = convert(event.locationInWindow, from: nil)
+        action?(CGPoint(x: point.x, y: isFlipped ? point.y : bounds.height - point.y))
     }
 }
 

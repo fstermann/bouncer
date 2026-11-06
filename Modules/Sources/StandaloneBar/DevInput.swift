@@ -74,6 +74,15 @@ enum DevInput {
         }
     }
 
+    /// A right-click, the pointer left there like `tap`.
+    static func rightTap(at point: CGPoint) async {
+        for type in [CGEventType.mouseMoved, .rightMouseDown, .rightMouseUp] {
+            CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: point, mouseButton: .right)?
+                .post(tap: .cghidEventTap)
+            await pause()
+        }
+    }
+
     /// Long enough for the app to take each event before the next.
     private static func pause() async {
         try? await Task.sleep(for: .milliseconds(15))

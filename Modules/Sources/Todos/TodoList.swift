@@ -7,6 +7,8 @@ public struct Todo: Hashable, Sendable, Identifiable {
     /// Everything after the checkbox, tags and dates included.
     public let text: String
     public let isDone: Bool
+    /// Written `- [/]`, as the Tasks plugin marks a todo in progress.
+    public let isInProgress: Bool
     /// The indented lines under it, which Obsidian shows as part of the task.
     public var note: String
     /// Its `#tags`, read once rather than each time the list is filtered or counted.
@@ -14,10 +16,11 @@ public struct Todo: Hashable, Sendable, Identifiable {
 
     public var id: Int { line }
 
-    public init(line: Int, text: String, isDone: Bool, note: String = "") {
+    public init(line: Int, text: String, isDone: Bool, isInProgress: Bool = false, note: String = "") {
         self.line = line
         self.text = text
         self.isDone = isDone
+        self.isInProgress = isInProgress
         self.note = note
         tags = TaskText(text).tags
     }
@@ -32,7 +35,10 @@ public enum TodoList {
         let lines = lines(of: markdown)
         return lines.enumerated().compactMap { index, line in
             task(in: line).map {
-                Todo(line: index, text: $0.text, isDone: $0.isDone, note: note(under: index, in: lines))
+                Todo(
+                    line: index, text: $0.text, isDone: $0.isDone, isInProgress: $0.isInProgress,
+                    note: note(under: index, in: lines)
+                )
             }
         }
     }
@@ -41,11 +47,11 @@ public enum TodoList {
     /// file changed underneath, and editing by line number would hit some other line.
     ///
     /// Ticking stamps the day it was done, `✅ 2026-10-21`, the way the Tasks plugin does, so a todo
-    /// ticked here counts in the vault's queries about what was done when.
+    /// ticked here counts in the vault's queries about what was done when. A todo in progress is ticked.
     public static func toggling(_ todo: Todo, in markdown: String, today: String) -> String? {
         var lines = lines(of: markdown)
-        guard holds(todo, lines),
-              let box = lines[todo.line].range(of: todo.isDone ? "[x]" : "[ ]", options: .caseInsensitive)
+        let current = todo.isDone ? "[x]" : todo.isInProgress ? "[/]" : "[ ]"
+        guard holds(todo, lines), let box = lines[todo.line].range(of: current, options: .caseInsensitive)
         else { return nil }
         var line = lines[todo.line].replacingCharacters(in: box, with: todo.isDone ? "[ ]" : "[x]")
         if todo.isDone {
@@ -57,11 +63,21 @@ public enum TodoList {
         return lines.joined(separator: "\n")
     }
 
+    /// `markdown` with `todo` marked in progress, `- [/]`, or back to open, or `nil` when its line no
+    /// longer holds it. A done todo loses the day it was done.
+    public static func marking(_ todo: Todo, inProgress: Bool, in markdown: String) -> String? {
+        var lines = lines(of: markdown)
+        guard holds(todo, lines), let box = lines[todo.line].firstMatch(of: /\[[ xX\/]\]/) else { return nil }
+        lines[todo.line] = lines[todo.line].replacingCharacters(in: box.range, with: inProgress ? "[/]" : "[ ]")
+            .replacing(/\s*✅ \d{4}-\d{2}-\d{2}/, with: "")
+        return lines.joined(separator: "\n")
+    }
+
     /// `markdown` with `todo` rewritten to `text` and its note to `note`, or `nil` when its line no
     /// longer holds it. Its checkbox and indentation stay as they were.
     public static func replacing(_ todo: Todo, with text: String, note: String, in markdown: String) -> String? {
         var lines = lines(of: markdown)
-        guard holds(todo, lines), let box = lines[todo.line].firstMatch(of: /[-*+] \[[ xX]\][ ]/) else { return nil }
+        guard holds(todo, lines), let box = lines[todo.line].firstMatch(of: /[-*+] \[[ xX\/]\][ ]/) else { return nil }
         let line = lines[todo.line]
         let indent = String(line.prefix { $0 == " " || $0 == "\t" }) + "    "
         let written = note.components(separatedBy: "\n")
@@ -111,7 +127,7 @@ public enum TodoList {
     /// hit some other line.
     private static func holds(_ todo: Todo, _ lines: [String]) -> Bool {
         guard lines.indices.contains(todo.line), let current = task(in: lines[todo.line]) else { return false }
-        return current.text == todo.text && current.isDone == todo.isDone
+        return current.text == todo.text && current.isDone == todo.isDone && current.isInProgress == todo.isInProgress
     }
 
     private static func note(under index: Int, in lines: [String]) -> String {
@@ -132,8 +148,9 @@ public enum TodoList {
         line.prefix { $0 == " " || $0 == "\t" }.reduce(0) { $0 + ($1 == "\t" ? 4 : 1) }
     }
 
-    private static func task(in line: String) -> (text: String, isDone: Bool)? {
-        guard let match = line.wholeMatch(of: /\s*[-*+] \[([ xX])\] (.*)/) else { return nil }
-        return (String(match.2).trimmingCharacters(in: .whitespaces), match.1 != " ")
+    private static func task(in line: String) -> Todo? {
+        guard let match = line.wholeMatch(of: /\s*[-*+] \[([ xX\/])\] (.*)/) else { return nil }
+        let text = String(match.2).trimmingCharacters(in: .whitespaces)
+        return Todo(line: 0, text: text, isDone: match.1 == "x" || match.1 == "X", isInProgress: match.1 == "/")
     }
 }

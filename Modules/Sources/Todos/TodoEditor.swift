@@ -16,9 +16,7 @@ struct TodoEditor: View {
         // opened it lands on the same letter.
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Button(action: page.toggleEditing) {
-                Image(systemName: todo.isDone ? "checkmark.circle.fill" : "circle")
-                    .frame(width: TodoPage.markWidth)
-                    .foregroundStyle(.secondary)
+                StatusMark(todo: todo).foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
             // Laid over the field's end rather than beside it, as the row lays them, so their height

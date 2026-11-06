@@ -20,6 +20,11 @@ final class TodoPage: TagFiltering {
     var suggestion = 0
     var isAddingCategory = false
     var categoryDraft = ""
+    /// The local repository each tag's todos go to Claude in, and where those without one go.
+    var repositories: [String: String] = [:]
+    var claudeFolder = ""
+    /// The Claude Code session each todo sent to Claude went to, by its title.
+    var sessions: [String: ClaudeSession] = [:]
     /// The tags the list is narrowed to: it shows the todos carrying all of them.
     var filters: Set<String> = []
     /// The list is narrowed to todos carrying no tag, which no tag filter can join.
@@ -63,12 +68,24 @@ final class TodoPage: TagFiltering {
     /// The open menu's icon, in the page's coordinates, and the menu's size, for the panel to place it.
     @ObservationIgnored var menuIcon: CGRect = .zero
     @ObservationIgnored var menuSize: CGSize = .zero
+    /// Where the open menu was right-clicked open, in its row's or heading's coordinates.
+    var menuClick: CGPoint = .zero
 
     @ObservationIgnored var onToggle: (@MainActor (Todo) -> Void)?
     @ObservationIgnored var onAdd: (@MainActor (String) -> Void)?
     /// A todo, its new text and its new note.
     @ObservationIgnored var onEdit: (@MainActor (Todo, String, String) -> Void)?
     @ObservationIgnored var onDelete: (@MainActor (Todo) -> Void)?
+    /// A todo, and whether it is now in progress.
+    @ObservationIgnored var onMark: (@MainActor (Todo, Bool) -> Void)?
+    /// Todos sent to Claude Code in a repository.
+    @ObservationIgnored var onSend: (@MainActor ([Todo], String) -> Void)?
+    /// Picks up the Claude Code session a todo was sent to, in Terminal.
+    @ObservationIgnored var onResume: (@MainActor (Todo) -> Void)?
+    /// Ticks the todos Claude worked on.
+    @ObservationIgnored var onFinish: (@MainActor ([Todo]) -> Void)?
+    /// A tag to link a repository to, or with `nil`, to unlink.
+    @ObservationIgnored var onLink: (@MainActor (String, Bool) -> Void)?
     @ObservationIgnored var onRestore: (@MainActor (Todo) -> Void)?
     @ObservationIgnored var onAddCategory: (@MainActor (String) -> Void)?
     @ObservationIgnored var onRemoveCategory: (@MainActor (String) -> Void)?
@@ -88,11 +105,33 @@ final class TodoPage: TagFiltering {
     var done: [Todo] { filtered.filter { !isListedOpen($0) } }
     /// The listed todos still to do; one just ticked no longer counts while it lingers.
     var openCount: Int { open.filter { !$0.isDone }.count }
-    var rows: [Todo] { showsDone ? open + done : open }
-    /// The listed todos due today or before, which lead the list, sorted as it is, and are set apart.
+    /// Open todos tagged for Claude, waiting to be sent, which lead the list.
+    var queued: [Todo] { open.filter { ClaudeQueue.isForClaude($0) && !$0.isInProgress } }
+    /// Todos sent to Claude, still in progress, after those waiting.
+    var working: [Todo] { open.filter { ClaudeQueue.isForClaude($0) && $0.isInProgress } }
+    /// The rest of the open todos.
+    var others: [Todo] { open.filter { !ClaudeQueue.isForClaude($0) } }
+    var rows: [Todo] { queued + working + others + (showsDone ? done : []) }
+    /// Of the other todos, those due today or before, which lead them, sorted as they are, and are set apart.
     var dueTodayCount: Int {
         let today = TaskDay.string(for: Date())
-        return open.prefix { TaskText($0.text).due.map { $0 <= today } ?? false }.count
+        return others.prefix { TaskText($0.text).due.map { $0 <= today } ?? false }.count
+    }
+
+    /// The list's sections, each under its heading; `nil` for a list that needs none.
+    var sections: [(title: String?, todos: [Todo])] {
+        let today = dueTodayCount
+        var sections: [(title: String?, todos: [Todo])] = [
+            ("For Claude", queued), ("Claude working", working)
+        ].filter { !$0.todos.isEmpty }
+        let hasHeadings = !sections.isEmpty || today > 0
+        if today > 0 {
+            sections += [("Today", Array(others.prefix(today))), ("Later", Array(others.dropFirst(today)))]
+        } else {
+            sections.append((hasHeadings ? "Todos" : nil, others))
+        }
+        if showsDone { sections.append((hasHeadings ? "Done" : nil, done)) }
+        return sections.filter { !$0.todos.isEmpty }
     }
 
     /// Nothing half-entered that the pointer leaving would throw away.
@@ -288,18 +327,16 @@ struct TodoPageView: View {
     }
 
     private var list: some View {
-        let todayCount = page.dueTodayCount
-        let openCount = page.open.count
-        return ScrollView {
+        ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                ForEach(Array(page.rows.enumerated()), id: \.element.id) { index, todo in
-                    if todayCount > 0, index == 0 || index == todayCount {
-                        heading(index == 0 ? "Today" : index < openCount ? "Later" : "Done")
-                    }
-                    if page.editing == todo {
-                        TodoEditor(page: page, todo: todo)
-                    } else {
-                        TodoRow(page: page, todo: todo)
+                ForEach(page.sections, id: \.todos.first?.id) { section in
+                    if let title = section.title { heading(title) }
+                    ForEach(section.todos) { todo in
+                        if page.editing == todo {
+                            TodoEditor(page: page, todo: todo)
+                        } else {
+                            TodoRow(page: page, todo: todo)
+                        }
                     }
                 }
             }
@@ -323,12 +360,29 @@ struct TodoPageView: View {
         .frame(height: min(page.listHeight, TodoPage.maxListHeight))
     }
 
-    private func heading(_ title: String) -> some View {
-        Text(title)
+    @ViewBuilder private func heading(_ title: String) -> some View {
+        let text = Text(title)
             .font(.caption2.weight(.semibold))
             .foregroundStyle(.tertiary)
             .padding(.horizontal, 14)
             .padding(.top, 8)
             .padding(.bottom, 2)
+        switch title {
+        case "For Claude": withMenu(text, .queue, help: "Right-click to send to Claude")
+        case "Claude working": withMenu(text, .working, help: "Right-click to resume Claude's sessions")
+        default: text
+        }
+    }
+
+    private func withMenu(_ heading: some View, _ kind: RowMenu.Kind, help: String) -> some View {
+        let menu = RowMenu(line: nil, kind: kind)
+        return heading
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .help(help)
+            .modifier(ClickAnchor(point: page.menuClick, isOpen: page.menu == menu))
+            .overlay(RightClick { point in
+                page.menuClick = point
+                page.menu = menu
+            })
     }
 }
