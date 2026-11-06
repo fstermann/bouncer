@@ -7,6 +7,8 @@ import Testing
     private func moved(_ text: String, _ selection: NSRange, by step: Int) -> (String, NSRange)? {
         guard let edit = LineMove.edit(moving: selection, by: step, in: text) else { return nil }
         let result = (text as NSString).replacingCharacters(in: edit.range, with: edit.replacement)
+        let fromSources = edit.sources.map { (text as NSString).substring(with: $0) }.joined()
+        #expect(fromSources == edit.replacement)
         return (result, edit.selection)
     }
 

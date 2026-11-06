@@ -102,6 +102,7 @@ public final class NoteController {
         page.tagColors = settings.preferences.tagColors
         page.tagOrder = settings.preferences.tagOrder
         page.now = Date()
+        page.images = ImageStore.current(in: settings)?.pastedImages
         reload()
         if let draft = page.editing, let note = page.notes.first(where: { $0.name == draft.saved.name }) {
             page.editing = NoteDraft(note)
@@ -223,7 +224,7 @@ public final class NoteController {
         page.editing = nil
         poppedOutFolders[draft.id] = folder
         let window = NoteWindow(
-            draft: draft, known: NoteSuggestions(page), clock: clock,
+            draft: draft, known: NoteSuggestions(page), clock: clock, images: page.images,
             onEdit: { [weak self] in self?.scheduleSave($0) },
             onDelete: { [weak self] in self?.deletePoppedOut(draft) }
         )

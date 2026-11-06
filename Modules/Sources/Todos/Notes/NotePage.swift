@@ -96,6 +96,8 @@ final class NotePage: TagFiltering {
 
     /// The presentation timer, which outlives the panel.
     @ObservationIgnored var clock: PresentationClock?
+    /// Where pasted images are saved and read back from; `nil` while the page is closed.
+    @ObservationIgnored var images: PastedImages?
     @ObservationIgnored var onCreate: (@MainActor (String) -> Void)?
     @ObservationIgnored var onOpen: (@MainActor (Note) -> Void)?
     /// Back to the list from the editor.

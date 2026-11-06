@@ -6,6 +6,7 @@ struct InputRow: View {
     @Bindable var page: TodoPage
     let isTyping: FocusState<Bool>.Binding
     @State private var arrowKeys = TypedArrowKeys()
+    @State private var imageKeys = PastedImageKeys()
 
     private var choosingDue: RowMenu { RowMenu(line: nil, kind: .due) }
 
@@ -37,8 +38,15 @@ struct InputRow: View {
             .textFieldStyle(.plain)
             .lineLimit(1...6)
             .focused(isTyping)
-            .onChange(of: isTyping.wrappedValue, initial: true) { arrowKeys.isActive = $1 }
-            .onDisappear { arrowKeys.isActive = false }
+            .onChange(of: isTyping.wrappedValue, initial: true) {
+                arrowKeys.isActive = $1
+                imageKeys.images = page.images
+                imageKeys.isActive = $1
+            }
+            .onDisappear {
+                arrowKeys.isActive = false
+                imageKeys.isActive = false
+            }
             .onSubmit(page.add)
             // Return adds the todo, or takes the highlighted tag; Shift-Return starts a new line, which
             // becomes its note.

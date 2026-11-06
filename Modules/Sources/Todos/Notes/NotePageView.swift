@@ -15,7 +15,8 @@ struct NotePageView: View {
                 NoteEditor(
                     draft: draft, known: NoteSuggestions(page), onEdit: { page.onEdit?($0) },
                     onBack: { page.onBack?() }, onPopOut: { page.onPopOut?() },
-                    onDelete: { page.onDelete?(draft.saved) }, clock: page.clock
+                    onDelete: { page.onDelete?(draft.saved) }, clock: page.clock,
+                    images: page.images
                 )
                 .id(draft.id)
             } else {

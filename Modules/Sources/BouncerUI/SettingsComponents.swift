@@ -226,6 +226,49 @@ struct NoteOptions: View {
     }
 }
 
+/// The folder images pasted into todos and notes are saved in.
+struct ImageOptions: View {
+    @Binding var preferences: Preferences
+
+    var body: some View {
+        Section("Pasted images", systemImage: "photo") {
+            LabeledContent("Folder") {
+                HStack(spacing: 8) {
+                    Text(folderName)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Button("Choose…", action: choose)
+                    if preferences.imagesFolder != nil {
+                        Button("Use Default") { preferences.imagesFolder = nil }
+                    }
+                }
+            }
+            Text("An image pasted with ⌘V into a todo or a note is saved in this folder and embedded as "
+                 + "![[Pasted image …]], the way Obsidian does. Hover its icon or thumbnail to see it. Without "
+                 + "a chosen folder, Bouncer uses assets next to the todo file.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var folderName: String {
+        guard let bookmark = preferences.imagesFolder else { return "assets" }
+        return TodoController.url(of: bookmark)?.lastPathComponent ?? "Not found"
+    }
+
+    private func choose() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.prompt = "Choose"
+        guard panel.runModal() == .OK, let url = panel.url, let bookmark = TodoController.bookmark(for: url)
+        else { return }
+        preferences.imagesFolder = bookmark
+    }
+}
+
 /// The folder the notch panel's Claude page asks Claude Code in.
 struct ClaudeOptions: View {
     @Binding var preferences: Preferences

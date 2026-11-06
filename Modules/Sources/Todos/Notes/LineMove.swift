@@ -7,6 +7,9 @@ enum LineMove {
         var range: NSRange
         var replacement: String
         var selection: NSRange
+        /// Where each part of `replacement` stands in the text now, in order, so a text view can move
+        /// the lines with what they hold, images included.
+        var sources: [NSRange]
     }
 
     /// The edit moving the selected lines one line up (`step` -1) or down (1); `nil` at the text's edge.
@@ -29,11 +32,16 @@ enum LineMove {
         let firstText = withoutNewline(text.substring(with: first))
         let secondText = withoutNewline(text.substring(with: second))
         let trailing = lines.hasSuffix("\n") ? "\n" : ""
+        let firstLine = NSRange(location: first.location, length: (firstText as NSString).length)
+        let secondLine = NSRange(location: second.location, length: (secondText as NSString).length)
+        let sources = [secondLine, NSRange(location: NSMaxRange(firstLine), length: 1), firstLine]
+            + (trailing.isEmpty ? [] : [NSRange(location: NSMaxRange(secondLine), length: 1)])
         let shift = (step < 0 ? -1 : 1) * ((step < 0 ? firstText : secondText).utf16.count + 1)
         return Edit(
             range: NSRange(location: first.location, length: (lines as NSString).length),
             replacement: secondText + "\n" + firstText + trailing,
-            selection: NSRange(location: selection.location + shift, length: selection.length)
+            selection: NSRange(location: selection.location + shift, length: selection.length),
+            sources: sources
         )
     }
 
@@ -72,9 +80,11 @@ enum LineMove {
 extension NSTextView {
     /// Moves the selected lines as one undoable change; `false` when there is no line to swap with.
     @discardableResult func moveSelectedLines(by step: Int) -> Bool {
-        guard let edit = LineMove.edit(moving: selectedRange(), by: step, in: string),
+        guard let storage = textStorage, let edit = LineMove.edit(moving: selectedRange(), by: step, in: string),
               shouldChangeText(in: edit.range, replacementString: edit.replacement) else { return false }
-        textStorage?.replaceCharacters(in: edit.range, with: edit.replacement)
+        let moved = NSMutableAttributedString()
+        edit.sources.forEach { moved.append(storage.attributedSubstring(from: $0)) }
+        storage.replaceCharacters(in: edit.range, with: moved)
         didChangeText()
         setSelectedRange(edit.selection)
         scrollRangeToVisible(edit.selection)

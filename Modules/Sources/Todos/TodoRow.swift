@@ -42,9 +42,10 @@ struct TodoRow: View {
                             .background(backdrop.padding(.vertical, -4))
                     }
                 }
-                if !todo.note.isEmpty {
+                let note = ImageEmbed.stripped(todo.note)
+                if !note.isEmpty {
                     // Its own tap, which wins over the row's, so reading a note does not edit it.
-                    Text(page.marked(todo.note))
+                    Text(page.marked(note))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(isRead || page.expanded.contains(todo.line) ? nil : 1)
@@ -71,7 +72,7 @@ struct TodoRow: View {
 
     private func titleLine(_ text: TaskText, isDeleting: Bool, showsTags: Bool) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text(page.marked(text.title))
+            Text(page.marked(ImageEmbed.stripped(text.title)))
                 .lineLimit(isRead ? nil : 3)
                 .truncationMode(.tail)
                 .strikethrough(todo.isDone || isDeleting)
@@ -80,6 +81,11 @@ struct TodoRow: View {
                 .onTapGesture {
                     edit(at: NSApp.currentEvent?.locationInWindow)
                 }
+            if let images = page.images {
+                ForEach(ImageEmbed.names(in: todo.text + "\n" + todo.note), id: \.self) { name in
+                    ImagePreview(name: name, images: images).font(.caption)
+                }
+            }
             if showsTags { tagChips(text) }
             Spacer(minLength: 0)
             if let due = text.due {

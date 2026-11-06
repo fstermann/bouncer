@@ -8,6 +8,7 @@ struct TodoEditor: View {
     let todo: Todo
     @FocusState private var isTyping: Bool
     @State private var arrowKeys = TypedArrowKeys()
+    @State private var imageKeys = PastedImageKeys()
     @State private var iconsWidth: CGFloat = 0
 
     private var choosingDue: RowMenu { RowMenu(line: todo.line, kind: .due) }
@@ -70,8 +71,15 @@ struct TodoEditor: View {
             .textFieldStyle(.plain)
             .lineLimit(1...6)
             .focused($isTyping)
-            .onChange(of: isTyping, initial: true) { arrowKeys.isActive = $1 }
-            .onDisappear { arrowKeys.isActive = false }
+            .onChange(of: isTyping, initial: true) {
+                arrowKeys.isActive = $1
+                imageKeys.images = page.images
+                imageKeys.isActive = $1
+            }
+            .onDisappear {
+                arrowKeys.isActive = false
+                imageKeys.isActive = false
+            }
             .onSubmit(page.saveEdit)
             .onKeyPress(.return, phases: .down) { press in
                 guard press.modifiers.contains(.shift) else { return .ignored }

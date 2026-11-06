@@ -10,7 +10,8 @@ final class NoteWindow: NSPanel {
     var onClose: (@MainActor (NoteWindow) -> Void)?
 
     init(
-        draft: NoteDraft, known: NoteSuggestions, clock: PresentationClock, onEdit: @escaping (NoteDraft) -> Void,
+        draft: NoteDraft, known: NoteSuggestions, clock: PresentationClock, images: PastedImages?,
+        onEdit: @escaping (NoteDraft) -> Void,
         onDelete: @escaping () -> Void
     ) {
         self.draft = draft
@@ -28,7 +29,8 @@ final class NoteWindow: NSPanel {
         backgroundColor = .black
         appearance = NSAppearance(named: .darkAqua)
         let editor = NoteEditor(
-            draft: draft, known: known, onEdit: onEdit, onDelete: onDelete, fillsHeight: true, clock: clock
+            draft: draft, known: known, onEdit: onEdit, onDelete: onDelete, fillsHeight: true, clock: clock,
+            images: images
         )
             .padding(.top, 28)
             // The hosting view sizes the window to its content's minimum, so the minimum goes here.

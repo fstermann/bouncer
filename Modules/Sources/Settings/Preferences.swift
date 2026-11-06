@@ -70,6 +70,9 @@ public struct Preferences: Codable, Hashable, Sendable {
     /// A bookmark to the folder meeting notes are kept in, one Markdown file each; `nil` for a local
     /// folder in Application Support.
     public var notesFolder: Data?
+    /// A bookmark to the folder images pasted into todos and notes are saved in; `nil` for `assets`
+    /// beside the todo file.
+    public var imagesFolder: Data?
     /// The folder Claude Code is asked in, which it reads for context; `nil` for the home folder.
     public var claudeFolder: String?
     /// The page the notch panel was last left on, which is the one hover opens next.
@@ -100,6 +103,7 @@ public struct Preferences: Codable, Hashable, Sendable {
         barAnimationDuration: TimeInterval = 0.18,
         todoFile: Data? = nil,
         notesFolder: Data? = nil,
+        imagesFolder: Data? = nil,
         claudeFolder: String? = nil,
         notchPage: NotchPage = .items,
         tagColors: [String: String] = [:],
@@ -122,6 +126,7 @@ public struct Preferences: Codable, Hashable, Sendable {
         self.barAnimationDuration = barAnimationDuration
         self.todoFile = todoFile
         self.notesFolder = notesFolder
+        self.imagesFolder = imagesFolder
         self.claudeFolder = claudeFolder
         self.notchPage = notchPage
         self.tagColors = tagColors
@@ -174,6 +179,7 @@ public struct Preferences: Codable, Hashable, Sendable {
         )
         todoFile = try container.decodeIfPresent(Data.self, forKey: .todoFile)
         notesFolder = try container.decodeIfPresent(Data.self, forKey: .notesFolder)
+        imagesFolder = try container.decodeIfPresent(Data.self, forKey: .imagesFolder)
         claudeFolder = try container.decodeIfPresent(String.self, forKey: .claudeFolder)
         notchPage = try container.decodeIfPresent(NotchPage.self, forKey: .notchPage) ?? .items
         tagColors = try container.decodeIfPresent([String: String].self, forKey: .tagColors) ?? [:]

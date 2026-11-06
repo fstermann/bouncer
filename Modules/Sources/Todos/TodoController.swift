@@ -118,6 +118,7 @@ public final class TodoController {
         page.sessions = settings.preferences.claudeSessions
         let home = FileManager.default.homeDirectoryForCurrentUser.path(percentEncoded: false)
         page.claudeFolder = ClaudeChat.trimmed(settings.preferences.claudeFolder ?? home)
+        page.images = ImageStore.current(in: settings)?.pastedImages
         reload()
         file.watch { [weak self] in self?.reload() }
         duration = settings.preferences.animateBar ? settings.preferences.barAnimationDuration : nil

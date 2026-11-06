@@ -35,10 +35,10 @@ struct NoteEditor: View {
     /// Fills its window rather than keeping the panel's height.
     var fillsHeight = false
     var clock: PresentationClock?
+    var images: PastedImages?
     @State private var isTypingMinutes = false
     @State private var minutes = ""
     @FocusState private var isMinutesFocused: Bool
-    @FocusState private var isWritingBody: Bool
     @FocusState private var isTypingLocation: Bool
     /// Empty properties shown since their adder was clicked.
     @State private var revealed: Set<Field> = []
@@ -59,29 +59,20 @@ struct NoteEditor: View {
             }
             .font(.callout)
             Divider().overlay(.white.opacity(0.1))
-            TextEditor(text: $draft.body)
-                .font(.system(size: 13))
-                .scrollContentBackground(.hidden)
-                .focused($isWritingBody)
-                .onChange(of: isWritingBody, initial: true) {
-                    lineMoveKeys.isActive = $1
-                    arrowKeys.isActive = $1
-                }
-                .onDisappear {
-                    lineMoveKeys.isActive = false
-                    arrowKeys.isActive = false
-                }
-                .frame(height: fillsHeight ? nil : NotePage.bodyHeight)
-                .frame(maxHeight: fillsHeight ? .infinity : nil)
-                .background(OverlayScrollers())
+            NoteBody(text: $draft.body, images: images, focusRequests: draft.bodyFocusRequests) { isWriting in
+                lineMoveKeys.isActive = isWriting
+                arrowKeys.isActive = isWriting
+            }
+            .onDisappear {
+                lineMoveKeys.isActive = false
+                arrowKeys.isActive = false
+            }
+            .frame(height: fillsHeight ? nil : NotePage.bodyHeight)
+            .frame(maxHeight: fillsHeight ? .infinity : nil)
         }
         .padding(.horizontal, 14)
         .padding(.bottom, 12)
         .onChange(of: draft.note) { onEdit(draft) }
-        .onChange(of: draft.bodyFocusRequests, initial: true) {
-            // A turn later, once the editor is in the window: focus set before then is lost.
-            if $1 > 0 { Task { isWritingBody = true } }
-        }
     }
 
     private var header: some View {

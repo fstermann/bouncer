@@ -24,9 +24,8 @@ final class TodoFile {
     /// The file in Bouncer's Application Support folder used while no file is picked, created
     /// empty on first use so there is a file to watch. Dev builds get their own, by bundle ID.
     static func local() -> TodoFile? {
-        let folder = URL.applicationSupportDirectory
-            .appending(path: Bundle.main.bundleIdentifier ?? "com.bouncer.app", directoryHint: .isDirectory)
-        let url = folder.appending(path: "Todos.md")
+        let url = localURL
+        let folder = url.deletingLastPathComponent()
         do {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             if !FileManager.default.fileExists(atPath: url.path) { try Data().write(to: url) }
@@ -35,6 +34,12 @@ final class TodoFile {
             return nil
         }
         return TodoFile(url: url)
+    }
+
+    static var localURL: URL {
+        URL.applicationSupportDirectory
+            .appending(path: Bundle.main.bundleIdentifier ?? "com.bouncer.app", directoryHint: .isDirectory)
+            .appending(path: "Todos.md")
     }
 
     static func bookmark(for url: URL) throws -> Data {

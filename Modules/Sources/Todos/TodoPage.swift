@@ -71,6 +71,8 @@ final class TodoPage: TagFiltering {
     /// Where the open menu was right-clicked open, in its row's or heading's coordinates.
     var menuClick: CGPoint = .zero
 
+    /// Where pasted images are saved and read back from; `nil` while the page is closed.
+    @ObservationIgnored var images: PastedImages?
     @ObservationIgnored var onToggle: (@MainActor (Todo) -> Void)?
     @ObservationIgnored var onAdd: (@MainActor (String) -> Void)?
     /// A todo, its new text and its new note.
