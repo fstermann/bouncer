@@ -43,6 +43,7 @@ struct NoteEditor: View {
     /// Empty properties shown since their adder was clicked.
     @State private var revealed: Set<Field> = []
     @State private var lineMoveKeys = LineMoveKeys()
+    @State private var arrowKeys = TypedArrowKeys()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -62,8 +63,14 @@ struct NoteEditor: View {
                 .font(.system(size: 13))
                 .scrollContentBackground(.hidden)
                 .focused($isWritingBody)
-                .onChange(of: isWritingBody, initial: true) { lineMoveKeys.isActive = $1 }
-                .onDisappear { lineMoveKeys.isActive = false }
+                .onChange(of: isWritingBody, initial: true) {
+                    lineMoveKeys.isActive = $1
+                    arrowKeys.isActive = $1
+                }
+                .onDisappear {
+                    lineMoveKeys.isActive = false
+                    arrowKeys.isActive = false
+                }
                 .frame(height: fillsHeight ? nil : NotePage.bodyHeight)
                 .frame(maxHeight: fillsHeight ? .infinity : nil)
                 .background(OverlayScrollers())

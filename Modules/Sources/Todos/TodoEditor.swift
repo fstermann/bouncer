@@ -7,6 +7,7 @@ struct TodoEditor: View {
     @Bindable var page: TodoPage
     let todo: Todo
     @FocusState private var isTyping: Bool
+    @State private var arrowKeys = TypedArrowKeys()
     @State private var iconsWidth: CGFloat = 0
 
     private var choosingDue: RowMenu { RowMenu(line: todo.line, kind: .due) }
@@ -69,6 +70,8 @@ struct TodoEditor: View {
             .textFieldStyle(.plain)
             .lineLimit(1...6)
             .focused($isTyping)
+            .onChange(of: isTyping, initial: true) { arrowKeys.isActive = $1 }
+            .onDisappear { arrowKeys.isActive = false }
             .onSubmit(page.saveEdit)
             .onKeyPress(.return, phases: .down) { press in
                 guard press.modifiers.contains(.shift) else { return .ignored }
