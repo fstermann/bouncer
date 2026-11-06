@@ -4,7 +4,7 @@ import SwiftUI
 /// When a meeting ran: its day, start and, once it has, end, and how long it ran. A click on the day
 /// opens a calendar under the row. The start and end edit like any macOS time, and while one does,
 /// the quarter hours near the start, or the usual lengths for the end, are offered under the row.
-/// The end stays on the start's day.
+/// The end stays on the start's day. Before there is one, a click on End offers the same lengths and now.
 struct NoteTimes: View {
     private enum Picking { case day, start, end }
 
@@ -24,10 +24,8 @@ struct NoteTimes: View {
                         Text(duration).foregroundStyle(.secondary)
                     }
                 } else {
-                    Button("End now") { end(NoteEditor.minute(of: Date())) }
-                        .buttonStyle(.plain)
+                    opener(.end, "End", help: "Note when the meeting ended")
                         .foregroundStyle(.secondary)
-                        .help("Note when the meeting ended")
                 }
                 Spacer(minLength: 0)
             }
