@@ -1,4 +1,5 @@
 import Foundation
+import Settings
 
 /// Todos tagged `#claude`, waiting to be sent to Claude Code in a repository, and those it was sent.
 enum ClaudeQueue {
@@ -31,6 +32,18 @@ enum ClaudeQueue {
             }
         }
         return groups
+    }
+
+    /// Where Claude Code keeps `session`'s transcript, which is never written if its terminal closed
+    /// before Claude started. Claude Code names a folder's directory by its path, every character
+    /// other than a letter or digit a dash.
+    static func transcript(of session: ClaudeSession, home: String) -> String {
+        let directory = String(session.folder.map { $0.isASCII && ($0.isLetter || $0.isNumber) ? $0 : "-" })
+        return "\(trimmed(home))/.claude/projects/\(directory)/\(session.id).jsonl"
+    }
+
+    private static func trimmed(_ path: String) -> String {
+        path.hasSuffix("/") ? String(path.dropLast()) : path
     }
 
     /// What a todo's session is kept by: its title, which stays as its tags, dates and box change.

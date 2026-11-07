@@ -26,9 +26,15 @@ extension TodoController {
         reload()
     }
 
+    /// Sends the session's todos again when Claude Code never saved it, as nothing could resume it.
     func resume(_ todo: Todo) {
-        guard let session = settings.preferences.claudeSessions[ClaudeQueue.key(of: todo)] else { return }
-        TerminalHandoff.open(session: session.id, in: session.folder)
+        let sessions = settings.preferences.claudeSessions
+        guard let session = sessions[ClaudeQueue.key(of: todo)] else { return }
+        let home = FileManager.default.homeDirectoryForCurrentUser.path(percentEncoded: false)
+        guard !FileManager.default.fileExists(atPath: ClaudeQueue.transcript(of: session, home: home)) else {
+            return TerminalHandoff.open(session: session.id, in: session.folder)
+        }
+        send(page.working.filter { sessions[ClaudeQueue.key(of: $0)] == session }, to: session.folder)
     }
 
     /// Ticks `todos` in one write, and forgets their sessions.

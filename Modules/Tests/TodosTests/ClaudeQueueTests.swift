@@ -5,6 +5,14 @@ import Testing
 @testable import Todos
 
 @Suite @MainActor struct ClaudeQueueTests {
+    @Test func findsTheTranscriptClaudeCodeKeepsForTheSessionsFolder() {
+        let session = ClaudeSession(id: "abc", folder: "/Users/me/projects/private-gateway/my_app.v2")
+        #expect(
+            ClaudeQueue.transcript(of: session, home: "/Users/me/")
+                == "/Users/me/.claude/projects/-Users-me-projects-private-gateway-my-app-v2/abc.jsonl"
+        )
+    }
+
     @Test func readsAndWritesTheInProgressBox() throws {
         let file = "- [/] Ship it\n- [x] Done ✅ 2026-11-01\n- [ ] Open"
         let todos = TodoList.parse(file)
