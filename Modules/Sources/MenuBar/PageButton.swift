@@ -3,7 +3,8 @@ import Settings
 
 /// The notch panel's page showing, as one icon just right of the notch, which lists every page that
 /// is on when clicked. Every page draws it in the same place, so it stays put while the pages change
-/// around it, and it is as wide for two pages as for ten.
+/// around it, and it is as wide for two pages as for ten. The icon stands bare, as the menu bar's do,
+/// and a rounded square lights behind it only while the pointer is over it.
 @MainActor
 public final class PageButton: NSView {
     /// The pages that are on. Fewer than two hides the button.
@@ -23,8 +24,7 @@ public final class PageButton: NSView {
         super.init(frame: CGRect(x: 0, y: 0, width: Self.size, height: Self.size))
         isHidden = true
         wantsLayer = true
-        layer?.cornerRadius = Self.size / 2
-        layer?.backgroundColor = NSColor.white.withAlphaComponent(0.16).cgColor
+        layer?.cornerRadius = 5
         icon.frame = bounds
         icon.symbolConfiguration = .init(pointSize: 11, weight: .regular)
         icon.contentTintColor = .white.withAlphaComponent(0.9)
@@ -35,12 +35,31 @@ public final class PageButton: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
+    override public func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(NSTrackingArea(
+            rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self
+        ))
+    }
+
+    override public func mouseEntered(with event: NSEvent) { isHighlighted = true }
+    override public func mouseExited(with event: NSEvent) { isHighlighted = false }
+
+    private var isHighlighted = false {
+        didSet { layer?.backgroundColor = isHighlighted ? NSColor.white.withAlphaComponent(0.16).cgColor : nil }
+    }
+
     /// Puts the button's left edge at `origin`, centred on `midY`.
     public func place(atX origin: CGFloat, midY: CGFloat) {
         frame = CGRect(x: origin, y: (midY - Self.size / 2).rounded(), width: Self.size, height: Self.size)
     }
 
-    override public func mouseDown(with event: NSEvent) { showPages() }
+    override public func mouseDown(with event: NSEvent) {
+        showPages()
+        // The menu tracks the pointer away without an exit reaching the button.
+        isHighlighted = false
+    }
 
     /// Lists the pages under the button, the one showing ticked.
     public func showPages() {
