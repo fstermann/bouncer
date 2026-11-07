@@ -160,6 +160,38 @@ final class NoteTextView: NSTextView {
         return resigned
     }
 
+    // MARK: Typing lists
+
+    override func insertNewline(_ sender: Any?) {
+        guard let edit = ListTyping.newline(at: selectedRange(), in: string) else { return super.insertNewline(sender) }
+        apply(edit)
+    }
+
+    override func insertTab(_ sender: Any?) {
+        guard let edit = ListTyping.indenting(at: selectedRange(), in: string, deeper: true) else {
+            return super.insertTab(sender)
+        }
+        apply(edit)
+    }
+
+    override func insertBacktab(_ sender: Any?) {
+        guard let edit = ListTyping.indenting(at: selectedRange(), in: string, deeper: false) else {
+            return super.insertBacktab(sender)
+        }
+        apply(edit)
+    }
+
+    /// As one undoable change.
+    private func apply(_ edit: ListTyping.Edit) {
+        guard let storage = textStorage, shouldChangeText(in: edit.range, replacementString: edit.replacement)
+        else { return }
+        let replacement = NSAttributedString(string: edit.replacement, attributes: Self.attributes)
+        storage.replaceCharacters(in: edit.range, with: replacement)
+        didChangeText()
+        setSelectedRange(NSRange(location: edit.caret, length: 0))
+        scrollRangeToVisible(selectedRange())
+    }
+
     // MARK: Pasting and copying images
 
     override func paste(_ sender: Any?) {
