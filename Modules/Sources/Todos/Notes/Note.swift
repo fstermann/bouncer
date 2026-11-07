@@ -180,15 +180,27 @@ enum NoteTime {
         )
     }
 
-    /// Also reads seconds, a space for the `T`, and a day alone.
+    /// Also reads seconds, a space for the `T`, and a day alone. Read by hand: a `Regex` here made
+    /// reading a full notes folder slow.
     static func date(from string: String, calendar: Calendar) -> Date? {
-        guard let match = string.wholeMatch(of: /(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/)
+        let chars = Array(string.utf8)
+        guard [10, 16, 19].contains(chars.count) else { return nil }
+        let number = { (start: Int, length: Int) -> Int? in
+            let digits = chars[start..<(start + length)]
+            guard digits.allSatisfy({ $0 >= 48 && $0 <= 57 }) else { return nil }
+            return digits.reduce(0) { $0 * 10 + Int($1 - 48) }
+        }
+        let isAt = { (index: Int, char: Character) in index >= chars.count || chars[index] == char.asciiValue }
+        guard isAt(4, "-"), isAt(7, "-"), chars.count == 10 || chars[10] == 84 || chars[10] == 32,
+              isAt(13, ":"), isAt(16, ":"),
+              let year = number(0, 4), let month = number(5, 2), let day = number(8, 2)
         else { return nil }
-        let (_, year, month, day, hour, minute, second) = match.output
+        let hour = chars.count > 10 ? number(11, 2) : 0
+        let minute = chars.count > 10 ? number(14, 2) : 0
+        let second = chars.count > 16 ? number(17, 2) : 0
+        guard let hour, let minute, let second else { return nil }
         return calendar.date(from: DateComponents(
-            year: Int(year), month: Int(month), day: Int(day),
-            hour: hour.flatMap { Int($0) } ?? 0, minute: minute.flatMap { Int($0) } ?? 0,
-            second: second.flatMap { Int($0) } ?? 0
+            year: year, month: month, day: day, hour: hour, minute: minute, second: second
         ))
     }
 

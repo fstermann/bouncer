@@ -235,4 +235,18 @@ import Testing
         let moved = NoteTime.moving(start, to: day, calendar: calendar)
         #expect(NoteTime.string(for: moved, calendar: calendar) == "2026-10-28T14:06")
     }
+
+    @Test func readsADayWithOrWithoutATimeAndSeconds() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC") ?? .current
+        let read = { (text: String) in NoteTime.date(from: text, calendar: calendar).map {
+            NoteTime.string(for: $0, calendar: calendar) + ":" + String(calendar.component(.second, from: $0))
+        } }
+        #expect(read("2026-10-30T14:06") == "2026-10-30T14:06:0")
+        #expect(read("2026-10-30 14:06:09") == "2026-10-30T14:06:9")
+        #expect(read("2026-10-30") == "2026-10-30T00:00:0")
+        for wrong in ["2026-10-3", "2026-10-30T14", "2026-10-30T14:06:0", "2026-10-30X14:06", "x2026-10-30", ""] {
+            #expect(read(wrong) == nil, "\(wrong)")
+        }
+    }
 }
