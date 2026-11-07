@@ -28,6 +28,16 @@ struct Note: Hashable, Identifiable {
 
     /// When it took place, for ordering and grouping.
     var day: Date? { start ?? modified }
+
+    /// Tagged `archived`, which keeps it out of the list until that tag is picked.
+    var isArchived: Bool { tags.contains(Self.archivedTag) }
+
+    static let archivedTag = "archived"
+
+    /// Archived, or back out of the archive.
+    mutating func toggleArchived() {
+        if isArchived { tags.removeAll { $0 == Self.archivedTag } } else { tags.append(Self.archivedTag) }
+    }
 }
 
 extension Note {

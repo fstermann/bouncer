@@ -350,6 +350,9 @@ properties Bouncer does not know survive; one of its own is added only once it h
 file is saved a moment after each change, and renamed to follow its title and start, and moved into
 its project's folder, only once the note is left, not on every letter.
 
+Archiving a note tags it `archived` and leaves the file where it is. An archived note is left out of
+the list, and counts only towards the `archived` chip, until that chip is picked.
+
 The folder is read whole when the page opens, the notes' text included, since the search covers it,
 and its own entries are watched while the page is open; a file another app adds in a project's
 folder shows on the next open. A note open in the editor stays open across

@@ -108,6 +108,7 @@ final class NotePage: TagFiltering {
     @ObservationIgnored var onBack: (@MainActor () -> Void)?
     @ObservationIgnored var onEdit: (@MainActor (NoteDraft) -> Void)?
     @ObservationIgnored var onDelete: (@MainActor (Note) -> Void)?
+    @ObservationIgnored var onArchive: (@MainActor (Note) -> Void)?
     @ObservationIgnored var onPopOut: (@MainActor () -> Void)?
     @ObservationIgnored var onColor: (@MainActor (String, String?) -> Void)?
     @ObservationIgnored var onOrder: (@MainActor ([String]) -> Void)?
@@ -115,11 +116,18 @@ final class NotePage: TagFiltering {
     var onAddCategory: (@MainActor (String) -> Void)? { nil }
     var onRemoveCategory: (@MainActor (String) -> Void)? { nil }
 
-    var listedTags: [[String]] { notes.map(\.tags) }
+    /// An archived note counts only towards its `archived` chip, until that chip is picked.
+    var listedTags: [[String]] { notes.map { isListed($0) ? $0.tags : [Note.archivedTag] } }
 
     /// The notes the filters and the search leave, under headings by when they took place.
     var groups: [NoteGroups.Group] {
-        NoteGroups.grouped(notes.filter { isShown(carrying: $0.tags) && (!hasQuery || $0.mentions(query)) }, now: now)
+        NoteGroups.grouped(
+            notes.filter { isListed($0) && isShown(carrying: $0.tags) && (!hasQuery || $0.mentions(query)) }, now: now
+        )
+    }
+
+    private func isListed(_ note: Note) -> Bool {
+        !note.isArchived || filters.contains(Note.archivedTag)
     }
 
     var people: [String] { ListCompletion.known(in: notes.map(\.attendees)) }

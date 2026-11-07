@@ -60,6 +60,7 @@ public final class NoteController {
         page.onBack = { [weak self] in self?.back() }
         page.onEdit = { [weak self] draft in self?.scheduleSave(draft) }
         page.onDelete = { [weak self] note in self?.delete(note) }
+        page.onArchive = { [weak self] note in self?.toggleArchived(note) }
         page.onPopOut = { [weak self] in self?.popOut() }
         page.onResize = { [weak self] in self.map { $0.panel.fit($0.page) } }
         page.onColor = { [weak self] tag, color in self?.settings.preferences.tagColors[tag] = color }
@@ -245,6 +246,15 @@ public final class NoteController {
             page.focusRequests += 1
         }
         folder?.trash(note.name)
+        reload()
+        onChange?()
+    }
+
+    private func toggleArchived(_ note: Note) {
+        guard let folder else { return }
+        var note = note
+        note.toggleArchived()
+        folder.write(note.markdown(over: folder.read(note.name) ?? ""), to: note.name)
         reload()
         onChange?()
     }

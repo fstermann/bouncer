@@ -138,11 +138,17 @@ struct NoteRow: View {
                     ForEach(note.tags, id: \.self) { Chip(tag: $0, color: page.color(of: $0)).fixedSize() }
                     Spacer(minLength: 0)
                     if isHovered {
-                        Button { page.onDelete?(note) } label: { Image(systemName: "trash") }
-                            .buttonStyle(.plain)
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                            .help("Move to Trash")
+                        Group {
+                            Button { page.onArchive?(note) } label: {
+                                Image(systemName: note.isArchived ? "archivebox.fill" : "archivebox")
+                            }
+                            .help(note.isArchived ? "Take out of the archive" : "Archive, tagging it archived")
+                            Button { page.onDelete?(note) } label: { Image(systemName: "trash") }
+                                .help("Move to Trash")
+                        }
+                        .buttonStyle(.plain)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
                     } else {
                         Text(time)
                             .font(.caption)

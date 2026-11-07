@@ -249,4 +249,18 @@ import Testing
             #expect(read(wrong) == nil, "\(wrong)")
         }
     }
+
+    @Test @MainActor func anArchivedNoteShowsOnlyUnderItsTag() {
+        var archived = Note(name: "Old.md", title: "Old", tags: ["work"])
+        archived.toggleArchived()
+        let page = NotePage()
+        page.notes = [Note(name: "New.md", title: "New", tags: ["work"]), archived]
+        #expect(page.groups.flatMap(\.notes).map(\.title) == ["New"])
+        #expect(page.count(of: "work") == 1)
+        #expect(page.tags.contains(Note.archivedTag))
+        page.filters = [Note.archivedTag]
+        #expect(page.groups.flatMap(\.notes).map(\.title) == ["Old"])
+        archived.toggleArchived()
+        #expect(archived.tags == ["work"])
+    }
 }
