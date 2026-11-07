@@ -1,4 +1,5 @@
 import AppKit
+import Screenshots
 import Settings
 import SwiftUI
 
@@ -86,6 +87,10 @@ public final class ClaudeController {
         self.closesOnLeave = closesOnLeave
         page.chats = ClaudeChats.all()
         showFolders()
+        page.onScreenshot = nil
+        if settings.preferences.enableScreenshots {
+            page.onScreenshot = { [weak self] area in await self?.screenshot(area) }
+        }
         duration = settings.preferences.animateBar ? settings.preferences.barAnimationDuration : nil
         await panel.open(page, on: screen, over: duration, from: start, onceCovered: onceCovered)
     }
@@ -148,9 +153,11 @@ public final class ClaudeController {
         page.exchanges.append(ClaudeExchange(id: index, question: question))
         let run = ClaudeRun()
         self.run = run
+        let extraFolders = screenshotFolders(in: question)
         Task { [weak self] in
             let outcome = await run.ask(
-                question, in: chat.folder, resuming: resuming, naming: resuming == nil ? chat.sessionName : nil
+                question, in: chat.folder, reading: extraFolders, resuming: resuming,
+                naming: resuming == nil ? chat.sessionName : nil
             ) { event in
                 self?.take(event, into: index)
             }
@@ -239,6 +246,21 @@ public final class ClaudeController {
         guard let chat, !chat.id.isEmpty, !page.isAnswering else { return }
         TerminalHandoff.open(session: chat.id, in: chat.folder)
         Task { await close() }
+    }
+
+    /// Taken with the panel out of the picture, and saved where pasted images are.
+    private func screenshot(_ area: ScreenshotArea) async -> String? {
+        let screen = panel.screen
+        let png = await panel.hidden { await Screenshot.take(area, of: screen) }
+        return png.flatMap { ImageStore.current(in: settings)?.saveFile($0)?.path(percentEncoded: false) }
+    }
+
+    /// The images folder, when the question names a file in it, so Claude may read it from outside its folder.
+    private func screenshotFolders(in question: String) -> [String] {
+        guard let folder = ImageStore.current(in: settings)?.folder.path(percentEncoded: false),
+              question.contains(folder)
+        else { return [] }
+        return [folder]
     }
 
     /// Why Claude did not answer, in the shell's words; a missing `claude` is the likely cause.

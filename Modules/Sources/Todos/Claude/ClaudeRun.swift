@@ -9,19 +9,22 @@ final class ClaudeRun {
     private let process = Process()
 
     /// Runs until Claude has answered or `stop` is called, reporting what it says as it says it.
+    /// `extraFolders` are ones outside `folder` it may read, such as a screenshot's.
     ///
     /// - Returns: the shell's exit status, and the last of what it printed as errors, which says why
     ///   when Claude could not be started.
     func ask(
-        _ question: String, in folder: String, resuming session: String?, naming name: String?,
-        onEvent: (ClaudeEvent) -> Void
+        _ question: String, in folder: String, reading extraFolders: [String] = [], resuming session: String?,
+        naming name: String?, onEvent: (ClaudeEvent) -> Void
     ) async -> (status: Int32, errors: String) {
         let output = Pipe()
         let errors = Pipe()
         process.executableURL = URL(filePath: Self.shell)
+        let readable: [String] = extraFolders.flatMap { ["--add-dir", $0] }
         process.arguments = ["-lic", #"cd "$1" && shift && claude "$@""#, "claude", folder]
             + ["-p", "--output-format", "stream-json", "--include-partial-messages", "--verbose"]
-            + (session.map { ["--resume", $0] } ?? []) + (name.map { ["--name", $0] } ?? []) + ["--", question]
+            + (session.map { ["--resume", $0] } ?? []) + (name.map { ["--name", $0] } ?? [])
+            + readable + ["--", question]
         #if DEV
         // Launched from a Claude Code shell, Dev inherits its marker, and Claude would then not save the session.
         process.environment = ProcessInfo.processInfo.environment.filter { $0.key != "CLAUDE_CODE_CHILD_SESSION" }

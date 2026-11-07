@@ -24,4 +24,10 @@ import Testing
         #expect(script.contains(#"exec '/bin/zsh' -lic 'cd "$1" && claude --resume "$2"' claude"#))
         #expect(script.contains(#"'/Users/me/Bob'\''s notes' 'abc-123'"#))
     }
+
+    @Test func aScreenshotsPathGoesOnALineOfItsOwn() {
+        #expect(ClaudePage.draft("", adding: "/a.png") == "/a.png\n")
+        #expect(ClaudePage.draft("What is this?", adding: "/a.png") == "What is this?\n/a.png\n")
+        #expect(ClaudePage.draft("Look\n", adding: "/a.png") == "Look\n/a.png\n")
+    }
 }

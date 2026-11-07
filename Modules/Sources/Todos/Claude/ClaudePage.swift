@@ -45,6 +45,9 @@ final class ClaudePage {
     /// Picks a folder the menu does not offer, in an Open dialog.
     @ObservationIgnored var onChooseFolder: (@MainActor () -> Void)?
     @ObservationIgnored var onResize: (@MainActor () -> Void)?
+    /// Takes a screenshot and returns the saved file's path; `nil` while screenshots are off.
+    @ObservationIgnored var onScreenshot: TakeScreenshot?
+    var isTakingScreenshot = false
 
     var isInChat: Bool { !exchanges.isEmpty }
 
@@ -194,6 +197,7 @@ struct ClaudePageView: View {
                     page.draft += "\n"
                     return .handled
                 }
+            if page.onScreenshot != nil { screenshotButtons }
             if page.isAnswering {
                 Button { page.onStop?() } label: { Image(systemName: "stop.circle") }
                     .buttonStyle(.plain)

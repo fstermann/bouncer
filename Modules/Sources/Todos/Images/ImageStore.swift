@@ -31,12 +31,17 @@ struct ImageStore {
 
     /// Saves `png` under a new name and returns the embed for it.
     func save(_ png: Data) -> String? {
+        saveFile(png).map { ImageEmbed.embed($0.lastPathComponent) }
+    }
+
+    /// Saves `png` under a new name and returns where.
+    func saveFile(_ png: Data) -> URL? {
         access {
             do {
                 try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-                let name = freeName(ImageEmbed.name(at: Date()))
-                try png.write(to: folder.appending(path: name))
-                return ImageEmbed.embed(name)
+                let file = folder.appending(path: freeName(ImageEmbed.name(at: Date())))
+                try png.write(to: file)
+                return file
             } catch {
                 Log.todos.error("Saving a pasted image failed: \(error, privacy: .public)")
                 return nil

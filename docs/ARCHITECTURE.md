@@ -370,7 +370,9 @@ or of a region or window the user picks, at the cursor, saved as a pasted image 
 `screencapture` takes them, the one taking a region with its own picker, while the panel or the
 note's window is off screen; neither losing key nor the pointer leaving closes the panel meanwhile.
 Run by Bouncer, `screencapture` sees only the wallpaper without Screen Recording, so turning the
-buttons on asks for it, and every call goes through the `Screenshots` module.
+buttons on asks for it, and every call goes through the `Screenshots` module. The same buttons on
+the Claude page put the saved file's path in the question, and the images folder is passed to
+`claude` with `--add-dir` so it may read the file from outside the chat's folder.
 
 ⌘⇧N is a system-wide
 hot key like ⌘⇧B, so while notes are on it no longer reaches other apps, Finder's new folder and the
@@ -443,7 +445,7 @@ Todos   The todo, notes and Claude pages: Markdown task lines, meeting notes, th
 ```
 
 `StandaloneBar` is a module of its own because it asks for permissions; `Screenshots`, which
-`Todos` uses for a note's screenshot buttons, is one for the same reason. Keeping it off to the side means the permission surface is a directory, not a
+`Todos` uses for the screenshot buttons, is one for the same reason. Keeping it off to the side means the permission surface is a directory, not a
 grep. `BouncerUI` depends on it so the settings pane can show and trigger those permissions
 through `StandaloneBarPermissions` — the single entry point every Screen Recording and
 Accessibility call goes through — but the calls themselves stay in this directory. `Updates`

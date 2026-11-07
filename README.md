@@ -26,8 +26,8 @@ The core hide/show mechanism is a single `NSStatusItem` width assignment: no scr
 capture, no per-item bookkeeping, no private API, and no Accessibility or Screen Recording
 permission. The standalone bar is the one exception and is off by default: switching it on
 asks for both, uses them for nothing else, and everything it installs goes away again when
-the bar closes. A meeting note's screenshot buttons, also off by default, ask for Screen
-Recording and use it for nothing else.
+the bar closes. The screenshot buttons in meeting notes and on the Claude page, also off by
+default, ask for Screen Recording and use it for nothing else.
 
 **Minimalism.** The interface is as small as the job allows. No dock icon, no window you
 have to keep around, no chrome on the menu bar beyond one mark and the dividers doing the

@@ -51,6 +51,9 @@ struct SettingsForm: View {
                 ImageOptions(preferences: $settings.preferences)
             }
             if settings.preferences.enableClaude { ClaudeOptions(preferences: $settings.preferences) }
+            if settings.preferences.enableNotes || settings.preferences.enableClaude {
+                ScreenshotOptions(preferences: $settings.preferences)
+            }
             updatesSection
         }
         .formStyle(.grouped)
