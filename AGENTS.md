@@ -64,10 +64,11 @@ a brightness threshold is an icon's edge. Pixels are half points on the built-in
 
 `key`, `type` and `tap` move the user's pointer and type into their apps: ask before using them.
 
-The user works on this Mac while you test. Before the first command that touches the screen
-(`make ctl`, `make run`, quitting or relaunching Bouncer Dev) in a turn, confirm with the
-AskUserQuestion tool. Ask once per turn: that yes covers every screen check until the user writes
-again. Builds, `make test` and `make lint` need no confirmation.
+Once a change builds, run `make run` without asking, so the user can try the new Bouncer Dev
+straight away. The user works on this Mac while you test, so screen checks are theirs to start:
+before the first `make ctl` in a turn, confirm with the AskUserQuestion tool. Ask once per turn:
+that yes covers every screen check until the user writes again. Builds, `make run`, `make test`
+and `make lint` need no confirmation.
 
 ## Rules
 
