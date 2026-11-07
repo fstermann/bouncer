@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.8.0](https://github.com/fstermann/bouncer/compare/v0.7.0...v0.8.0) (2026-11-07)
+
+
+### Features
+
+* chat with Claude Code from the notch with Command-Shift-C ([#41](https://github.com/fstermann/bouncer/issues/41)) ([cc03073](https://github.com/fstermann/bouncer/commit/cc030735ebd46d8bbb21cb5f60dffc794860f013))
+* continue and nest Markdown lists while writing a note ([687e890](https://github.com/fstermann/bouncer/commit/687e890bf46701f3c049cb45f0578dc6403fb76a))
+* dated todos, a presentation timer and tag colours in the todo file ([#40](https://github.com/fstermann/bouncer/issues/40)) ([1a6effd](https://github.com/fstermann/bouncer/commit/1a6effda32150c26480e9b377f45cc56f73f1981))
+* draw the page button as a bare icon, lit on hover ([59159d3](https://github.com/fstermann/bouncer/commit/59159d33fe4ac0c1a438f4e5fbb26f0d0ccca1cf))
+* give todos a time, and remind of timed todos, meetings and Claude's answers ([e0f4481](https://github.com/fstermann/bouncer/commit/e0f4481913257bbf76eca6436c2bae9137488884))
+* paste images into todos and notes, and see them on hover ([38a6258](https://github.com/fstermann/bouncer/commit/38a62580817315caf6157ae34a80e32421e4c62c))
+* right-click todos, mark them in progress and send them to Claude Code ([c22ce55](https://github.com/fstermann/bouncer/commit/c22ce55da45c97b7c003c235b039fae57788d0f6))
+* take meeting notes from the notch with Command-Shift-N ([#37](https://github.com/fstermann/bouncer/issues/37)) ([f294217](https://github.com/fstermann/bouncer/commit/f294217f9d419140282a0b36ae2211241c78c2e6))
+* type -&gt; or --&gt; for an arrow in todos and notes ([27734b8](https://github.com/fstermann/bouncer/commit/27734b8a2e294f31dacc269e37d618f8de9d4742))
+
+
+### Bug Fixes
+
+* pick a note's end from the usual lengths before one is set ([761cbb4](https://github.com/fstermann/bouncer/commit/761cbb46c5f3d6067b721be8937bae914e8c251b))
+
+
+### Documentation
+
+* run make run without asking, ask only before make ctl ([a8feb83](https://github.com/fstermann/bouncer/commit/a8feb837cf442679a636aeab4850e7d4b5c43206))
+
 ## [0.7.0](https://github.com/fstermann/bouncer/compare/v0.6.0...v0.7.0) (2026-10-31)
 
 
