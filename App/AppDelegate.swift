@@ -10,7 +10,7 @@ import Updates
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private let settings = SettingsStore()
+    let settings = SettingsStore()
     private lazy var menuBar = MenuBarManager(
         settings: settings,
         iconImage: Self.templateImage(named: "MenuBarIcon"),
@@ -21,8 +21,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var reveal = RevealController(manager: menuBar, settings: settings)
     private lazy var standaloneBar = StandaloneBarController(menuBar: menuBar, settings: settings)
     private lazy var todos = TodoController(settings: settings)
-    private lazy var notes = NoteController(settings: settings)
-    private lazy var claude = ClaudeController(settings: settings)
+    lazy var notes = NoteController(settings: settings)
+    lazy var claude = ClaudeController(settings: settings)
+    lazy var reminders = ReminderController(settings: settings)
+    var reminderSources: ObservationLoop?
     /// Every page but the items page, in the order the page button lists them.
     private lazy var contentPages: [(page: NotchPage, controller: any NotchPageController)] = [
         (.todos, todos), (.notes, notes), (.claude, claude)
@@ -54,6 +56,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         pageSwitches = ObservationLoop { [weak self] in self?.wirePageSwitches() }
         pageKeys.onStep = { [weak self] in self?.stepPage(by: $0) }
         pageKeysArming = ObservationLoop { [weak self] in self?.armPageKeys() }
+        wireReminders()
         if settings.isFirstLaunch { showWelcome() }
         #if DEV
         harness = DevHarness(controller: standaloneBar, menuBar: menuBar)
@@ -199,7 +202,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// items page do the moving: one grows out of the panel open and takes it away once covering it,
     /// or, going to the items page, has it built underneath itself and shrinks into its shape before
     /// it shows.
-    private func switchPage(to page: NotchPage) {
+    func switchPage(to page: NotchPage) {
         guard !isSwitching else { return }
         isSwitching = true
         settings.preferences.notchPage = page
@@ -237,7 +240,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// The page showing in the notch panel, or on its way.
-    private var openPage: NotchPage? {
+    var openPage: NotchPage? {
         openContentPage ?? (standaloneBar.isShowing ? .items : nil)
     }
 
@@ -263,7 +266,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Opened from the keyboard or the icon, with the pointer anywhere, so leaving does not close it.
-    private func toggle(_ page: NotchPage) {
+    func toggle(_ page: NotchPage) {
         guard let controller = controller(of: page) else { return }
         Task {
             if controller.isOpen {

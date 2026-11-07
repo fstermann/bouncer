@@ -384,6 +384,18 @@ count on them. Sessions are named `Bouncer · <first question>` so `claude --res
 Terminal takes a chat over through a `.command` file handed to Terminal.app by name, which needs no
 Automation permission; turns added there stay in Claude Code's transcript only.
 
+### Reminders
+
+A todo given a time, `⏰ 14:00` after its `📅` day, a meeting note whose start lies ahead, and an
+answer from Claude arriving while its page is closed come up as a black tab grown out of the
+notch's right side, the presentation timer's mirror (`ReminderController`). A click opens the page,
+a meeting's reminder its note; the cross dismisses it for the session. A todo shows from its time
+until ticked, up to a day late; a meeting from 5 minutes before its start to 5 minutes after, and
+only if its file was made before that, so a note started as a meeting begins is no plan. They are
+not system notifications, which would ask for a permission. Nothing polls: while todos or notes are
+on, the todo file and the notes folder are watched, and between changes there is one wait, for the
+next reminder to start or stop showing.
+
 The pages other than the items page share `NotchPageController`, so the app opens, closes and
 switches between them alike.
 

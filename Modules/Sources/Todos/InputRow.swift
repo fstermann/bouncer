@@ -24,7 +24,7 @@ struct InputRow: View {
                 }
             }
             MenuButton(page: page, menu: choosingDue, help: "Set a due date") {
-                DueLabel(due: page.draftDue, isChoosing: page.menu == choosingDue)
+                DueLabel(due: page.draftDue, time: page.draftTime, isChoosing: page.menu == choosingDue)
             }
         }
         .padding(.horizontal, 14)

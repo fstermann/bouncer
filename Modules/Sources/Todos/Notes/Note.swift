@@ -21,6 +21,8 @@ struct Note: Hashable, Identifiable {
     var body: String = ""
     /// When the file last changed, which places a note without a start.
     var modified: Date?
+    /// When the file was made, which tells a meeting planned ahead from one noted as it began.
+    var created: Date?
 
     var id: String { name }
 
@@ -41,7 +43,9 @@ extension Note {
     /// The sections a new note starts with.
     static let template = "## Agenda\n\n\n## Notes\n\n\n## Action items\n\n"
 
-    init(name: String, markdown: String, modified: Date? = nil, calendar: Calendar = .current) {
+    init(
+        name: String, markdown: String, modified: Date? = nil, created: Date? = nil, calendar: Calendar = .current
+    ) {
         let (frontmatter, body) = Frontmatter.split(markdown)
         self.name = name
         title = NoteName.title(of: name)
@@ -57,6 +61,7 @@ extension Note {
             .filter { !$0.isEmpty }
         self.body = body
         self.modified = modified
+        self.created = created
     }
 
     /// The file `existing` with this note's properties and text in it. Properties Bouncer does not

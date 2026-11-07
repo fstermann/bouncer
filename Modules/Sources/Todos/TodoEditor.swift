@@ -52,7 +52,7 @@ struct TodoEditor: View {
                 }
             }
             MenuButton(page: page, menu: choosingDue, help: "Set a due date") {
-                DueLabel(due: page.editDue, isChoosing: page.menu == choosingDue)
+                DueLabel(due: page.editDue, time: page.editTime, isChoosing: page.menu == choosingDue)
             }
             Button {
                 page.editing = nil
@@ -110,38 +110,45 @@ struct TodoEditor: View {
 /// The calendar a due date is set from, with the day once one is.
 struct DueLabel: View {
     let due: String?
+    var time: String?
     let isChoosing: Bool
 
     var body: some View {
         HStack(spacing: 4) {
             Image(systemName: "calendar")
-            if let due { Text(TaskDay.label(for: due, today: Date()).text) }
+            if let due { Text(TaskDay.label(for: due, time: time, today: Date()).text) }
         }
         .font(.callout)
         .foregroundStyle(due == nil && !isChoosing ? .secondary : .primary)
     }
 }
 
-/// When a todo is due. Clicking the chosen day again clears it.
+/// When a todo is due, and at what time once it has a day. Clicking the chosen day again clears it.
 struct DueChoices: View {
     let due: String?
+    var time: String?
     /// Sets the day, and closes the choices when `closes`.
     let choose: (String?, _ closes: Bool) -> Void
+    /// Sets the time of day, `nil` for none.
+    var chooseTime: (String?) -> Void = { _ in }
     /// The day typed after `//`, offered ahead of the quick choices.
     var typed: String?
     /// The day Return takes, after `//`.
     var highlighted: String?
     /// Open from the start for a day picked from it before, so it can be changed.
     @State private var isPickingDate: Bool
+    @State private var isEditingTime = false
 
     init(
-        due: String?, typed: String? = nil, highlighted: String? = nil,
-        choose: @escaping (String?, _ closes: Bool) -> Void
+        due: String?, time: String? = nil, typed: String? = nil, highlighted: String? = nil,
+        choose: @escaping (String?, _ closes: Bool) -> Void, chooseTime: @escaping (String?) -> Void = { _ in }
     ) {
         self.due = due
+        self.time = time
         self.typed = typed
         self.highlighted = highlighted
         self.choose = choose
+        self.chooseTime = chooseTime
         _isPickingDate = State(initialValue: Self.pickedLabel(of: due) != nil)
     }
 
@@ -169,10 +176,36 @@ struct DueChoices: View {
                 .fixedSize()
                 .frame(maxWidth: .infinity)
         }
-        if due != nil {
+        if let due {
+            timeRow(on: due)
             Button { choose(nil, true) } label: { Chip(text: "No date") }
                 .buttonStyle(.plain)
         }
+    }
+
+    /// The time it is due at, which a reminder shows at: the next full hour once one is asked for.
+    @ViewBuilder private func timeRow(on due: String) -> some View {
+        if let time {
+            HStack(spacing: 6) {
+                Image(systemName: "bell").font(.caption).foregroundStyle(.secondary)
+                TimeField(date: timeDate(time, on: due), isEditing: $isEditingTime).fixedSize()
+                Button { chooseTime(nil) } label: { Chip(text: "No time") }
+                    .buttonStyle(.plain)
+            }
+        } else {
+            Button { chooseTime(TaskTime.string(for: Self.nextHour())) } label: { Chip(text: "Time…") }
+                .buttonStyle(.plain)
+                .help("Remind me at a time that day")
+        }
+    }
+
+    private func timeDate(_ time: String, on due: String) -> Binding<Date> {
+        let day = TaskDay.date(from: due, calendar: .current) ?? Date()
+        return Binding { TaskTime.date(for: time, on: day) } set: { chooseTime(TaskTime.string(for: $0)) }
+    }
+
+    private static func nextHour(after now: Date = Date()) -> Date {
+        Calendar.current.dateInterval(of: .hour, for: now)?.end ?? now
     }
 
     private func choice(_ title: String, day: String) -> some View {

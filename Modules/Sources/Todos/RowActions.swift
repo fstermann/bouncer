@@ -44,10 +44,12 @@ struct RowActions: View {
                 VStack(alignment: .leading, spacing: 4) {
                     switch submenu {
                     case .tags: tagChoices
-                    case .due: DueChoices(due: TaskText(todo.text).due) { day, closes in
-                        page.setDue(of: todo, to: day)
-                        if closes { page.menu = nil }
-                    }
+                    case .due:
+                        let text = TaskText(todo.text)
+                        DueChoices(due: text.due, time: text.time) { day, closes in
+                            page.setDue(of: todo, to: day)
+                            if closes { page.menu = nil }
+                        } chooseTime: { page.setTime(of: todo, to: $0) }
                     }
                 }
                 .padding(8)

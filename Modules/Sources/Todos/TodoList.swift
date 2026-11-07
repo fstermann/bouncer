@@ -110,11 +110,12 @@ public enum TodoList {
         return markdown + separator + "- [ ] \(first)\n" + note
     }
 
-    /// A todo's text from what was typed, due on `due`.
-    public static func task(from draft: String, due: String?) -> String {
+    /// A todo's text from what was typed, due on `due`, at `time` if given.
+    public static func task(from draft: String, due: String?, time: String? = nil) -> String {
         var lines = draft.components(separatedBy: "\n")
         guard var first = lines.first?.trimmingCharacters(in: .whitespaces), !first.isEmpty else { return draft }
         if let due { first += " 📅 \(due)" }
+        if due != nil, let time { first += " ⏰ \(time)" }
         lines[0] = first
         return lines.joined(separator: "\n")
     }

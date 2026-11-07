@@ -115,8 +115,9 @@ struct RowMenuView: View {
             switch kind {
             case .due:
                 DueChoices(
-                    due: due, typed: todo == nil || isEditing ? page.typedDue : nil,
-                    highlighted: todo == nil || isEditing ? page.highlightedDue : nil, choose: setDue
+                    due: due, time: time, typed: todo == nil || isEditing ? page.typedDue : nil,
+                    highlighted: todo == nil || isEditing ? page.highlightedDue : nil, choose: setDue,
+                    chooseTime: page.chooseTime
                 )
             case .tags:
                 let carried = TaskText(isEditing ? page.editTitle : todo?.text ?? page.draft).tags
@@ -150,6 +151,10 @@ struct RowMenuView: View {
 
     private var due: String? {
         isEditing ? page.editDue : todo.map { TaskText($0.text).due } ?? page.draftDue
+    }
+
+    private var time: String? {
+        isEditing ? page.editTime : todo.map { TaskText($0.text).time } ?? page.draftTime
     }
 
     private func setDue(_ day: String?, closes: Bool) {

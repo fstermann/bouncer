@@ -89,7 +89,7 @@ struct TodoRow: View {
             if showsTags { tagChips(text) }
             Spacer(minLength: 0)
             if let due = text.due {
-                let label = TaskDay.label(for: due, today: Date())
+                let label = TaskDay.label(for: due, time: text.time, today: Date())
                 Text(label.text)
                     .font(.caption)
                     .foregroundStyle(label.isOverdue && !todo.isDone ? .red : .secondary)

@@ -10,10 +10,24 @@ extension TodoPage {
         if closing { self.menu = nil }
         if let line = menu.line, editing?.line == line {
             editDue = day
+            if day == nil { editTime = nil }
         } else if let line = menu.line {
             if let todo = todos.first(where: { $0.line == line }) { setDue(of: todo, to: day) }
         } else {
             draftDue = day
+            if day == nil { draftTime = nil }
+        }
+    }
+
+    /// Sets the time of day of the todo the due choices are open for, as `chooseDue` sets its day.
+    func chooseTime(_ time: String?) {
+        guard let menu, menu.kind == .due else { return }
+        if let line = menu.line, editing?.line == line {
+            editTime = time
+        } else if let line = menu.line {
+            if let todo = todos.first(where: { $0.line == line }) { setTime(of: todo, to: time) }
+        } else {
+            draftTime = time
         }
     }
 
@@ -73,5 +87,18 @@ extension TodoPage {
             lines[0] = QuickDue.removingQuery(from: lines[0])
             editDraft = lines.joined(separator: "\n")
         }
+    }
+
+    func setTime(of todo: Todo, to time: String?) {
+        var text = TaskText(todo.text)
+        guard text.due != nil else { return }
+        text.time = time
+        onEdit?(todo, text.text, todo.note)
+    }
+
+    /// A timed todo before the untimed ones of its day, which `~` sorts after the digits.
+    static func dueKey(of todo: Todo) -> String {
+        let text = TaskText(todo.text)
+        return (text.due ?? "~") + (text.time ?? "~")
     }
 }

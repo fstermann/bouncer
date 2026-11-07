@@ -16,6 +16,8 @@ final class TodoPage: TagFiltering {
     var draft = ""
     /// `yyyy-MM-dd` for the todo being typed.
     var draftDue: String?
+    /// `HH:mm` on that day.
+    var draftTime: String?
     /// The highlighted one of the tags offered while one is typed.
     var suggestion = 0
     var isAddingCategory = false
@@ -55,6 +57,7 @@ final class TodoPage: TagFiltering {
     /// Its title and tags on the first line, as typed into the add field, and its note under them.
     var editDraft = ""
     var editDue: String?
+    var editTime: String?
     /// Where the click that opened the editor landed, in window coordinates, to put the cursor there.
     @ObservationIgnored var editClick: CGPoint?
     /// The height of the row the editor stands in for, which it keeps so the list does not shift.
@@ -101,7 +104,7 @@ final class TodoPage: TagFiltering {
     /// in file order.
     var open: [Todo] {
         filtered.filter(isListedOpen)
-            .sorted { (TaskText($0.text).due ?? "~", $0.line) < (TaskText($1.text).due ?? "~", $1.line) }
+            .sorted { (Self.dueKey(of: $0), $0.line) < (Self.dueKey(of: $1), $1.line) }
     }
     /// Ticked todos stay in the file, as Obsidian keeps them, and are listed here on request.
     var done: [Todo] { filtered.filter { !isListedOpen($0) } }
@@ -174,6 +177,7 @@ final class TodoPage: TagFiltering {
         onAdd?(lines.joined(separator: "\n"))
         draft = ""
         draftDue = nil
+        draftTime = nil
         menu = nil
     }
 
@@ -183,7 +187,9 @@ final class TodoPage: TagFiltering {
         editClick = click
         var text = TaskText(todo.text)
         editDue = text.due
+        editTime = text.time
         text.due = nil
+        text.time = nil
         text.done = nil
         editing = todo
         editDraft = todo.note.isEmpty ? text.text : text.text + "\n" + todo.note
@@ -199,6 +205,7 @@ final class TodoPage: TagFiltering {
         guard let first = lines.first else { return }
         var text = TaskText(first)
         text.due = editDue ?? text.due
+        text.time = text.due == nil ? nil : editTime ?? text.time
         text.done = TaskText(todo.text).done
         editing = nil
         onEdit?(todo, text.text, lines.dropFirst().joined(separator: "\n"))
@@ -213,9 +220,11 @@ final class TodoPage: TagFiltering {
         if let saved = todos.first(where: { $0.line == todo.line }) { onToggle?(saved) }
     }
 
+    /// A todo without a day keeps no time.
     func setDue(of todo: Todo, to due: String?) {
         var text = TaskText(todo.text)
         text.due = due
+        if due == nil { text.time = nil }
         onEdit?(todo, text.text, todo.note)
     }
 

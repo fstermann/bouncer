@@ -113,6 +113,21 @@ import Testing
         #expect(text.due == "2026-10-24")
     }
 
+    @Test func readsTheTimeAfterTheAlarmClockAndWritesItAfterTheDay() {
+        var text = TaskText("Call bank ⏰ 9:05 📅 2026-10-24")
+        #expect(text.title == "Call bank")
+        #expect(text.time == "09:05")
+        #expect(text.text == "Call bank 📅 2026-10-24 ⏰ 09:05")
+        text.time = nil
+        #expect(text.text == "Call bank 📅 2026-10-24")
+        #expect(TaskText("Wake ⏰ 25:00").time == nil)
+    }
+
+    @Test func aTypedTodoGetsItsTimeOnlyWithADay() {
+        #expect(TodoList.task(from: "Call", due: "2026-10-24", time: "14:00") == "Call 📅 2026-10-24 ⏰ 14:00")
+        #expect(TodoList.task(from: "Call", due: nil, time: "14:00") == "Call")
+    }
+
     private var calendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "UTC") ?? .current
@@ -139,6 +154,16 @@ import Testing
         #expect(TaskDay.label(for: "2026-10-23", today: today, calendar: calendar) == ("Fri", false))
         #expect(TaskDay.label(for: "2026-11-30", today: today, calendar: calendar) == ("Nov 30", false))
         #expect(TaskDay.label(for: "2026-10-20", today: today, calendar: calendar) == ("Yesterday", true))
+    }
+
+    @Test func aTimeFollowsTheDayAndPassesWithIt() {
+        let morning = calendar.date(from: DateComponents(year: 2026, month: 10, day: 21, hour: 10)) ?? .distantPast
+        #expect(TaskDay.label(for: "2026-10-21", time: "14:00", today: morning, calendar: calendar)
+            == ("Today 14:00", false))
+        #expect(TaskDay.label(for: "2026-10-21", time: "09:30", today: morning, calendar: calendar)
+            == ("Today 09:30", true))
+        #expect(TaskDay.label(for: "2026-10-22", time: "08:00", today: morning, calendar: calendar)
+            == ("Tomorrow 08:00", false))
     }
 }
 

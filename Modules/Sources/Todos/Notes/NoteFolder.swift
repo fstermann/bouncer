@@ -47,16 +47,19 @@ final class NoteFolder {
     func notes() -> [Note] {
         access {
             let files = FileManager.default.enumerator(
-                at: url, includingPropertiesForKeys: [.contentModificationDateKey],
+                at: url, includingPropertiesForKeys: [.contentModificationDateKey, .creationDateKey],
                 options: [.skipsHiddenFiles, .skipsPackageDescendants]
             )?.allObjects as? [URL] ?? []
             // The files come with the links on the way to the folder resolved, so its path is compared resolved too.
             let depth = url.resolvingSymlinksInPath().pathComponents.count
             return files.filter { $0.pathExtension.lowercased() == "md" }.compactMap { file in
                 guard let markdown = try? String(contentsOf: file, encoding: .utf8) else { return nil }
-                let modified = try? file.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+                let dates = try? file.resourceValues(forKeys: [.contentModificationDateKey, .creationDateKey])
                 let name = file.resolvingSymlinksInPath().pathComponents.dropFirst(depth).joined(separator: "/")
-                return Note(name: name, markdown: markdown, modified: modified)
+                return Note(
+                    name: name, markdown: markdown,
+                    modified: dates?.contentModificationDate, created: dates?.creationDate
+                )
             }
         }
     }

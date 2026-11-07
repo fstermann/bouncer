@@ -148,8 +148,12 @@ public final class TodoController {
     /// out of when switched to.
     public var panelFrame: CGRect? { panel.frame }
 
-    /// The picked file, or the local one while none is picked.
     private func resolveFile() -> TodoFile? {
+        Self.resolvedFile(in: settings)
+    }
+
+    /// The picked file, or the local one while none is picked.
+    static func resolvedFile(in settings: SettingsStore) -> TodoFile? {
         guard let bookmark = settings.preferences.todoFile else { return TodoFile.local() }
         guard let resolved = TodoFile.resolve(bookmark) else {
             Log.todos.error("Todo file: the bookmark no longer resolves")
@@ -210,7 +214,7 @@ public final class TodoController {
 
     private func add(_ text: String) {
         guard let file else { return }
-        let task = TodoList.task(from: text, due: page.draftDue)
+        let task = TodoList.task(from: text, due: page.draftDue, time: page.draftTime)
         file.write(TodoList.appending(task, to: file.read() ?? ""))
         reload()
     }

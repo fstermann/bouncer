@@ -21,6 +21,8 @@ public final class ClaudeController {
         set { panel.pageButton.pages = newValue }
     }
     public private(set) var isOpen = false
+    /// An answer ended while the page was closed, in the chat of this title.
+    public var onAnswer: (@MainActor (String) -> Void)?
     /// Pressing ⌘⇧C anywhere. The shortcut is registered only while this is set.
     public var onShortcut: (@MainActor () -> Void)? {
         didSet {
@@ -161,6 +163,7 @@ public final class ClaudeController {
             exchange.isAnswered = true
             page.exchanges[index] = exchange
             save()
+            if !isOpen { onAnswer?(chat.title) }
         }
     }
 

@@ -23,6 +23,8 @@ public final class NoteController {
         set { panel.pageButton.pages = newValue }
     }
     public private(set) var isOpen = false
+    /// A note was made, left after changing or deleted, so a meeting may have been planned or moved.
+    public var onChange: (@MainActor () -> Void)?
     /// Pressing ⌘⇧N anywhere. The shortcut is registered only while this is set.
     public var onShortcut: (@MainActor () -> Void)? {
         didSet {
@@ -40,6 +42,7 @@ public final class NoteController {
     private var shortcut: HotKey?
     private var closesOnLeave = true
     private var windows: [NoteWindow] = []
+    private var noteToShow: String?
     /// The folder each popped-out note came from, which it keeps saving to.
     private var poppedOutFolders: [ObjectIdentifier: NoteFolder] = [:]
     /// The wait before the latest change to each note open is written.
@@ -109,6 +112,10 @@ public final class NoteController {
         } else {
             page.editing = nil
         }
+        if let name = noteToShow {
+            noteToShow = nil
+            show(note: name)
+        }
         folder.watch { [weak self] in self?.reload() }
         duration = settings.preferences.animateBar ? settings.preferences.barAnimationDuration : nil
         await panel.open(page, on: screen, over: duration, from: start, onceCovered: onceCovered)
@@ -132,6 +139,10 @@ public final class NoteController {
     public var panelFrame: CGRect? { panel.frame }
 
     private func resolveFolder() -> NoteFolder? {
+        Self.resolvedFolder(in: settings)
+    }
+
+    static func resolvedFolder(in settings: SettingsStore) -> NoteFolder? {
         guard let bookmark = settings.preferences.notesFolder else { return NoteFolder.local() }
         guard let resolved = NoteFolder.resolve(bookmark) else {
             Log.todos.error("Notes folder: the bookmark no longer resolves")
@@ -156,6 +167,22 @@ public final class NoteController {
         folder.write(note.markdown(over: ""), to: note.name)
         reload()
         page.editing = NoteDraft(note)
+        onChange?()
+    }
+
+    /// Puts the note named `name` in the editor, as a meeting's reminder does: now while the page is
+    /// open, or else as it next opens.
+    public func show(note name: String) {
+        guard isOpen else {
+            noteToShow = name
+            return
+        }
+        guard let note = page.notes.first(where: { $0.name == name }) else { return }
+        if let draft = page.editing {
+            guard draft.saved.name != name else { return }
+            back()
+        }
+        openNote(note)
     }
 
     /// Opens `note` in the panel, or brings forward the window it is popped out into.
@@ -191,11 +218,13 @@ public final class NoteController {
         let note = draft.note
         folder.write(note.markdown(over: folder.read(note.name) ?? ""), to: note.name)
         draft.saved = note
+        onChange?()
     }
 
     /// Saves the note, renames its file once its title or start has changed, and moves it into its
     /// project's folder: not while it is typed, when every letter would rename it.
     private func finish(_ draft: NoteDraft) {
+        defer { onChange?() }
         save(draft)
         let note = draft.saved
         let isMisplaced = NoteName.folder(of: note.name) != NoteName.folder(for: note.project)
@@ -215,6 +244,7 @@ public final class NoteController {
         }
         folder?.trash(note.name)
         reload()
+        onChange?()
     }
 
     /// Moves the note open in the panel into a window of its own, and puts the panel away.
@@ -242,6 +272,7 @@ public final class NoteController {
         window.onClose = nil
         window.close()
         poppedOutFolders.removeValue(forKey: draft.id)?.trash(draft.saved.name)
+        onChange?()
         if isOpen { reload() }
     }
 
