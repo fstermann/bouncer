@@ -1,6 +1,22 @@
 import Settings
 
 extension TodoPage {
+    struct OpenGroups {
+        let queued: [Todo]
+        let working: [Todo]
+        let others: [Todo]
+    }
+
+    /// Split from one sort of `open`, rather than one sort for each.
+    var groups: OpenGroups {
+        let open = open
+        return OpenGroups(
+            queued: open.filter { ClaudeQueue.isForClaude($0) && !$0.isInProgress },
+            working: open.filter { ClaudeQueue.isForClaude($0) && $0.isInProgress },
+            others: open.filter { !ClaudeQueue.isForClaude($0) }
+        )
+    }
+
     /// The todos waiting for Claude, by the repository they go to.
     var queueGroups: [(folder: String, todos: [Todo])] {
         ClaudeQueue.groups(queued.filter { !$0.isDone }, repositories: repositories)

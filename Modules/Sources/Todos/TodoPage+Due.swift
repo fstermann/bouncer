@@ -96,9 +96,13 @@ extension TodoPage {
         onEdit?(todo, text.text, todo.note)
     }
 
+    static func dueTodayCount(in others: [Todo]) -> Int {
+        let today = TaskDay.string(for: Date())
+        return others.prefix { $0.due.map { $0 <= today } ?? false }.count
+    }
+
     /// A timed todo before the untimed ones of its day, which `~` sorts after the digits.
     static func dueKey(of todo: Todo) -> String {
-        let text = TaskText(todo.text)
-        return (text.due ?? "~") + (text.time ?? "~")
+        (todo.due ?? "~") + (todo.time ?? "~")
     }
 }

@@ -11,8 +11,11 @@ public struct Todo: Hashable, Sendable, Identifiable {
     public let isInProgress: Bool
     /// The indented lines under it, which Obsidian shows as part of the task.
     public var note: String
-    /// Its `#tags`, read once rather than each time the list is filtered or counted.
+    /// Its `#tags`, due day and time, read once rather than each time the list is filtered, counted
+    /// or sorted.
     public let tags: [String]
+    public let due: String?
+    public let time: String?
 
     public var id: Int { line }
 
@@ -22,7 +25,10 @@ public struct Todo: Hashable, Sendable, Identifiable {
         self.isDone = isDone
         self.isInProgress = isInProgress
         self.note = note
-        tags = TaskText(text).tags
+        let parsed = TaskText(text)
+        tags = parsed.tags
+        due = parsed.due
+        time = parsed.time
     }
 }
 
@@ -149,9 +155,20 @@ public enum TodoList {
         line.prefix { $0 == " " || $0 == "\t" }.reduce(0) { $0 + ($1 == "\t" ? 4 : 1) }
     }
 
-    private static func task(in line: String) -> Todo? {
-        guard let match = line.wholeMatch(of: /\s*[-*+] \[([ xX\/])\] (.*)/) else { return nil }
-        let text = String(match.2).trimmingCharacters(in: .whitespaces)
-        return Todo(line: 0, text: text, isDone: match.1 == "x" || match.1 == "X", isInProgress: match.1 == "/")
+    private struct TaskLine {
+        let text: String
+        let isDone: Bool
+        let isInProgress: Bool
+    }
+
+    /// `\s*[-*+] \[([ xX/])\] (.*)`, read by hand: a `Regex` here made reading a long file slow.
+    private static func task(in line: String) -> TaskLine? {
+        let rest = line.drop(while: \.isWhitespace)
+        let head = Array(rest.prefix(6))
+        guard head.count == 6, "-*+".contains(head[0]), head[1] == " ", head[2] == "[", head[4] == "]",
+              head[5] == " ", " xX/".contains(head[3]), !rest.contains(where: \.isNewline)
+        else { return nil }
+        let text = String(rest.dropFirst(6)).trimmingCharacters(in: .whitespaces)
+        return TaskLine(text: text, isDone: head[3] == "x" || head[3] == "X", isInProgress: head[3] == "/")
     }
 }

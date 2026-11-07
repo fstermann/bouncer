@@ -111,21 +111,19 @@ final class TodoPage: TagFiltering {
     /// The listed todos still to do; one just ticked no longer counts while it lingers.
     var openCount: Int { open.filter { !$0.isDone }.count }
     /// Open todos tagged for Claude, waiting to be sent, which lead the list.
-    var queued: [Todo] { open.filter { ClaudeQueue.isForClaude($0) && !$0.isInProgress } }
+    var queued: [Todo] { groups.queued }
     /// Todos sent to Claude, still in progress, after those waiting.
-    var working: [Todo] { open.filter { ClaudeQueue.isForClaude($0) && $0.isInProgress } }
+    var working: [Todo] { groups.working }
     /// The rest of the open todos.
-    var others: [Todo] { open.filter { !ClaudeQueue.isForClaude($0) } }
-    var rows: [Todo] { queued + working + others + (showsDone ? done : []) }
+    var others: [Todo] { groups.others }
+    var rows: [Todo] { sections.flatMap(\.todos) }
     /// Of the other todos, those due today or before, which lead them, sorted as they are, and are set apart.
-    var dueTodayCount: Int {
-        let today = TaskDay.string(for: Date())
-        return others.prefix { TaskText($0.text).due.map { $0 <= today } ?? false }.count
-    }
+    var dueTodayCount: Int { Self.dueTodayCount(in: others) }
 
     /// The list's sections, each under its heading; `nil` for a list that needs none.
     var sections: [(title: String?, todos: [Todo])] {
-        let today = dueTodayCount
+        let (queued, working, others) = (groups.queued, groups.working, groups.others)
+        let today = Self.dueTodayCount(in: others)
         var sections: [(title: String?, todos: [Todo])] = [
             ("For Claude", queued), ("Claude working", working)
         ].filter { !$0.todos.isEmpty }
