@@ -68,6 +68,7 @@ private final class MemoryPersistence: PreferencesPersistence, @unchecked Sendab
         #expect(store.preferences.enableMenuBarItems)
         #expect(store.preferences.enableTodos)
         #expect(!store.preferences.enableNotes)
+        #expect(!store.preferences.enableScreenshots)
         #expect(store.preferences.notesFolder == nil)
         #expect(store.preferences.notchPage == .items)
         #expect(store.preferences.tagColors.isEmpty)

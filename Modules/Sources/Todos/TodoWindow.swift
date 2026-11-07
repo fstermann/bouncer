@@ -4,6 +4,8 @@ import AppKit
 /// bar band, which AppKit otherwise pushes windows out of.
 final class TodoWindow: NSPanel {
     var onEscape: (@MainActor () -> Void)?
+    /// Off screen while a screenshot is taken, which neither losing key nor the pointer leaving closes.
+    var isHiddenForScreenshot = false
 
     init(frame: CGRect) {
         super.init(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)

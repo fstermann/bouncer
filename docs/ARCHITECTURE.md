@@ -362,6 +362,13 @@ it runs, a black tab grown out of the notch's left side shows it (`PresentationC
 are SwiftUI's timer text, which the system redraws; Bouncer waits once for each change of colour,
 orange for a countdown's last minute and red past its end, and nothing runs once it is stopped.
 
+Screenshot buttons in a note's header, off by default, put a picture of the screen the note is on,
+or of a region or window the user picks, at the cursor, saved as a pasted image is. The system's
+`screencapture` takes them, the one taking a region with its own picker, while the panel or the
+note's window is off screen; neither losing key nor the pointer leaving closes the panel meanwhile.
+Run by Bouncer, `screencapture` sees only the wallpaper without Screen Recording, so turning the
+buttons on asks for it, and every call goes through the `Screenshots` module.
+
 ⌘⇧N is a system-wide
 hot key like ⌘⇧B, so while notes are on it no longer reaches other apps, Finder's new folder and the
 browsers' private windows among them.
@@ -432,8 +439,8 @@ Todos   The todo, notes and Claude pages: Markdown task lines, meeting notes, th
         Depends on BouncerFoundation, Settings and MenuBar; BouncerUI and App depend on it.
 ```
 
-`StandaloneBar` is a module of its own because it is the one feature that asks for
-permissions. Keeping it off to the side means the permission surface is a directory, not a
+`StandaloneBar` is a module of its own because it asks for permissions; `Screenshots`, which
+`Todos` uses for a note's screenshot buttons, is one for the same reason. Keeping it off to the side means the permission surface is a directory, not a
 grep. `BouncerUI` depends on it so the settings pane can show and trigger those permissions
 through `StandaloneBarPermissions` — the single entry point every Screen Recording and
 Accessibility call goes through — but the calls themselves stay in this directory. `Updates`

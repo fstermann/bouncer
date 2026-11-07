@@ -42,6 +42,8 @@ public struct Preferences: Codable, Hashable, Sendable {
     public var enableTodos: Bool
     /// The meeting notes panel under the notch.
     public var enableNotes: Bool
+    /// Buttons in a meeting note that put a screenshot in it. Needs Screen Recording.
+    public var enableScreenshots: Bool
     /// The panel under the notch that asks Claude Code a quick question.
     public var enableClaude: Bool
     public var autoRehide: AutoRehide
@@ -91,6 +93,7 @@ public struct Preferences: Codable, Hashable, Sendable {
         enableMenuBarItems: Bool = true,
         enableTodos: Bool = true,
         enableNotes: Bool = false,
+        enableScreenshots: Bool = false,
         enableClaude: Bool = false,
         autoRehide: AutoRehide = .afterDelay(seconds: 10),
         enableAlwaysHiddenSection: Bool = false,
@@ -114,6 +117,7 @@ public struct Preferences: Codable, Hashable, Sendable {
         self.enableMenuBarItems = enableMenuBarItems
         self.enableTodos = enableTodos
         self.enableNotes = enableNotes
+        self.enableScreenshots = enableScreenshots
         self.enableClaude = enableClaude
         self.autoRehide = autoRehide
         self.enableAlwaysHiddenSection = enableAlwaysHiddenSection
@@ -153,6 +157,7 @@ public struct Preferences: Codable, Hashable, Sendable {
         enableMenuBarItems = try container.decodeIfPresent(Bool.self, forKey: .enableMenuBarItems) ?? true
         enableTodos = try container.decodeIfPresent(Bool.self, forKey: .enableTodos) ?? true
         enableNotes = try container.decodeIfPresent(Bool.self, forKey: .enableNotes) ?? false
+        enableScreenshots = try container.decodeIfPresent(Bool.self, forKey: .enableScreenshots) ?? false
         enableClaude = try container.decodeIfPresent(Bool.self, forKey: .enableClaude) ?? false
         // Clamped to what the slider can ask for, the way the animation duration below is:
         // a longer delay stored by an older build leaves the bar open past what any setting

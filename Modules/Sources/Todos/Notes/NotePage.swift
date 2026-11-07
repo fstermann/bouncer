@@ -21,6 +21,8 @@ final class NoteDraft: Identifiable {
     /// Bumped to put the cursor in the note's text. One from the start, so a note opens with the
     /// cursor there rather than its whole title selected.
     var bodyFocusRequests = 1
+    /// An image to put in at the cursor, as a screenshot taken from the header is.
+    var embedRequest: EmbedRequest?
 
     nonisolated var id: ObjectIdentifier { ObjectIdentifier(self) }
 
@@ -98,6 +100,8 @@ final class NotePage: TagFiltering {
     @ObservationIgnored var clock: PresentationClock?
     /// Where pasted images are saved and read back from; `nil` while the page is closed.
     @ObservationIgnored var images: PastedImages?
+    /// Takes a screenshot and returns its embed; `nil` while screenshots are off.
+    @ObservationIgnored var onScreenshot: TakeScreenshot?
     @ObservationIgnored var onCreate: (@MainActor (String) -> Void)?
     @ObservationIgnored var onOpen: (@MainActor (Note) -> Void)?
     /// Back to the list from the editor.

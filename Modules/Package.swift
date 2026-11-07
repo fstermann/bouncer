@@ -12,6 +12,7 @@ let package = Package(
         .library(name: "StandaloneBar", targets: ["StandaloneBar"]),
         .library(name: "Updates", targets: ["Updates"]),
         .library(name: "Todos", targets: ["Todos"]),
+        .library(name: "Screenshots", targets: ["Screenshots"]),
     ],
     dependencies: [
         // Keep in step with the Sparkle version in project.yml.
@@ -21,12 +22,17 @@ let package = Package(
         .target(name: "BouncerFoundation"),
         .target(name: "Settings", dependencies: ["BouncerFoundation"]),
         .target(name: "MenuBar", dependencies: ["BouncerFoundation", "Settings"]),
-        .target(name: "BouncerUI", dependencies: ["MenuBar", "Settings", "StandaloneBar", "Todos", "Updates"]),
+        .target(
+            name: "BouncerUI", dependencies: ["MenuBar", "Screenshots", "Settings", "StandaloneBar", "Todos", "Updates"]
+        ),
         .target(name: "Updates", dependencies: ["BouncerFoundation", .product(name: "Sparkle", package: "Sparkle")]),
         // Behind its own module because it is the one feature that asks for permissions.
         .target(name: "StandaloneBar", dependencies: ["BouncerFoundation", "MenuBar"]),
-        .target(name: "Todos", dependencies: ["BouncerFoundation", "MenuBar", "Settings"]),
+        // Behind its own module because it asks for Screen Recording.
+        .target(name: "Screenshots", dependencies: ["BouncerFoundation"]),
+        .target(name: "Todos", dependencies: ["BouncerFoundation", "MenuBar", "Screenshots", "Settings"]),
         .testTarget(name: "MenuBarTests", dependencies: ["MenuBar"]),
+        .testTarget(name: "ScreenshotsTests", dependencies: ["Screenshots"]),
         .testTarget(name: "SettingsTests", dependencies: ["Settings"]),
         .testTarget(name: "StandaloneBarTests", dependencies: ["StandaloneBar"]),
         .testTarget(name: "TodosTests", dependencies: ["Todos"]),

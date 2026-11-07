@@ -1,5 +1,6 @@
 import AppKit
 import BouncerFoundation
+import Screenshots
 import Settings
 import SwiftUI
 
@@ -106,6 +107,7 @@ public final class NoteController {
         page.tagOrder = settings.preferences.tagOrder
         page.now = Date()
         page.images = ImageStore.current(in: settings)?.pastedImages
+        page.onScreenshot = settings.preferences.enableScreenshots ? panelScreenshot : nil
         reload()
         if let draft = page.editing, let note = page.notes.first(where: { $0.name == draft.saved.name }) {
             page.editing = NoteDraft(note)
@@ -255,6 +257,7 @@ public final class NoteController {
         poppedOutFolders[draft.id] = folder
         let window = NoteWindow(
             draft: draft, known: NoteSuggestions(page), clock: clock, images: page.images,
+            onScreenshot: page.onScreenshot == nil ? nil : windowScreenshot,
             onEdit: { [weak self] in self?.scheduleSave($0) },
             onDelete: { [weak self] in self?.deletePoppedOut(draft) }
         )
@@ -297,5 +300,33 @@ extension NoteController {
     /// Where a stored bookmark leads, for showing in Settings.
     public static func url(of bookmark: Data) -> URL? {
         TodoController.url(of: bookmark)
+    }
+}
+
+extension NoteController {
+    /// Takes the screenshot with the panel out of the picture, and saves it as a pasted image.
+    fileprivate var panelScreenshot: TakeScreenshot {
+        { [weak self] area in
+            guard let self else { return nil }
+            let screen = panel.screen
+            let png = await panel.hidden { await Screenshot.take(area, of: screen) }
+            return save(screenshot: png)
+        }
+    }
+
+    /// The same from a popped-out note, whose window is the key one as its button is clicked.
+    fileprivate var windowScreenshot: TakeScreenshot {
+        { [weak self] area in
+            guard let self, let window = NSApp.keyWindow as? NoteWindow ?? windows.last else { return nil }
+            let screen = window.screen
+            window.orderOut(nil)
+            let png = await Screenshot.take(area, of: screen)
+            window.makeKeyAndOrderFront(nil)
+            return save(screenshot: png)
+        }
+    }
+
+    private func save(screenshot png: Data?) -> String? {
+        png.flatMap { ImageStore.current(in: settings)?.save($0) }
     }
 }

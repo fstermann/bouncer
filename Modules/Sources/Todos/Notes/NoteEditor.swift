@@ -1,4 +1,5 @@
 import AppKit
+import Screenshots
 import SwiftUI
 
 /// The names used across the notes so far, offered while one is typed.
@@ -36,7 +37,9 @@ struct NoteEditor: View {
     var fillsHeight = false
     var clock: PresentationClock?
     var images: PastedImages?
+    var onScreenshot: TakeScreenshot?
     @State private var isTypingMinutes = false
+    @State private var isTakingScreenshot = false
     @State private var minutes = ""
     @FocusState private var isMinutesFocused: Bool
     @FocusState private var isTypingLocation: Bool
@@ -59,7 +62,10 @@ struct NoteEditor: View {
             }
             .font(.callout)
             Divider().overlay(.white.opacity(0.1))
-            NoteBody(text: $draft.body, images: images, focusRequests: draft.bodyFocusRequests) { isWriting in
+            NoteBody(
+                text: $draft.body, images: images, focusRequests: draft.bodyFocusRequests,
+                embedRequest: draft.embedRequest
+            ) { isWriting in
                 lineMoveKeys.isActive = isWriting
                 arrowKeys.isActive = isWriting
             }
@@ -85,6 +91,7 @@ struct NoteEditor: View {
                 .textFieldStyle(.plain)
                 .font(.headline)
                 .onSubmit { draft.bodyFocusRequests += 1 }
+            if let onScreenshot { screenshotButtons(onScreenshot) }
             if let clock { timer(clock) }
             if let onPopOut {
                 Button(action: onPopOut) { Image(systemName: "macwindow.on.rectangle") }
@@ -95,6 +102,24 @@ struct NoteEditor: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(.secondary)
+    }
+
+    private func screenshotButtons(_ take: @escaping TakeScreenshot) -> some View {
+        Group {
+            Button { screenshot(.screen, with: take) } label: { Image(systemName: "camera") }
+                .help("Screenshot the screen into the note")
+            Button { screenshot(.region, with: take) } label: { Image(systemName: "camera.viewfinder") }
+                .help("Screenshot a region or, after Space, a window into the note")
+        }
+        .disabled(isTakingScreenshot)
+    }
+
+    private func screenshot(_ area: ScreenshotArea, with take: @escaping TakeScreenshot) {
+        isTakingScreenshot = true
+        Task {
+            if let embed = await take(area) { draft.embedRequest = EmbedRequest(embed: embed) }
+            isTakingScreenshot = false
+        }
     }
 
     /// A countdown or a stopwatch for presenting, which shows beside the notch while it runs.

@@ -1,5 +1,6 @@
 import AppKit
 import MenuBar
+import Screenshots
 import Settings
 import StandaloneBar
 import SwiftUI
@@ -185,6 +186,7 @@ struct HoverRevealOptions: View {
 /// The folder the notch panel's notes page keeps meetings in.
 struct NoteOptions: View {
     @Binding var preferences: Preferences
+    @State private var canRecordScreen = Screenshot.isPermitted
 
     var body: some View {
         Section("Meeting notes", systemImage: "note.text") {
@@ -206,6 +208,25 @@ struct NoteOptions: View {
                  + "⌘⇧N no longer reaches other apps.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
+            Toggle(isOn: $preferences.enableScreenshots) {
+                Text("Screenshot buttons")
+                Text("Put a screenshot of the screen, or of a region or window you pick, in the note. "
+                     + "Needs Screen Recording.")
+            }
+            .onChange(of: preferences.enableScreenshots) {
+                if preferences.enableScreenshots, !canRecordScreen { Screenshot.requestPermission() }
+            }
+            if preferences.enableScreenshots {
+                PermissionRow(
+                    name: "Screen Recording",
+                    status: canRecordScreen ? .granted : .missing,
+                    pane: "Privacy_ScreenCapture",
+                    note: "Takes effect after Bouncer restarts. Without it, screenshots show only the wallpaper."
+                )
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            canRecordScreen = Screenshot.isPermitted
         }
     }
 

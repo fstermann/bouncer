@@ -9,6 +9,7 @@ struct NoteBody: NSViewRepresentable {
     let images: PastedImages?
     /// Bumped to put the cursor in the text.
     let focusRequests: Int
+    var embedRequest: EmbedRequest?
     let onFocus: (Bool) -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -54,6 +55,11 @@ struct NoteBody: NSViewRepresentable {
             // A turn later, once the view is in the window.
             DispatchQueue.main.async { textView.window?.makeFirstResponder(textView) }
         }
+        if let embedRequest, embedRequest != context.coordinator.embedRequest {
+            context.coordinator.embedRequest = embedRequest
+            textView.insertEmbed(embedRequest.embed)
+            textView.window?.makeFirstResponder(textView)
+        }
     }
 
     final class Coordinator: NSObject, NSTextViewDelegate {
@@ -61,6 +67,7 @@ struct NoteBody: NSViewRepresentable {
         /// The Markdown the view shows, so an update with the same text leaves the view alone.
         var shown = ""
         var focusRequests = 0
+        var embedRequest: EmbedRequest?
 
         init(_ body: NoteBody) {
             self.body = body
@@ -199,6 +206,21 @@ final class NoteTextView: NSTextView {
               case .image(let name, let raw) = ImageEmbed.segments(of: embed).first
         else { return super.paste(sender) }
         insert(Self.embed(ImageAttachment(name: name, raw: raw)))
+    }
+
+    /// At the cursor, on a line of its own.
+    func insertEmbed(_ embed: String) {
+        guard case .image(let name, let raw) = ImageEmbed.segments(of: embed).first else { return }
+        let text = NSMutableAttributedString(string: lineBreakBefore, attributes: Self.attributes)
+        text.append(Self.embed(ImageAttachment(name: name, raw: raw)))
+        text.append(NSAttributedString(string: "\n", attributes: Self.attributes))
+        insert(text)
+    }
+
+    private var lineBreakBefore: String {
+        let location = selectedRange().location
+        guard location > 0 else { return "" }
+        return (string as NSString).character(at: location - 1) == 0x0A ? "" : "\n"
     }
 
     /// As Markdown, so an image copied out keeps its embed rather than becoming a blank.

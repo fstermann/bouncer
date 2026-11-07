@@ -63,6 +63,8 @@ targets:
       - package: BouncerModules
         product: Todos
       - package: BouncerModules
+        product: Screenshots
+      - package: BouncerModules
         product: Updates
       - package: Sparkle
     settings:

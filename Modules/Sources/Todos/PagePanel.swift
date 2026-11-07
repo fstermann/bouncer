@@ -29,7 +29,7 @@ final class PagePanel<Page: PanelPage> {
     /// it, so it holds still while the surface changes shape.
     let pageButton = PageButton()
 
-    private var window: TodoWindow?
+    private(set) var window: TodoWindow?
     private var surface: SurfaceView?
     private var content: NSHostingView<Page.Content>?
     private var menuHost: NSHostingView<Page.Menu>?
@@ -256,7 +256,7 @@ final class PagePanel<Page: PanelPage> {
         ) { [weak self] _ in
             MainActor.assumeIsolated {
                 // Another page growing out of this one, which takes this away once covered.
-                guard !(NSApp.keyWindow is TodoWindow) else { return }
+                guard self?.window?.isHiddenForScreenshot != true, !(NSApp.keyWindow is TodoWindow) else { return }
                 self?.onDismiss?()
             }
         }
@@ -293,7 +293,7 @@ final class PagePanel<Page: PanelPage> {
 
     private func dismissOnLeave() {
         stopWatchingTheLeave()
-        guard mayCloseOnLeave?() ?? true else { return }
+        guard window?.isHiddenForScreenshot != true, mayCloseOnLeave?() ?? true else { return }
         onDismiss?()
     }
 
