@@ -11,8 +11,9 @@ public struct Todo: Hashable, Sendable, Identifiable {
     public let isInProgress: Bool
     /// The indented lines under it, which Obsidian shows as part of the task.
     public var note: String
-    /// Its `#tags`, due day and time, read once rather than each time the list is filtered, counted
+    /// Its title, `#tags`, due day and time, read once rather than each time the list is filtered, counted
     /// or sorted.
+    public let title: String
     public let tags: [String]
     public let due: String?
     public let time: String?
@@ -26,6 +27,7 @@ public struct Todo: Hashable, Sendable, Identifiable {
         self.isInProgress = isInProgress
         self.note = note
         let parsed = TaskText(text)
+        title = parsed.title
         tags = parsed.tags
         due = parsed.due
         time = parsed.time

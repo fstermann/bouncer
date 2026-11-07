@@ -86,7 +86,7 @@ extension Note {
     /// project, place or text.
     func mentions(_ query: String) -> Bool {
         ([title, project, location, body].compactMap(\.self) + attendees)
-            .contains { !TextSearch.ranges(of: query, in: $0).isEmpty }
+            .contains { TextSearch.contains(query, in: $0) }
     }
 }
 

@@ -162,7 +162,7 @@ final class TodoPage: TagFiltering {
     /// In its title or its note; every todo while nothing is searched for.
     private func isFound(_ todo: Todo) -> Bool {
         guard hasQuery else { return true }
-        return [TaskText(todo.text).title, todo.note].contains { !TextSearch.ranges(of: query, in: $0).isEmpty }
+        return [todo.title, todo.note].contains { TextSearch.contains(query, in: $0) }
     }
 
     /// Adds the todo typed, with the tags the list is narrowed to, so it shows in the list. Of a

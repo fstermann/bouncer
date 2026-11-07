@@ -107,6 +107,10 @@ import Testing
         let text = "Bank, bänk and BANK"
         #expect(TextSearch.ranges(of: "bank", in: text).map { String(text[$0]) } == ["Bank", "bänk", "BANK"])
         #expect(TextSearch.ranges(of: " ", in: text).isEmpty)
+        #expect(TextSearch.contains("bank", in: "Die BÄNK"))
+        #expect(TextSearch.contains(" bank ", in: "Bänk"))
+        #expect(!TextSearch.contains(" ", in: text))
+        #expect(!TextSearch.contains("banks", in: text))
     }
 
     @Test func anAddedTodoTakesTheFiltersItLacks() {

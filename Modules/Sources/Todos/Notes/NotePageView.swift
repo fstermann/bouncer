@@ -189,11 +189,11 @@ struct NoteRow: View {
 
     /// The line of the note's text the search found, while nothing else shown holds it.
     private var snippet: String? {
-        guard page.hasQuery, TextSearch.ranges(of: page.query, in: note.title + " " + detail).isEmpty else {
+        guard page.hasQuery, !TextSearch.contains(page.query, in: note.title + " " + detail) else {
             return nil
         }
         return note.body.components(separatedBy: "\n")
-            .first { !TextSearch.ranges(of: page.query, in: $0).isEmpty }?
+            .first { TextSearch.contains(page.query, in: $0) }?
             .trimmingCharacters(in: .whitespaces)
     }
 }
