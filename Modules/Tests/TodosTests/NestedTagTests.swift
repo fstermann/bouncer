@@ -74,4 +74,20 @@ import Testing
         page.moveTag("a", onto: "c")
         #expect(page.tags == ["b", "c", "a"])
     }
+
+    @Test func claudesTagFiltersFromAChipOfItsOwnApartFromTheTags() {
+        let page = TodoPage()
+        page.todos = [
+            Todo(line: 0, text: "A #work #claude", isDone: false),
+            Todo(line: 1, text: "B #home", isDone: false)
+        ]
+        #expect(page.chipTags == ["work", "home"])
+        #expect(page.claudeChip == "claude")
+        page.toggleFilter("home")
+        #expect(page.claudeChip == nil)
+        page.toggleFilter("home")
+        page.toggleFilter("claude")
+        #expect(page.chipTags == ["work"])
+        #expect(page.claudeChip == "claude")
+    }
 }

@@ -153,49 +153,69 @@ struct DueChoices: View {
     }
 
     /// Today, tomorrow and Friday, which the keyboard steps through.
-    static let quick: [(title: String, choice: DueChoice)] = [
-        ("Today", .today), ("Tomorrow", .tomorrow), ("Friday", .thisWeek)
+    static let quick: [QuickChoice] = [
+        QuickChoice(title: "Today", icon: "sun.max", choice: .today),
+        QuickChoice(title: "Tomorrow", icon: "sunrise", choice: .tomorrow),
+        QuickChoice(title: "Friday", icon: "briefcase", choice: .thisWeek)
     ]
+
+    struct QuickChoice {
+        let title: String
+        let icon: String
+        let choice: DueChoice
+    }
 
     var body: some View {
         let today = Date()
-        if let typed, !Self.quick.map({ TaskDay.string(for: $0.choice, today: today) }).contains(typed) {
-            choice(TaskDay.label(for: typed, today: today).text, day: typed)
+        VStack(alignment: .leading, spacing: 0) {
+            if let typed, !Self.quick.map({ TaskDay.string(for: $0.choice, today: today) }).contains(typed) {
+                choice(TaskDay.label(for: typed, today: today).text, icon: "text.cursor", day: typed)
+            }
+            ForEach(Self.quick, id: \.title) { quick in
+                choice(quick.title, icon: quick.icon, day: TaskDay.string(for: quick.choice, today: today))
+            }
+            MenuItem(
+                title: "Pick a date", detail: pickedLabel, icon: Image(systemName: "calendar"),
+                isOpen: isPickingDate, isChecked: pickedLabel != nil && !isPickingDate
+            ) { isPickingDate.toggle() }
+            if isPickingDate {
+                DatePicker("", selection: pickedDay, displayedComponents: .date)
+                    .datePickerStyle(.graphical)
+                    .labelsHidden()
+                    .fixedSize()
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 4)
+            }
+            if let due {
+                MenuDivider()
+                timeRow(on: due)
+                MenuItem(title: "Remove date", icon: Image(systemName: "xmark.circle")) { choose(nil, true) }
+            }
         }
-        ForEach(Self.quick, id: \.title) { quick in
-            choice(quick.title, day: TaskDay.string(for: quick.choice, today: today))
-        }
-        Button { isPickingDate.toggle() } label: {
-            Chip(text: pickedLabel ?? "Date…", isSelected: isPickingDate || pickedLabel != nil)
-        }
-        .buttonStyle(.plain)
-        if isPickingDate {
-            DatePicker("", selection: pickedDay, displayedComponents: .date)
-                .datePickerStyle(.graphical)
-                .labelsHidden()
-                .fixedSize()
-                .frame(maxWidth: .infinity)
-        }
-        if let due {
-            timeRow(on: due)
-            Button { choose(nil, true) } label: { Chip(text: "No date") }
-                .buttonStyle(.plain)
-        }
+        .frame(width: 210)
     }
 
     /// The time it is due at, which a reminder shows at: the next full hour once one is asked for.
     @ViewBuilder private func timeRow(on due: String) -> some View {
         if let time {
-            HStack(spacing: 6) {
-                Image(systemName: "bell").font(.caption).foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                Image(systemName: "bell").frame(width: 16).foregroundStyle(.secondary)
+                Text("Time")
+                Spacer(minLength: 12)
                 TimeField(date: timeDate(time, on: due), isEditing: $isEditingTime).fixedSize()
-                Button { chooseTime(nil) } label: { Chip(text: "No time") }
+                Button { chooseTime(nil) } label: { Image(systemName: "xmark").font(.caption) }
                     .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .help("Remove the time")
             }
+            .font(.callout)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
         } else {
-            Button { chooseTime(TaskTime.string(for: Self.nextHour())) } label: { Chip(text: "Time…") }
-                .buttonStyle(.plain)
-                .help("Remind me at a time that day")
+            MenuItem(title: "Add a time", icon: Image(systemName: "bell")) {
+                chooseTime(TaskTime.string(for: Self.nextHour()))
+            }
+            .help("Remind me at a time that day")
         }
     }
 
@@ -208,15 +228,21 @@ struct DueChoices: View {
         Calendar.current.dateInterval(of: .hour, for: now)?.end ?? now
     }
 
-    private func choice(_ title: String, day: String) -> some View {
+    /// Checked while chosen, and highlighted while the keyboard is on it.
+    private func choice(_ title: String, icon: String, day: String) -> some View {
         let isChosen = due == day && !isPickingDate
-        return Button {
-            choose(isChosen ? nil : day, true)
-        } label: {
-            // Filled while highlighted, as a highlighted tag suggestion is.
-            Chip(text: title, isSelected: highlighted == nil ? isChosen : highlighted == day)
-        }
-        .buttonStyle(.plain)
+        return MenuItem(
+            title: title, detail: Self.shortDate(day), icon: Image(systemName: icon),
+            isOpen: highlighted == day, isChecked: isChosen
+        ) { choose(isChosen ? nil : day, true) }
+    }
+
+    /// "Sat 7 Nov", so a quick choice shows which day it is.
+    private static func shortDate(_ day: String) -> String? {
+        guard let date = TaskDay.date(from: day, calendar: .current) else { return nil }
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("EEEdMMM")
+        return formatter.string(from: date)
     }
 
     private var pickedLabel: String? { Self.pickedLabel(of: due) }

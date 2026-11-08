@@ -45,13 +45,7 @@ final class PagePanel<Page: PanelPage> {
     private var isReshaping = false
     /// Counts refits, so a spring a later one took over does not settle the panel under it.
     private var reshapes = 0
-    /// Installed only while the pointer is outside the panel, between leaving and coming back.
-    private var leaveMonitors: [Any] = []
-    private var leaveGrace: Task<Void, Never>?
-
-    private static var grace: Duration { .milliseconds(1500) }
-    /// How far outside the panel the pointer can stray before it has plainly left.
-    private static var reach: CGFloat { 80 }
+    private let leave = LeaveWatch()
 
     private static var cornerRadius: CGFloat { 12 }
     /// Transparent margin around the panel, so the spring's overshoot is drawn rather than clipped.
@@ -173,7 +167,15 @@ final class PagePanel<Page: PanelPage> {
         rest = CGRect(x: rest.minX, y: rest.maxY - page.height, width: rest.width, height: page.height)
         menu = page.menuFrame(in: rest)
         guard !isMoving || isReshaping else { return }
-        if rest.height != previous.height { reshape(window) } else if !isReshaping { settle(window) }
+        // A menu that changed size mid-spring hangs in the window, or in one the spring carries on in.
+        let menuFits = menu.map { window.frame.contains(frame(around: [$0])) } ?? true
+        if rest.height != previous.height || isReshaping && !menuFits {
+            reshape(window)
+        } else if isReshaping {
+            menuHost?.frame = menu.map { local($0, in: window) } ?? .zero
+        } else {
+            settle(window)
+        }
     }
 
     /// Sizes the window to the panel at rest.
@@ -230,7 +232,7 @@ final class PagePanel<Page: PanelPage> {
         // The content is cut to the panel's shape while it grows, never drawn outside it.
         surface.layer?.masksToBounds = true
         surface.onExit = { [weak self] in self?.pointerLeft() }
-        surface.onEnter = { [weak self] in self?.stopWatchingTheLeave() }
+        surface.onEnter = { [weak self] in self?.leave.stop() }
         root.addSubview(surface)
         root.addSubview(NotchShoulder(left: true))
         root.addSubview(NotchShoulder(left: false))
@@ -263,49 +265,20 @@ final class PagePanel<Page: PanelPage> {
         return window
     }
 
-    /// Watches where the pointer goes once outside: back in calls the close off, well clear or out
-    /// for the whole grace period closes.
     private func pointerLeft() {
-        guard leaveMonitors.isEmpty else { return }
-        leaveGrace = Task { [weak self] in
-            try? await Task.sleep(for: Self.grace)
-            guard !Task.isCancelled else { return }
-            self?.dismissOnLeave()
-        }
-        let check: @MainActor () -> Void = { [weak self] in
-            guard let self, isWellClear(NSEvent.mouseLocation) else { return }
-            dismissOnLeave()
-        }
-        leaveMonitors = [
-            NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { _ in MainActor.assumeIsolated(check) },
-            NSEvent.addLocalMonitorForEvents(matching: .mouseMoved) { event in
-                MainActor.assumeIsolated(check)
-                return event
-            }
-        ].compactMap(\.self)
-    }
-
-    private func isWellClear(_ point: CGPoint) -> Bool {
-        let dx = max(rest.minX - point.x, 0, point.x - rest.maxX)
-        let dy = max(rest.minY - point.y, 0, point.y - rest.maxY)
-        return hypot(dx, dy) > Self.reach
+        leave.start(
+            around: { [weak self] in self?.rest ?? .zero },
+            onLeave: { [weak self] in self?.dismissOnLeave() }
+        )
     }
 
     private func dismissOnLeave() {
-        stopWatchingTheLeave()
         guard window?.isHiddenForScreenshot != true, mayCloseOnLeave?() ?? true else { return }
         onDismiss?()
     }
 
-    private func stopWatchingTheLeave() {
-        leaveGrace?.cancel()
-        leaveGrace = nil
-        leaveMonitors.forEach(NSEvent.removeMonitor)
-        leaveMonitors = []
-    }
-
     private func stopObserving() {
-        stopWatchingTheLeave()
+        leave.stop()
         if let resignObserver { NotificationCenter.default.removeObserver(resignObserver) }
         resignObserver = nil
         window?.onEscape = nil
@@ -385,6 +358,7 @@ extension PagePanel {
         for view in body(surface) + [content] { view.layer?.removeAllAnimations() }
         window.setFrame(frame(around: [shown, rest] + [menu].compactMap(\.self)), display: false)
         place(at: shown, in: window)
+        menuHost?.frame = menu.map { local($0, in: window) } ?? .zero
         let height = max(shown.height, rest.height)
         content.frame = CGRect(x: 0, y: surface.bounds.height - height, width: rest.width, height: height)
         let motion = Motion(duration: 0.5, bounce: 0.15)

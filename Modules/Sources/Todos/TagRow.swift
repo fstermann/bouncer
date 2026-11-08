@@ -1,3 +1,4 @@
+import MenuBar
 import SwiftUI
 
 /// The categories to filter by, and a way to add one. Right-clicking one opens its colours, and
@@ -21,6 +22,12 @@ struct TagRow<Page: TagFiltering>: View {
 
     var body: some View {
         HStack(spacing: 6) {
+            if let claude = page.claudeChip {
+                ClaudeChip(isSelected: page.filters.contains(claude), count: page.count(of: claude)) {
+                    withAnimation(.snappy) { page.toggleFilter(claude) }
+                }
+                Rectangle().fill(.white.opacity(0.15)).frame(width: 1, height: 14)
+            }
             // Scrolled only once they overflow, with the plus kept in view after them.
             ViewThatFits(in: .horizontal) {
                 chips
@@ -167,5 +174,31 @@ struct TagRow<Page: TagFiltering>: View {
                 // Saved once, not at each swap: any change to the preferences reconfigures the menu bar.
                 page.onOrder?(page.tagOrder)
             }
+    }
+}
+
+/// Filters by the Claude queue's tag, in Claude's colour and mark, so it does not read as one of the tags.
+private struct ClaudeChip: View {
+    private static let color = Color(red: 0.85, green: 0.47, blue: 0.34)
+    let isSelected: Bool
+    let count: Int
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(nsImage: ClaudeMark.image(side: 11)).renderingMode(.template)
+                Text("Claude")
+                Text("\(count)").opacity(0.55)
+            }
+            .font(.caption)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .foregroundStyle(isSelected ? .white : Self.color)
+            .background(Capsule().fill(isSelected ? Self.color : Self.color.opacity(0.18)))
+            .overlay(Capsule().stroke(Self.color.opacity(isSelected ? 0 : 0.5), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .help(isSelected ? "Show all todos" : "Show only todos for Claude")
     }
 }

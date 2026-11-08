@@ -14,7 +14,7 @@ struct RowActions: View {
     nonisolated private static let space = "actions"
 
     var body: some View {
-        HStack(alignment: .top, spacing: 4) {
+        HStack(alignment: .top, spacing: 0) {
             VStack(alignment: .leading, spacing: 0) {
                 if !todo.isDone {
                     item(todo.isInProgress ? "Mark open" : "Mark in progress", "circle.lefthalf.filled") {
@@ -41,20 +41,19 @@ struct RowActions: View {
             .frame(width: 180)
             .menuSurface()
             if let submenu {
-                VStack(alignment: .leading, spacing: 4) {
+                Group {
                     switch submenu {
                     case .tags: tagChoices
                     case .due:
                         let text = TaskText(todo.text)
-                        DueChoices(due: text.due, time: text.time) { day, closes in
+                        // Left open once a day is picked: the todo moves in the list, and its time is set here.
+                        DueChoices(due: text.due, time: text.time) { day, _ in
                             page.setDue(of: todo, to: day)
-                            if closes { page.menu = nil }
+                            if day == nil { page.menu = nil }
                         } chooseTime: { page.setTime(of: todo, to: $0) }
                     }
                 }
-                .padding(8)
                 .menuSurface()
-                .frame(maxWidth: 240, alignment: .leading)
                 .padding(.top, tops[submenu] ?? 0)
             }
         }
@@ -62,11 +61,8 @@ struct RowActions: View {
     }
 
     private var tagChoices: some View {
-        ForEach(page.tags.filter { $0 != ClaudeQueue.tag }, id: \.self) { tag in
-            Button { page.toggleTag(tag, of: todo) } label: {
-                Chip(tag: tag, color: page.color(of: tag), isSelected: todo.tags.contains(tag))
-            }
-            .buttonStyle(.plain)
+        TagChoices(page: page, tags: page.tags.filter { $0 != ClaudeQueue.tag }, carried: todo.tags) {
+            page.toggleTag($0, of: todo)
         }
     }
 
@@ -170,23 +166,29 @@ struct RepositoryLink: View {
     }
 }
 
-private struct MenuItem: View {
+/// A row of a menu: an icon, its title, and what it leads to or is set to.
+struct MenuItem: View {
     let title: String
     var detail: String?
     let icon: Image
+    var iconColor: Color?
     var hasArrow = false
+    /// Highlighted, as while its choices are open or the keyboard is on it.
     var isOpen = false
+    var isChecked = false
     let action: () -> Void
     @State private var isHovered = false
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 8) {
-                icon.frame(width: 16).foregroundStyle(.secondary)
+                icon.font(iconColor == nil ? nil : .system(size: 7)).frame(width: 16)
+                    .foregroundStyle(iconColor.map(AnyShapeStyle.init) ?? AnyShapeStyle(.secondary))
                 Text(title)
                 Spacer(minLength: 12)
                 if let detail { Text(detail).foregroundStyle(.secondary).lineLimit(1) }
                 if hasArrow { Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.secondary) }
+                if isChecked { Image(systemName: "checkmark").font(.caption.weight(.semibold)) }
             }
             .font(.callout)
             .padding(.horizontal, 8)
@@ -199,7 +201,7 @@ private struct MenuItem: View {
     }
 }
 
-private struct MenuDivider: View {
+struct MenuDivider: View {
     var body: some View {
         Rectangle().fill(.white.opacity(0.12)).frame(height: 1).padding(.vertical, 4).padding(.horizontal, 8)
     }
@@ -211,5 +213,28 @@ extension View {
         padding(4)
             .background(RoundedRectangle(cornerRadius: 10).fill(Color(white: 0.16)))
             .overlay(RoundedRectangle(cornerRadius: 10).stroke(.white.opacity(0.12)))
+    }
+}
+
+/// Tags as menu rows: a dot in each one's colour, nested ones indented under the tag above, and a
+/// check on those carried.
+struct TagChoices: View {
+    let page: TodoPage
+    let tags: [String]
+    let carried: [String]
+    let toggle: (String) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(tags, id: \.self) { tag in
+                let depth = TagPath.lineage(of: tag).count - 1
+                MenuItem(
+                    title: TagPath.leaf(of: tag), icon: Image(systemName: "circle.fill"),
+                    iconColor: page.color(of: tag) ?? .white.opacity(0.35), isChecked: carried.contains(tag)
+                ) { toggle(tag) }
+                    .padding(.leading, CGFloat(depth) * 14)
+            }
+        }
+        .frame(minWidth: 160)
     }
 }

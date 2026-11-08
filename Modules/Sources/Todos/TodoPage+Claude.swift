@@ -1,6 +1,18 @@
+import Foundation
 import Settings
 
 extension TodoPage {
+    var claudeTag: String? { ClaudeQueue.tag }
+
+    /// Hangs the open menu under `anchor`. A row's actions stay where they opened while its todo moves
+    /// in the list, as picking a due day moves it.
+    func anchorMenu(under anchor: CGRect) {
+        guard menu?.kind != .actions || menuIconFor != menu else { return }
+        menuIconFor = menu
+        menuIcon = anchor
+        onResize?()
+    }
+
     struct OpenGroups {
         let queued: [Todo]
         let working: [Todo]

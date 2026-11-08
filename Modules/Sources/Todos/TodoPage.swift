@@ -71,6 +71,8 @@ final class TodoPage: TagFiltering {
     /// The open menu's icon, in the page's coordinates, and the menu's size, for the panel to place it.
     @ObservationIgnored var menuIcon: CGRect = .zero
     @ObservationIgnored var menuSize: CGSize = .zero
+    /// The menu `menuIcon` was measured for.
+    @ObservationIgnored var menuIconFor: RowMenu?
     /// Where the open menu was right-clicked open, in its row's or heading's coordinates.
     var menuClick: CGPoint = .zero
 
@@ -288,11 +290,7 @@ struct TodoPageView: View {
         .overlayPreferenceValue(MenuAnchor.self) { anchor in
             GeometryReader { proxy in
                 if let anchor, page.menu != nil {
-                    Color.clear
-                        .onChange(of: proxy[anchor], initial: true) {
-                            page.menuIcon = $1
-                            page.onResize?()
-                        }
+                    Color.clear.onChange(of: proxy[anchor], initial: true) { page.anchorMenu(under: $1) }
                 }
             }
             // Only measures; never in the way of the page's clicks and hovers.
@@ -300,6 +298,7 @@ struct TodoPageView: View {
         }
         .onChange(of: page.menu) {
             if $1 == nil { page.menuSize = .zero }
+            if $1 != page.menuIconFor { page.menuIconFor = nil }
             if $1?.kind != .due {
                 page.dueQuery = nil
                 page.dueStep = nil

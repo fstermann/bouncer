@@ -35,9 +35,20 @@ protocol TagFiltering: AnyObject, Observable {
     /// The order the chips were dragged into, once the drag ends.
     var onOrder: (@MainActor ([String]) -> Void)? { get }
     var onResize: (@MainActor () -> Void)? { get }
+    /// The tag Claude's queue is kept by, filtered by from a chip of its own rather than among the tags.
+    var claudeTag: String? { get }
 }
 
 extension TagFiltering {
+    var claudeTag: String? { nil }
+
+    /// The Claude chip's tag, while some item carries it and selecting it would narrow the list further.
+    var claudeChip: String? {
+        guard let claudeTag, tags.contains(claudeTag) else { return nil }
+        let narrows = filters.isEmpty || filters.contains(claudeTag) || count(of: claudeTag) > 0
+        return narrows ? claudeTag : nil
+    }
+
     /// The categories and any other tag a listed item carries, each once and after the tags it is
     /// nested under, in the order they were dragged into.
     var tags: [String] {
@@ -52,11 +63,12 @@ extension TagFiltering {
         tagOrder = TagPath.moving(tag, onto: target, in: tags, order: tagOrder)
     }
 
-    /// The tags offered as chips, the selected filters first. Nested tags are offered once the tag
-    /// above them is selected, ahead of the rest; those under the deepest selected tag even before
-    /// any item carries them. Once some are selected, only the other tags that narrow the list
-    /// further are offered with them.
+    /// The tags offered as chips, the selected filters first, without the Claude chip's. Nested tags
+    /// are offered once the tag above them is selected, ahead of the rest; those under the deepest
+    /// selected tag even before any item carries them. Once some are selected, only the other tags
+    /// that narrow the list further are offered with them.
     var chipTags: [String] {
+        let tags = tags.filter { $0 != claudeTag }
         let shown = tags.filter { !filters.contains($0) && (TagPath.parent(of: $0).map(filters.contains) ?? true) }
         let offered = shown.filter {
             filters.isEmpty || count(of: $0) > 0 || TagPath.parent(of: $0).map(deepestFilters.contains) == true

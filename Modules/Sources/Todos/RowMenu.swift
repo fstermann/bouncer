@@ -105,6 +105,17 @@ struct RowMenuView: View {
             QueueActions(page: page)
         case .working:
             WorkingActions(page: page)
+        case .due:
+            DueChoices(
+                due: due, time: time, typed: todo == nil || isEditing ? page.typedDue : nil,
+                highlighted: todo == nil || isEditing ? page.highlightedDue : nil, choose: setDue,
+                chooseTime: page.chooseTime
+            )
+            .menuSurface()
+        case .tags:
+            let carried = TaskText(isEditing ? page.editTitle : todo?.text ?? page.draft).tags
+            TagChoices(page: page, tags: page.tags, carried: carried, toggle: toggle)
+            .menuSurface()
         default:
             choices
         }
@@ -113,20 +124,6 @@ struct RowMenuView: View {
     private var choices: some View {
         VStack(alignment: .leading, spacing: 4) {
             switch kind {
-            case .due:
-                DueChoices(
-                    due: due, time: time, typed: todo == nil || isEditing ? page.typedDue : nil,
-                    highlighted: todo == nil || isEditing ? page.highlightedDue : nil, choose: setDue,
-                    chooseTime: page.chooseTime
-                )
-            case .tags:
-                let carried = TaskText(isEditing ? page.editTitle : todo?.text ?? page.draft).tags
-                ForEach(page.tags, id: \.self) { tag in
-                    Button { toggle(tag) } label: {
-                        Chip(tag: tag, color: page.color(of: tag), isSelected: carried.contains(tag))
-                    }
-                    .buttonStyle(.plain)
-                }
             case .suggestions:
                 ForEach(Array(page.suggestions.enumerated()), id: \.element) { index, tag in
                     Button { page.complete(with: tag) } label: {
@@ -137,7 +134,7 @@ struct RowMenuView: View {
             case .colors(let tag):
                 Palette(page: page, tag: tag)
                 RepositoryLink(page: page, tag: tag)
-            case .actions, .queue, .working:
+            case .actions, .queue, .working, .due, .tags:
                 EmptyView()
             }
         }
