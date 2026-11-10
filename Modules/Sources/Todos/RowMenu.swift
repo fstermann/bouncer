@@ -139,7 +139,7 @@ struct RowMenuView: View {
             }
         }
         .padding(8)
-        .background(RoundedRectangle(cornerRadius: 10).fill(Color(white: 0.16)))
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color(white: 0.08)))
         .overlay(RoundedRectangle(cornerRadius: 10).stroke(.white.opacity(0.12)))
     }
 

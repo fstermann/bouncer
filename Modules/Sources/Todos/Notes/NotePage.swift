@@ -111,10 +111,13 @@ final class NotePage: TagFiltering {
     @ObservationIgnored var onArchive: (@MainActor (Note) -> Void)?
     @ObservationIgnored var onPopOut: (@MainActor () -> Void)?
     @ObservationIgnored var onColor: (@MainActor (String, String?) -> Void)?
+    @ObservationIgnored var onRename: (@MainActor (String, String) -> Void)?
     @ObservationIgnored var onOrder: (@MainActor ([String]) -> Void)?
     @ObservationIgnored var onResize: (@MainActor () -> Void)?
     var onAddCategory: (@MainActor (String) -> Void)? { nil }
     var onRemoveCategory: (@MainActor (String) -> Void)? { nil }
+
+    func canRename(_ tag: String) -> Bool { tag != Note.archivedTag }
 
     /// An archived note counts only towards its `archived` chip, until that chip is picked.
     var listedTags: [[String]] { notes.map { isListed($0) ? $0.tags : [Note.archivedTag] } }
@@ -172,7 +175,7 @@ struct NoteMenuHost: View {
         if let menu = page.menu, case .colors(let tag) = menu.kind {
             Palette(page: page, tag: tag)
                 .padding(8)
-                .background(RoundedRectangle(cornerRadius: 10).fill(Color(white: 0.16)))
+                .background(RoundedRectangle(cornerRadius: 10).fill(Color(white: 0.08)))
                 .overlay(RoundedRectangle(cornerRadius: 10).stroke(.white.opacity(0.12)))
                 .id(menu)
                 .fixedSize()

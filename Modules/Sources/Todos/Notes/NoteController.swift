@@ -64,6 +64,7 @@ public final class NoteController {
         page.onPopOut = { [weak self] in self?.popOut() }
         page.onResize = { [weak self] in self.map { $0.panel.fit($0.page) } }
         page.onColor = { [weak self] tag, color in self?.settings.preferences.tagColors[tag] = color }
+        page.onRename = { [weak self] old, new in self?.rename(old, to: new) }
         page.onOrder = { [weak self] order in self?.settings.preferences.tagOrder = order }
         panel.mayCloseOnLeave = { [weak self] in self.map { $0.closesOnLeave && $0.page.isIdle } ?? true }
         panel.onDismiss = { [weak self] in Task { await self?.close() } }
@@ -338,5 +339,16 @@ extension NoteController {
 
     private func save(screenshot png: Data?) -> String? {
         png.flatMap { ImageStore.current(in: settings)?.save($0) }
+    }
+}
+
+extension NoteController {
+    private func rename(_ old: String, to new: String) {
+        TagRenamer.rename(old, to: new, settings: settings)
+        page.filters = Set(page.filters.map { TagRename.renamed($0, from: old, to: new) })
+        page.tagColors = settings.preferences.tagColors
+        page.tagOrder = settings.preferences.tagOrder
+        reload()
+        onChange?()
     }
 }

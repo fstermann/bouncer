@@ -29,8 +29,22 @@ enum TagColor: String, CaseIterable {
 struct Palette<Page: TagFiltering>: View {
     let page: Page
     let tag: String
+    @State private var isRenaming = false
+    @State private var name = ""
 
     var body: some View {
+        if isRenaming {
+            PanelField(placeholder: "Tag", text: $name) {
+                page.menu = nil
+                if let new = TagRename.cleaned(name), new != tag { page.onRename?(tag, new) }
+            } onEnd: {}
+            .frame(width: 160)
+        } else {
+            swatches
+        }
+    }
+
+    private var swatches: some View {
         HStack(spacing: 2) {
             ForEach(TagColor.allCases, id: \.self) { color in
                 let isCurrent = (page.tagColors[tag] ?? TagColor.grey.rawValue) == color.rawValue
@@ -46,6 +60,16 @@ struct Palette<Page: TagFiltering>: View {
                 }
                 .buttonStyle(.plain)
                 .help(color.rawValue.capitalized)
+            }
+            if page.onRename != nil, page.canRename(tag) {
+                Button {
+                    name = tag
+                    isRenaming = true
+                } label: {
+                    Image(systemName: "pencil").font(.caption).foregroundStyle(.secondary).padding(.leading, 6)
+                }
+                .buttonStyle(.plain)
+                .help("Rename tag")
             }
             if !page.categories(under: tag).isEmpty {
                 Button {

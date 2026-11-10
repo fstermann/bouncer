@@ -147,7 +147,10 @@ struct RepositoryLink: View {
         if let folder = page.repositories[tag] {
             HStack(spacing: 6) {
                 Image(systemName: "folder").foregroundStyle(.secondary)
-                Text(URL(filePath: folder).lastPathComponent).lineLimit(1).truncationMode(.middle)
+                Text((folder as NSString).abbreviatingWithTildeInPath)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: 260, alignment: .leading)
                 Button { page.onLink?(tag, false) } label: { Image(systemName: "xmark") }
                     .buttonStyle(.plain)
                     .foregroundStyle(.secondary)
@@ -211,7 +214,7 @@ extension View {
     /// The look the row menus share.
     func menuSurface() -> some View {
         padding(4)
-            .background(RoundedRectangle(cornerRadius: 10).fill(Color(white: 0.16)))
+            .background(RoundedRectangle(cornerRadius: 10).fill(Color(white: 0.08)))
             .overlay(RoundedRectangle(cornerRadius: 10).stroke(.white.opacity(0.12)))
     }
 }

@@ -97,6 +97,7 @@ final class TodoPage: TagFiltering {
     @ObservationIgnored var onAddCategory: (@MainActor (String) -> Void)?
     @ObservationIgnored var onRemoveCategory: (@MainActor (String) -> Void)?
     @ObservationIgnored var onColor: (@MainActor (String, String?) -> Void)?
+    @ObservationIgnored var onRename: (@MainActor (String, String) -> Void)?
     /// The order the chips were dragged into, once the drag ends.
     @ObservationIgnored var onOrder: (@MainActor ([String]) -> Void)?
     /// The page's height changed, so the panel has to refit.

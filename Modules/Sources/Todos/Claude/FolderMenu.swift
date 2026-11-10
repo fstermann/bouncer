@@ -49,7 +49,7 @@ struct FolderMenu: View {
             }
             .padding(6)
             .frame(width: 280)
-            .background(RoundedRectangle(cornerRadius: 10).fill(Color(white: 0.16)))
+            .background(RoundedRectangle(cornerRadius: 10).fill(Color(white: 0.08)))
             .overlay(RoundedRectangle(cornerRadius: 10).stroke(.white.opacity(0.12)))
             .fixedSize()
             .onGeometryChange(for: CGSize.self) { $0.size } action: { size in

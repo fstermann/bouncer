@@ -65,6 +65,7 @@ public final class TodoController {
         page.onRemoveCategory = { [weak self] name in self?.removeCategory(name) }
         page.onResize = { [weak self] in self.map { $0.panel.fit($0.page) } }
         page.onColor = { [weak self] tag, color in self?.setColor(color, of: tag) }
+        page.onRename = { [weak self] old, new in self?.rename(old, to: new) }
         page.onOrder = { [weak self] order in self?.settings.preferences.tagOrder = order }
         panel.mayCloseOnLeave = { [weak self] in self.map { $0.closesOnLeave && $0.page.isIdle } ?? true }
         panel.onDismiss = { [weak self] in Task { await self?.close() } }
@@ -286,6 +287,14 @@ public final class TodoController {
     private func addCategory(_ name: String) {
         guard let file else { return }
         file.write(Categories.adding(name, to: file.read() ?? ""))
+        reload()
+    }
+
+    private func rename(_ old: String, to new: String) {
+        TagRenamer.rename(old, to: new, settings: settings)
+        page.filters = Set(page.filters.map { TagRename.renamed($0, from: old, to: new) })
+        page.tagOrder = settings.preferences.tagOrder
+        page.repositories = settings.preferences.tagRepositories
         reload()
     }
 

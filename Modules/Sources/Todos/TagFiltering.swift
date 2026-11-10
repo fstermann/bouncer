@@ -32,15 +32,21 @@ protocol TagFiltering: AnyObject, Observable {
     var onAddCategory: (@MainActor (String) -> Void)? { get }
     var onRemoveCategory: (@MainActor (String) -> Void)? { get }
     var onColor: (@MainActor (String, String?) -> Void)? { get }
+    /// A tag and the name it is renamed to.
+    var onRename: (@MainActor (String, String) -> Void)? { get }
     /// The order the chips were dragged into, once the drag ends.
     var onOrder: (@MainActor ([String]) -> Void)? { get }
     var onResize: (@MainActor () -> Void)? { get }
     /// The tag Claude's queue is kept by, filtered by from a chip of its own rather than among the tags.
     var claudeTag: String? { get }
+    /// Whether `tag`'s chip offers to rename it: not a tag the page itself gives meaning to.
+    func canRename(_ tag: String) -> Bool
 }
 
 extension TagFiltering {
     var claudeTag: String? { nil }
+
+    func canRename(_ tag: String) -> Bool { tag != claudeTag }
 
     /// The Claude chip's tag, while some item carries it and selecting it would narrow the list further.
     var claudeChip: String? {
