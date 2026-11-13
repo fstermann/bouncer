@@ -51,12 +51,30 @@ enum ClaudeQueue {
         TaskText(todo.text).title
     }
 
-    /// What Claude is asked: each todo's title, and its note under it.
-    static func prompt(for todos: [Todo]) -> String {
+    /// What Claude is asked: each todo's title, and its note under it, with each image embed swapped for the
+    /// path in `images` it was copied to; then the branch to work on, and to ask how to commit first.
+    static func prompt(for todos: [Todo], images: [String: String] = [:], branch: String) -> String {
         let items = todos.map { todo in
-            let note = todo.note.split(separator: "\n").map { "\n  \($0)" }.joined()
-            return "- \(TaskText(todo.text).title)\(note)"
+            let note = todo.note.split(separator: "\n")
+                .map { "\n  \(ImageEmbed.replacing(in: String($0), with: images))" }
+            return "- \(ImageEmbed.replacing(in: TaskText(todo.text).title, with: images))\(note.joined())"
         }
-        return "Please implement these todos:\n\n" + items.joined(separator: "\n")
+        return "Please implement these todos:\n\n" + items.joined(separator: "\n") + "\n\n"
+            + "Work on a new branch named \(branch). Before changing anything, use the AskUserQuestion tool to "
+            + "ask whether to make one commit per todo or group them, and whether to open a pull request."
+    }
+
+    /// Stamped to the minute, so it does not clash with the branches of earlier sends.
+    static func branch(at date: Date, calendar: Calendar = .current) -> String {
+        let parts = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+        return String(
+            format: "todos/%04d%02d%02d-%02d%02d",
+            parts.year ?? 0, parts.month ?? 0, parts.day ?? 0, parts.hour ?? 0, parts.minute ?? 0
+        )
+    }
+
+    /// The images embedded in `todos`' titles and notes, each once.
+    static func imageNames(in todos: [Todo]) -> [String] {
+        ImageEmbed.names(in: todos.map { TaskText($0.text).title + "\n" + $0.note }.joined(separator: "\n"))
     }
 }

@@ -15,7 +15,10 @@ extension TodoController {
     /// group of those Claude works on.
     func send(_ todos: [Todo], to folder: String) {
         let session = ClaudeSession(id: UUID().uuidString.lowercased(), folder: folder)
-        TerminalHandoff.start(asking: ClaudeQueue.prompt(for: todos), in: folder, as: session.id)
+        let prompt = ClaudeQueue.prompt(
+            for: todos, images: copiedImages(of: todos, for: session.id), branch: ClaudeQueue.branch(at: Date())
+        )
+        TerminalHandoff.start(asking: prompt, in: folder, as: session.id)
         for todo in todos { settings.preferences.claudeSessions[ClaudeQueue.key(of: todo)] = session }
         page.sessions = settings.preferences.claudeSessions
         guard let file, var markdown = file.read() else { return }
@@ -24,6 +27,19 @@ extension TodoController {
         }
         file.write(markdown)
         reload()
+    }
+
+    /// Copies of the todos' images by name, in a temporary folder: Terminal may not read the images folder,
+    /// which macOS guards when it is in Documents, and Bouncer reaches only through its bookmark.
+    private func copiedImages(of todos: [Todo], for session: String) -> [String: String] {
+        let names = ClaudeQueue.imageNames(in: todos)
+        guard !names.isEmpty, let store = ImageStore.current(in: settings) else { return [:] }
+        let destination = FileManager.default.temporaryDirectory.appending(path: "Bouncer Claude \(session)")
+        var paths: [String: String] = [:]
+        for name in names {
+            paths[name] = store.copy(name, into: destination)?.path(percentEncoded: false)
+        }
+        return paths
     }
 
     /// Sends the session's todos again when Claude Code never saved it, as nothing could resume it.
