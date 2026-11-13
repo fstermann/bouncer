@@ -317,6 +317,9 @@ extension TodoController {
         }
     }
 
+    /// The file used while none is picked, for showing in Settings.
+    public static var localFileURL: URL { TodoFile.localURL }
+
     /// Where a stored bookmark leads, for showing in Settings.
     public static func url(of bookmark: Data) -> URL? {
         var isStale = false

@@ -352,10 +352,7 @@ struct TodoOptions: View {
         Section("Todos", systemImage: "checklist") {
             LabeledContent("File") {
                 HStack(spacing: 8) {
-                    Text(fileName)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
+                    SelectablePath(path: filePath)
                     Button("Choose…", action: choose)
                     if preferences.todoFile != nil {
                         Button("Use Local") { preferences.todoFile = nil }
@@ -371,9 +368,11 @@ struct TodoOptions: View {
         }
     }
 
-    private var fileName: String {
-        guard let bookmark = preferences.todoFile else { return "Local" }
-        return TodoController.url(of: bookmark)?.lastPathComponent ?? "Not found"
+    private var filePath: String {
+        guard let bookmark = preferences.todoFile else {
+            return TodoController.localFileURL.path(percentEncoded: false)
+        }
+        return TodoController.url(of: bookmark)?.path(percentEncoded: false) ?? "Not found"
     }
 
     private func choose() {
