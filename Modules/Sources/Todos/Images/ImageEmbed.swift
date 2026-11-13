@@ -53,6 +53,14 @@ enum ImageEmbed {
         return lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// `text` with each image embed whose name is in `paths` swapped for its path.
+    static func replacing(in text: String, with paths: [String: String]) -> String {
+        text.replacing(pattern) { match in
+            let name = String(match.output.1)
+            return isImage(name) ? paths[name] ?? String(match.output.0) : String(match.output.0)
+        }
+    }
+
     private static func isImage(_ name: String) -> Bool {
         let ext = name.split(separator: ".").last.map { $0.lowercased() } ?? ""
         return name.contains(".") && extensions.contains(ext)

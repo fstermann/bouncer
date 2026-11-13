@@ -53,6 +53,22 @@ struct ImageStore {
         access { NSImage(contentsOf: folder.appending(path: name)) }
     }
 
+    /// Copies the image `name` into `destination`, a folder made if missing, and returns where.
+    func copy(_ name: String, into destination: URL) -> URL? {
+        access {
+            let copy = destination.appending(path: name)
+            do {
+                try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+                try? FileManager.default.removeItem(at: copy)
+                try FileManager.default.copyItem(at: folder.appending(path: name), to: copy)
+                return copy
+            } catch {
+                Log.todos.error("Copying an image for Claude failed: \(error, privacy: .public)")
+                return nil
+            }
+        }
+    }
+
     var pastedImages: PastedImages {
         PastedImages(save: save, load: image(named:))
     }

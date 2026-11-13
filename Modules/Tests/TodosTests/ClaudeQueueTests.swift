@@ -40,9 +40,26 @@ import Testing
         #expect(groups[0].todos.count == 2)
     }
 
-    @Test func thePromptListsTitlesAndNotes() {
+    @Test func thePromptListsTitlesAndNotesThenTheBranchAndAsksHowToCommit() {
         let todo = Todo(line: 0, text: "Fix bar #claude 📅 2026-11-07", isDone: false, note: "Flickers\nOn wake")
-        #expect(ClaudeQueue.prompt(for: [todo]) == "Please implement these todos:\n\n- Fix bar\n  Flickers\n  On wake")
+        let prompt = ClaudeQueue.prompt(for: [todo], branch: "todos/20261113-1201")
+        #expect(prompt.hasPrefix("Please implement these todos:\n\n- Fix bar\n  Flickers\n  On wake\n\n"))
+        #expect(prompt.contains("named todos/20261113-1201."))
+        #expect(prompt.contains("AskUserQuestion"))
+    }
+
+    @Test func thePromptGivesTheCopiedPathOfEachImage() {
+        let todo = Todo(line: 0, text: "Fix ![[a.png]] #claude", isDone: false, note: "See ![[b.png|300]] ![[c.png]]")
+        #expect(ClaudeQueue.imageNames(in: [todo]) == ["a.png", "b.png", "c.png"])
+        let prompt = ClaudeQueue.prompt(for: [todo], images: ["a.png": "/t/a.png", "b.png": "/t/b.png"], branch: "b")
+        #expect(prompt.hasPrefix("Please implement these todos:\n\n- Fix /t/a.png\n  See /t/b.png ![[c.png]]\n"))
+    }
+
+    @Test func theBranchIsStampedToTheMinute() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/Berlin") ?? .current
+        let date = calendar.date(from: DateComponents(year: 2026, month: 3, day: 4, hour: 9, minute: 5)) ?? .now
+        #expect(ClaudeQueue.branch(at: date, calendar: calendar) == "todos/20260304-0905")
     }
 
     @Test func claudeTodosLeadTheListInTheirOwnGroups() {
