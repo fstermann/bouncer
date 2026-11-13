@@ -37,6 +37,18 @@ extension TodoController {
         send(page.working.filter { sessions[ClaudeQueue.key(of: $0)] == session }, to: session.folder)
     }
 
+    /// Puts `todos` back in the queue to be sent again, and forgets their sessions. Their terminal stays open.
+    func abort(_ todos: [Todo]) {
+        guard let file, var markdown = file.read() else { return }
+        for todo in todos {
+            markdown = TodoList.marking(todo, inProgress: false, in: markdown) ?? markdown
+            settings.preferences.claudeSessions[ClaudeQueue.key(of: todo)] = nil
+        }
+        page.sessions = settings.preferences.claudeSessions
+        file.write(markdown)
+        reload()
+    }
+
     /// Ticks `todos` in one write, and forgets their sessions.
     func finish(_ todos: [Todo]) {
         guard let file, var markdown = file.read() else { return }

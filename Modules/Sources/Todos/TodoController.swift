@@ -59,6 +59,7 @@ public final class TodoController {
         page.onSend = { [weak self] todos, folder in self?.send(todos, to: folder) }
         page.onResume = { [weak self] todo in self?.resume(todo) }
         page.onFinish = { [weak self] todos in self?.finish(todos) }
+        page.onAbort = { [weak self] todos in self?.abort(todos) }
         page.onLink = { [weak self] tag, links in Task { await self?.link(tag, links: links) } }
         page.onRestore = { [weak self] todo in self?.restore(todo) }
         page.onAddCategory = { [weak self] name in self?.addCategory(name) }

@@ -24,6 +24,7 @@ struct RowActions: View {
                 item(todo.isDone ? "Mark open" : "Mark done", "checkmark.circle") { page.onToggle?(todo) }
                 if page.sessions[ClaudeQueue.key(of: todo)] != nil {
                     item("Resume in Terminal", "terminal") { page.onResume?(todo) }
+                    item("Abort Claude", "xmark.circle") { page.onAbort?([todo]) }
                 }
                 item(
                     ClaudeQueue.isForClaude(todo) ? "Remove from Claude" : "Mark for Claude",
@@ -113,7 +114,7 @@ struct QueueActions: View {
     }
 }
 
-/// The working group's right-click menu: pick up each session in Terminal, or finish them all.
+/// The working group's right-click menu: pick up or abort each session, or finish them all.
 struct WorkingActions: View {
     let page: TodoPage
 
@@ -125,6 +126,10 @@ struct WorkingActions: View {
                 MenuItem(title: "Resume \(count)", detail: folder, icon: Image(systemName: "terminal")) {
                     page.menu = nil
                     if let todo = group.todos.first { page.onResume?(todo) }
+                }
+                MenuItem(title: "Abort \(count)", detail: folder, icon: Image(systemName: "xmark.circle")) {
+                    page.menu = nil
+                    page.onAbort?(group.todos)
                 }
             }
             if !page.workingSessions.isEmpty { MenuDivider() }
