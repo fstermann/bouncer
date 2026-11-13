@@ -22,7 +22,7 @@ enum TagRename {
             lines[todo.line] = lines[todo.line].split(separator: " ", omittingEmptySubsequences: false)
                 .map { word in
                     let isTag = word.count > 1 && word.hasPrefix("#") && !word.dropFirst().hasPrefix("#")
-                    return isTag ? "#" + renamed(String(word.dropFirst()), from: old, to: new) : String(word)
+                    return isTag ? "#" + Self.renamed(String(word.dropFirst()), from: old, to: new) : String(word)
                 }
                 .joined(separator: " ")
         }
