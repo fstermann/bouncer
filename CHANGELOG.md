@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.9.0](https://github.com/fstermann/bouncer/compare/v0.8.0...v0.9.0) (2026-11-13)
+
+
+### Features
+
+* abort todos sent to Claude ([adebdeb](https://github.com/fstermann/bouncer/commit/adebdeb52539628df98bbb5d8c2a02216b537b69))
+* give Claude image paths, a branch name and a commit question ([9eb58f5](https://github.com/fstermann/bouncer/commit/9eb58f51d5544160742be1d89be5f419f6f68bcc))
+* rename tags, show linked repository paths, darken panel menus ([f0976c0](https://github.com/fstermann/bouncer/commit/f0976c00dc94046c6ca78b33bc7eba7a0b7cd875))
+* show the todo file's full path in Settings ([fdc8f39](https://github.com/fstermann/bouncer/commit/fdc8f395923f096f586ce7a1f77596fe6eae4d7b))
+
+
+### Bug Fixes
+
+* copy the todo path with Cmd-C and keep its selection in its field ([33b36c1](https://github.com/fstermann/bouncer/commit/33b36c10ddbf44f80286d9bc4253b7055df210c2))
+* qualify TagRename.renamed so CI's compiler finds the function ([c75be7d](https://github.com/fstermann/bouncer/commit/c75be7d898b13b25fda597392a1b7a4f7f79ad58))
+
 ## [0.8.0](https://github.com/fstermann/bouncer/compare/v0.7.0...v0.8.0) (2026-11-08)
 
 
