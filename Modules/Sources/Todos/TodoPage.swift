@@ -91,6 +91,8 @@ final class TodoPage: TagFiltering {
     @ObservationIgnored var onResume: (@MainActor (Todo) -> Void)?
     /// Ticks the todos Claude worked on.
     @ObservationIgnored var onFinish: (@MainActor ([Todo]) -> Void)?
+    /// Takes todos from Claude back to the queue.
+    @ObservationIgnored var onAbort: (@MainActor ([Todo]) -> Void)?
     /// A tag to link a repository to, or with `nil`, to unlink.
     @ObservationIgnored var onLink: (@MainActor (String, Bool) -> Void)?
     @ObservationIgnored var onRestore: (@MainActor (Todo) -> Void)?
