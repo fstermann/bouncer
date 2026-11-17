@@ -55,6 +55,13 @@ public enum WindowList {
         }
     }
 
+    /// The number of every window that exists now, on screen or not.
+    @MainActor public static func existing() -> Set<CGWindowID> {
+        let entries = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID)
+            as? [[String: Any]] ?? []
+        return Set(entries.compactMap { ($0[kCGWindowNumber as String] as? Int).map(CGWindowID.init) })
+    }
+
     /// Every ordinary window on screen now, front to back. Minimized windows and those on other
     /// Spaces are not on screen, so the window server leaves them out.
     @MainActor public static func onScreen() -> [WindowInfo] {

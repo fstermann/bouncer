@@ -10,6 +10,13 @@ extension AppDelegate {
             case "on", "off":
                 settings.preferences.enableDecks = words.first == "on"
                 return "decks \(words[0])"
+            case "group":
+                return decks.devGroup(words.count > 1 ? Int(words[1]) ?? 2 : 2)
+            case "hover":
+                return decks.devHover(words.count > 1 ? Int(words[1]) ?? 0 : 0)
+            case "clear":
+                decks.devClearDecks()
+                return "cleared"
             default:
                 decks.toggle()
                 return decks.isOpen ? "opened" : "closed"

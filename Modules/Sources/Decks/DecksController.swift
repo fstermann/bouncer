@@ -55,8 +55,16 @@ public final class DecksController {
     public func open() {
         guard panel == nil, let screen = Self.pointerScreen else { return }
         permissions.refresh()
+        let windows = WindowList.onScreen()
+        // Brought up to date with what is open before anything is shown, and stored as it is.
+        let decks = DeckMatching.refreshed(
+            settings.preferences.decks, with: DeckMatching.arrange(settings.preferences.decks, over: windows),
+            existing: WindowList.existing()
+        )
+        settings.preferences.decks = decks
         let overview = Overview(
-            windows: WindowList.onScreen(),
+            windows: windows,
+            decks: decks,
             wallpaper: NSWorkspace.shared.desktopImageURL(for: screen).flatMap(NSImage.init(contentsOf:)),
             canRaise: permissions.accessibility,
             canSeeTitles: permissions.screenRecording
@@ -64,8 +72,10 @@ public final class DecksController {
         overview.onPick = { [weak self] in self?.bringForward($0) }
         overview.onDismiss = { [weak self] in self?.close() }
         overview.onGrant = { [weak self] in self?.grant($0) }
+        overview.onDecksChange = { [weak self] in self?.settings.preferences.decks = $0 }
         let panel = OverlayPanel(frame: screen.frame)
-        let host = NSHostingView(rootView: OverviewView(overview: overview))
+        let host = PointerHost(rootView: OverviewView(overview: overview))
+        host.onPointer = { [weak overview] in overview?.pointerMoved(to: $0) }
         // The panel covers the display exactly; the content never resizes it.
         host.sizingOptions = []
         panel.contentView = host
@@ -96,6 +106,7 @@ public final class DecksController {
         resignObserver = nil
         panel?.orderOut(nil)
         panel = nil
+        overview?.stopWaiting()
         overview = nil
     }
 
@@ -117,6 +128,27 @@ public final class DecksController {
             NSWorkspace.shared.open(url)
         }
     }
+
+    #if DEV
+    /// Groups the `count` frontmost windows on screen into a new deck, for checking decks from a shell.
+    public func devGroup(_ count: Int) -> String {
+        let windows = Array(WindowList.onScreen().prefix(count))
+        guard !windows.isEmpty else { return "no windows" }
+        settings.preferences.decks = DeckMatching.grouping(windows, in: settings.preferences.decks).decks
+        return "grouped \(windows.map(\.label))"
+    }
+
+    /// Hovers the deck at `index` in the open overview, as the pointer would.
+    public func devHover(_ index: Int) -> String {
+        guard let overview, index < overview.decks.count else { return "no such deck" }
+        overview.devShow(overview.decks[index].id)
+        return "hovering \(overview.decks[index].name)"
+    }
+
+    public func devClearDecks() {
+        settings.preferences.decks = []
+    }
+    #endif
 
     private static let hotKeyID: UInt32 = 10
 

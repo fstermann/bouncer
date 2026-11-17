@@ -74,6 +74,19 @@ enum DevInput {
         }
     }
 
+    /// The pointer glided to `point` over `seconds`, as a hand moves it, and left there.
+    static func move(to point: CGPoint, over seconds: Double) async {
+        let start = CGEvent(source: nil)?.location ?? point
+        let steps = max(1, Int(seconds * 60))
+        for step in 1...steps {
+            let progress = CGFloat(step) / CGFloat(steps)
+            let at = CGPoint(x: start.x + (point.x - start.x) * progress, y: start.y + (point.y - start.y) * progress)
+            CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: at, mouseButton: .left)?
+                .post(tap: .cghidEventTap)
+            try? await Task.sleep(for: .seconds(seconds / Double(steps)))
+        }
+    }
+
     /// A right-click, the pointer left there like `tap`.
     static func rightTap(at point: CGPoint) async {
         for type in [CGEventType.mouseMoved, .rightMouseDown, .rightMouseUp] {

@@ -93,6 +93,11 @@ public final class DevHarness {
         case "type":
             await DevInput.type(String(command.dropFirst("type ".count)))
             return "typed"
+        case "move":
+            guard let left = Double(argument), let top = words.count > 2 ? Double(words[2]) : nil
+            else { return "usage: move <x> <y> [seconds]" }
+            await DevInput.move(to: CGPoint(x: left, y: top), over: words.count > 3 ? Double(words[3]) ?? 0.3 : 0.3)
+            return "moved"
         case "tap", "rtap":
             guard let left = Double(argument), let top = words.count > 2 ? Double(words[2]) : nil
             else { return "usage: \(words[0]) <x> <y>" }

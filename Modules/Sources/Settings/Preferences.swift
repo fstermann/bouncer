@@ -95,6 +95,8 @@ public struct Preferences: Codable, Hashable, Sendable {
     public var enableDecks: Bool
     /// Opens and closes the window overview.
     public var decksShortcut: HotKey.Shortcut
+    /// The overview's decks, in the order it shows them.
+    public var decks: [Deck]
 
     public static let defaultDecksShortcut = HotKey.Shortcut(keyCode: kVK_F3)
 
@@ -123,7 +125,8 @@ public struct Preferences: Codable, Hashable, Sendable {
         tagRepositories: [String: String] = [:],
         claudeSessions: [String: ClaudeSession] = [:],
         enableDecks: Bool = false,
-        decksShortcut: HotKey.Shortcut = Preferences.defaultDecksShortcut
+        decksShortcut: HotKey.Shortcut = Preferences.defaultDecksShortcut,
+        decks: [Deck] = []
     ) {
         self.enableMenuBarItems = enableMenuBarItems
         self.enableTodos = enableTodos
@@ -150,6 +153,7 @@ public struct Preferences: Codable, Hashable, Sendable {
         self.claudeSessions = claudeSessions
         self.enableDecks = enableDecks
         self.decksShortcut = decksShortcut
+        self.decks = decks
     }
 
     /// The notch panel's pages that are on, in the order the page button lists them.
@@ -207,6 +211,7 @@ public struct Preferences: Codable, Hashable, Sendable {
         enableDecks = try container.decodeIfPresent(Bool.self, forKey: .enableDecks) ?? false
         decksShortcut = try container.decodeIfPresent(HotKey.Shortcut.self, forKey: .decksShortcut)
             ?? Self.defaultDecksShortcut
+        decks = try container.decodeIfPresent([Deck].self, forKey: .decks) ?? []
     }
 }
 

@@ -1,0 +1,151 @@
+import CoreGraphics
+import Foundation
+import Settings
+import Testing
+
+@testable import Decks
+
+@Suite struct DeckMatchingTests {
+    private func window(
+        _ id: CGWindowID, app: String = "com.example.code", title: String? = "main.swift"
+    ) -> WindowInfo {
+        WindowInfo(
+            id: id, pid: 1, bundleID: app, appName: "Code", title: title,
+            frame: CGRect(x: 0, y: 0, width: 800, height: 600)
+        )
+    }
+
+    private func deck(_ members: [DeckMember], name: String = "Code") -> Deck {
+        Deck(name: name, color: .blue, members: members)
+    }
+
+    @Test func matchesByWindowNumberFirst() {
+        let decks = [deck([DeckMember(app: "com.example.code", title: "old title", windowID: 2)])]
+        let arrangement = DeckMatching.arrange(decks, over: [window(1), window(2), window(3)])
+        #expect(arrangement.decks[0].windows.map(\.id) == [2])
+        #expect(arrangement.ungrouped.map(\.id) == [1, 3])
+    }
+
+    @Test func matchesByAppAndTitleAfterARelaunch() {
+        let decks = [deck([DeckMember(app: "com.example.code", title: "b.swift", windowID: 99)])]
+        let windows = [
+            window(1, title: "a.swift"), window(2, title: "b.swift"), window(3, app: "other", title: "b.swift")
+        ]
+        let arrangement = DeckMatching.arrange(decks, over: windows)
+        #expect(arrangement.decks[0].windows.map(\.id) == [2])
+    }
+
+    @Test func aWindowGoesToOneMemberOnly() {
+        let member = DeckMember(app: "com.example.code", title: "main.swift", windowID: nil)
+        let decks = [deck([member, member]), deck([member], name: "Other")]
+        let arrangement = DeckMatching.arrange(decks, over: [window(1)])
+        #expect(arrangement.decks[0].windows.map(\.id) == [1])
+        #expect(arrangement.decks[1].windows.isEmpty)
+        #expect(arrangement.ungrouped.isEmpty)
+    }
+
+    @Test func aNumberClaimBeatsAnEarlierTitleMatch() {
+        let byTitle = deck([DeckMember(app: "com.example.code", title: "main.swift", windowID: nil)], name: "A")
+        let byNumber = deck([DeckMember(app: "com.example.code", title: "main.swift", windowID: 1)], name: "B")
+        let arrangement = DeckMatching.arrange([byTitle, byNumber], over: [window(1)])
+        #expect(arrangement.decks[0].windows.isEmpty)
+        #expect(arrangement.decks[1].windows.map(\.id) == [1])
+    }
+
+    @Test func keepsWindowsFrontToBack() {
+        let decks = [deck([
+            DeckMember(app: "com.example.code", title: nil, windowID: 3),
+            DeckMember(app: "com.example.code", title: nil, windowID: 1)
+        ])]
+        let arrangement = DeckMatching.arrange(decks, over: [window(1), window(2), window(3)])
+        #expect(arrangement.decks[0].windows.map(\.id) == [1, 3])
+    }
+
+    @Test func refreshTakesTheMatchedWindowsNumberAndTitle() {
+        let decks = [deck([DeckMember(app: "com.example.code", title: "main.swift", windowID: 99)])]
+        let arrangement = DeckMatching.arrange(decks, over: [window(5)])
+        let refreshed = DeckMatching.refreshed(decks, with: arrangement, existing: [5])
+        #expect(refreshed[0].members == [DeckMember(app: "com.example.code", title: "main.swift", windowID: 5)])
+    }
+
+    @Test func refreshKeepsAWindowThatIsOnlyOffScreen() {
+        let member = DeckMember(app: "com.example.code", title: nil, windowID: 7)
+        let decks = [deck([member])]
+        let arrangement = DeckMatching.arrange(decks, over: [])
+        #expect(DeckMatching.refreshed(decks, with: arrangement, existing: [7])[0].members == [member])
+    }
+
+    @Test func refreshForgetsAClosedWindowNothingCanFindAgain() {
+        let decks = [deck([
+            DeckMember(app: "com.example.code", title: nil, windowID: 7),
+            DeckMember(app: "com.example.code", title: "kept.swift", windowID: 8)
+        ])]
+        let arrangement = DeckMatching.arrange(decks, over: [])
+        let refreshed = DeckMatching.refreshed(decks, with: arrangement, existing: [])
+        #expect(refreshed[0].members == [DeckMember(app: "com.example.code", title: "kept.swift", windowID: nil)])
+    }
+
+    @Test func addingMovesAWindowOutOfItsOldDeck() {
+        let first = deck([DeckMatching.member(for: window(1))], name: "A")
+        let second = deck([], name: "B")
+        let moved = DeckMatching.adding(window(1), to: second.id, in: [first, second])
+        #expect(moved[0].members.isEmpty)
+        #expect(moved[1].members.map(\.windowID) == [1])
+    }
+
+    @Test func groupingMakesTheNextNamedDeck() {
+        let existing = Deck(name: "Deck 1", color: .blue, members: [DeckMatching.member(for: window(1))])
+        let (decks, id) = DeckMatching.grouping([window(1), window(2)], in: [existing])
+        #expect(decks.count == 2)
+        #expect(decks[0].members.isEmpty)
+        #expect(decks[1].id == id)
+        #expect(decks[1].name == "Deck 2")
+        #expect(decks[1].color == .pink)
+        #expect(decks[1].members.map(\.windowID) == [1, 2])
+    }
+}
+
+@Suite struct TrayRuleTests {
+    private let deck = UUID()
+    private let other = UUID()
+
+    @Test func aDeckOpensTheTrayOnIt() {
+        #expect(TrayRule.step(showing: nil, pointerOn: .deck(deck), lastOn: nil) == .show(deck))
+        #expect(TrayRule.step(showing: deck, pointerOn: .deck(other), lastOn: .deck(deck)) == .show(other))
+    }
+
+    @Test func anUngroupedWindowOrTheNewTileClosesItAtOnce() {
+        #expect(TrayRule.step(showing: deck, pointerOn: .window(3), lastOn: .deck(deck)) == .close)
+        #expect(TrayRule.step(showing: deck, pointerOn: .newDeck, lastOn: .deck(deck)) == .close)
+    }
+
+    @Test func leavingTheCardsWaitsBeforeClosing() {
+        #expect(TrayRule.step(showing: deck, pointerOn: .grid, lastOn: .deck(deck)) == .closeAfter(.milliseconds(250)))
+        #expect(TrayRule.step(showing: deck, pointerOn: nil, lastOn: .deck(deck)) == .closeAfter(.milliseconds(250)))
+    }
+
+    @Test func leavingTheTrayWaitsLonger() {
+        #expect(TrayRule.step(showing: deck, pointerOn: nil, lastOn: .tray) == .closeAfter(.milliseconds(300)))
+        let step = TrayRule.step(showing: deck, pointerOn: .grid, lastOn: .trayWindow(4))
+        #expect(step == .closeAfter(.milliseconds(300)))
+    }
+
+    @Test func theTrayKeepsItselfOpen() {
+        #expect(TrayRule.step(showing: deck, pointerOn: .tray, lastOn: nil) == .keep)
+        #expect(TrayRule.step(showing: deck, pointerOn: .trayWindow(4), lastOn: .tray) == .keep)
+    }
+
+    @Test func aCardInTheTrayWinsOverTheTray() {
+        let frames: [HoverTarget: CGRect] = [
+            .tray: CGRect(x: 0, y: 300, width: 1000, height: 250),
+            .trayWindow(4): CGRect(x: 100, y: 350, width: 200, height: 150),
+            .grid: CGRect(x: 0, y: 0, width: 1000, height: 280),
+            .deck(deck): CGRect(x: 10, y: 10, width: 190, height: 140)
+        ]
+        #expect(Hover.target(at: CGPoint(x: 150, y: 400), in: frames) == .trayWindow(4))
+        #expect(Hover.target(at: CGPoint(x: 600, y: 400), in: frames) == .tray)
+        #expect(Hover.target(at: CGPoint(x: 50, y: 50), in: frames) == .deck(deck))
+        #expect(Hover.target(at: CGPoint(x: 600, y: 200), in: frames) == .grid)
+        #expect(Hover.target(at: CGPoint(x: 600, y: 900), in: frames) == nil)
+    }
+}

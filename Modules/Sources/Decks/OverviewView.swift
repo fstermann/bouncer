@@ -1,29 +1,74 @@
 import SwiftUI
 
-/// The overview's content: the dimmed, blurred desktop, a hint, and a card for every window.
+/// The overview's content: the dimmed, blurred desktop, a hint, the decks and windows, and under
+/// them the tray of the deck the pointer is on.
 struct OverviewView: View {
     let overview: Overview
 
     var body: some View {
-        ZStack(alignment: .top) {
-            backdrop
-                .contentShape(Rectangle())
-                .onTapGesture { overview.onDismiss?() }
-            VStack(spacing: 18) {
-                hint
-                if !overview.canRaise || !overview.canSeeTitles { PermissionBanner(overview: overview) }
-                CenteredFlow(spacing: Metrics.gap, lineSpacing: Metrics.gap) {
-                    ForEach(overview.windows) { window in
-                        WindowCard(
-                            window: window, icon: overview.icon(of: window), picture: overview.thumbnails[window.id]
-                        ) { overview.onPick?([window]) }
+        GeometryReader { geometry in
+            ZStack(alignment: .top) {
+                backdrop
+                    .contentShape(Rectangle())
+                    .onTapGesture { overview.onDismiss?() }
+                VStack(spacing: 0) {
+                    hint
+                    if !overview.canRaise || !overview.canSeeTitles {
+                        PermissionBanner(overview: overview)
+                            .padding(.top, 18)
                     }
+                    grid
+                        .padding(.top, 18)
+                    tray(width: min(1000, geometry.size.width * 0.92))
+                        .padding(.top, 34)
                 }
-                .padding(.horizontal, 30)
+                .padding(.top, 28)
             }
-            .padding(.top, 28)
+        }
+        .coordinateSpace(name: Hover.space)
+        .onPreferenceChange(HoverFrames.self) { frames in
+            MainActor.assumeIsolated { overview.hoverFrames = frames }
         }
         .ignoresSafeArea()
+    }
+
+    /// The mockup's hidden tray: faded out, 14 pt higher and at 98 %, from its top edge.
+    private static let trayTransition = AnyTransition.opacity
+        .combined(with: .offset(y: -14))
+        .combined(with: .scale(scale: 0.98, anchor: .top))
+
+    private var grid: some View {
+        let arrangement = overview.arrangement
+        return CenteredFlow(spacing: Metrics.gap, lineSpacing: Metrics.gap) {
+            ForEach(arrangement.decks) { live in
+                DeckStack(live: live, overview: overview, isActive: overview.trayDeck == live.id)
+                    .hoverTarget(.deck(live.id))
+                    .onTapGesture { overview.onPick?(live.windows.reversed()) }
+            }
+            ForEach(arrangement.ungrouped) { window in
+                WindowCard(
+                    window: window, icon: overview.icon(of: window), picture: overview.thumbnails[window.id],
+                    isHovered: overview.hovered == .window(window.id)
+                ) { overview.onPick?([window]) }
+                .hoverTarget(.window(window.id))
+            }
+            NewDeckTile()
+                .hoverTarget(.newDeck)
+        }
+        .hoverTarget(.grid)
+        .padding(.horizontal, 30)
+    }
+
+    @ViewBuilder private func tray(width: CGFloat) -> some View {
+        let live = overview.trayDeck.flatMap { id in overview.arrangement.decks.first { $0.id == id } }
+        ZStack {
+            if let live {
+                DeckTray(live: live, overview: overview, width: width)
+                    .hoverTarget(.tray)
+                    .transition(Self.trayTransition)
+            }
+        }
+        .animation(Springs.tray, value: live != nil)
     }
 
     private var backdrop: some View {
@@ -44,7 +89,8 @@ struct OverviewView: View {
     }
 
     private var hint: some View {
-        Text("Click a window to focus it  ·  esc to close")
+        Text("Hover a deck to expand it  ·  click a window to focus  ·  "
+             + "⌥ drag a window onto another to group them  ·  esc to close")
             .font(.system(size: 12))
             .foregroundStyle(.white.opacity(0.75))
     }
@@ -62,19 +108,14 @@ struct WindowCard: View {
     let window: WindowInfo
     let icon: NSImage
     let picture: NSImage?
+    let isHovered: Bool
     let action: () -> Void
-    @State private var isHovered = false
 
     var body: some View {
         VStack(spacing: 9) {
             WindowThumbnail(icon: icon, picture: picture)
                 .frame(width: Metrics.card.width, height: Metrics.card.height)
-                .overlay {
-                    RoundedRectangle(cornerRadius: Metrics.cornerRadius + 2)
-                        .inset(by: -3.5)
-                        .stroke(Metrics.highlight, lineWidth: 3)
-                        .opacity(isHovered ? 1 : 0)
-                }
+                .overlay { Highlight(isOn: isHovered) }
             Text(window.label)
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.white)
@@ -84,7 +125,6 @@ struct WindowCard: View {
                 .frame(maxWidth: Metrics.card.width)
         }
         .contentShape(Rectangle())
-        .onHover { isHovered = $0 }
         .onTapGesture(perform: action)
     }
 }
