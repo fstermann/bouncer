@@ -65,6 +65,8 @@ targets:
       - package: BouncerModules
         product: Screenshots
       - package: BouncerModules
+        product: Decks
+      - package: BouncerModules
         product: Updates
       - package: Sparkle
     settings:

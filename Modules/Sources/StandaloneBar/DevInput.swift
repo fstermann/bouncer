@@ -90,7 +90,7 @@ enum DevInput {
 
     private static let modifiers: [String: CGEventFlags] = [
         "cmd": .maskCommand, "shift": .maskShift, "opt": .maskAlternate, "alt": .maskAlternate,
-        "ctrl": .maskControl
+        "ctrl": .maskControl, "fn": .maskSecondaryFn
     ]
 
     /// The digit and symbol keys, and what each types without and with Shift.
@@ -116,6 +116,10 @@ enum DevInput {
             kVK_ANSI_V, kVK_ANSI_W, kVK_ANSI_X, kVK_ANSI_Y, kVK_ANSI_Z
         ]
         for (letter, code) in zip("abcdefghijklmnopqrstuvwxyz", letters) { codes[String(letter)] = code }
+        let functionKeys = [
+            kVK_F1, kVK_F2, kVK_F3, kVK_F4, kVK_F5, kVK_F6, kVK_F7, kVK_F8, kVK_F9, kVK_F10, kVK_F11, kVK_F12
+        ]
+        for (index, code) in functionKeys.enumerated() { codes["f\(index + 1)"] = code }
         return codes.mapValues { CGKeyCode($0) }
     }()
 }

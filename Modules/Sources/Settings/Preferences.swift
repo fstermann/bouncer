@@ -1,3 +1,5 @@
+import BouncerFoundation
+import Carbon.HIToolbox
 import Foundation
 
 /// What should collapse the menu bar again after it has been revealed.
@@ -88,6 +90,13 @@ public struct Preferences: Codable, Hashable, Sendable {
     /// The Claude Code session each todo sent to Claude was started in, and its folder, by the todo's
     /// title. Kept on this Mac only, where the session is.
     public var claudeSessions: [String: ClaudeSession]
+    /// The window overview that replaces Mission Control's, with windows grouped into decks. Needs
+    /// Screen Recording and Accessibility.
+    public var enableDecks: Bool
+    /// Opens and closes the window overview.
+    public var decksShortcut: HotKey.Shortcut
+
+    public static let defaultDecksShortcut = HotKey.Shortcut(keyCode: kVK_F3)
 
     public init(
         enableMenuBarItems: Bool = true,
@@ -112,7 +121,9 @@ public struct Preferences: Codable, Hashable, Sendable {
         tagColors: [String: String] = [:],
         tagOrder: [String] = [],
         tagRepositories: [String: String] = [:],
-        claudeSessions: [String: ClaudeSession] = [:]
+        claudeSessions: [String: ClaudeSession] = [:],
+        enableDecks: Bool = false,
+        decksShortcut: HotKey.Shortcut = Preferences.defaultDecksShortcut
     ) {
         self.enableMenuBarItems = enableMenuBarItems
         self.enableTodos = enableTodos
@@ -137,6 +148,8 @@ public struct Preferences: Codable, Hashable, Sendable {
         self.tagOrder = tagOrder
         self.tagRepositories = tagRepositories
         self.claudeSessions = claudeSessions
+        self.enableDecks = enableDecks
+        self.decksShortcut = decksShortcut
     }
 
     /// The notch panel's pages that are on, in the order the page button lists them.
@@ -191,6 +204,9 @@ public struct Preferences: Codable, Hashable, Sendable {
         tagOrder = try container.decodeIfPresent([String].self, forKey: .tagOrder) ?? []
         tagRepositories = try container.decodeIfPresent([String: String].self, forKey: .tagRepositories) ?? [:]
         claudeSessions = try container.decodeIfPresent([String: ClaudeSession].self, forKey: .claudeSessions) ?? [:]
+        enableDecks = try container.decodeIfPresent(Bool.self, forKey: .enableDecks) ?? false
+        decksShortcut = try container.decodeIfPresent(HotKey.Shortcut.self, forKey: .decksShortcut)
+            ?? Self.defaultDecksShortcut
     }
 }
 

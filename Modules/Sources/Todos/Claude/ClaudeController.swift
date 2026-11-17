@@ -1,4 +1,5 @@
 import AppKit
+import BouncerFoundation
 import Screenshots
 import Settings
 import SwiftUI

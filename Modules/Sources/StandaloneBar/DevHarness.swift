@@ -17,6 +17,8 @@ public final class DevHarness {
     private let controller: StandaloneBarController
     private let menuBar: MenuBarManager
     private var observer: NSObjectProtocol?
+    /// Commands of features this module cannot see, by first word; handed the rest of the words.
+    public var commands: [String: @MainActor ([String]) async -> String] = [:]
 
     public init(controller: StandaloneBarController, menuBar: MenuBarManager) {
         self.controller = controller
@@ -79,9 +81,10 @@ public final class DevHarness {
         }
     }
 
-    /// Keys, text and clicks, or `nil` for any other command.
+    /// Keys, text, clicks and other features' commands, or `nil` for any other command.
     private func input(_ command: String, words: [String]) async -> String? {
         let argument = words.count > 1 ? words[1] : ""
+        if let first = words.first, let other = commands[first] { return await other(Array(words.dropFirst())) }
         switch words.first {
         case "key":
             guard let shortcut = DevInput.shortcut(argument) else { return "unknown key: \(argument)" }
