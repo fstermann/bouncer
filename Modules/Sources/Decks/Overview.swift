@@ -9,6 +9,8 @@ final class Overview {
     let wallpaper: NSImage?
     let canRaise: Bool
     let canSeeTitles: Bool
+    /// Each window's picture, once it has arrived.
+    var thumbnails: [CGWindowID: NSImage] = [:]
     @ObservationIgnored private var icons: [pid_t: NSImage] = [:]
 
     /// The user picked windows to bring forward, the last of them focused.

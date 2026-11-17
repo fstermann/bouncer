@@ -25,6 +25,7 @@ public final class DecksController {
     private var panel: OverlayPanel?
     private var overview: Overview?
     private var resignObserver: NSObjectProtocol?
+    private var capture: Task<Void, Never>?
 
     public var isOpen: Bool { panel != nil }
 
@@ -80,9 +81,17 @@ public final class DecksController {
         }
         self.panel = panel
         self.overview = overview
+        guard overview.canSeeTitles else { return }
+        capture = Task { [windows = overview.windows.map(\.id), scale = screen.backingScaleFactor] in
+            await Thumbnails.capture(windows, scale: scale) { [weak overview] id, image in
+                overview?.thumbnails[id] = NSImage(cgImage: image, size: .zero)
+            }
+        }
     }
 
     public func close() {
+        capture?.cancel()
+        capture = nil
         if let resignObserver { NotificationCenter.default.removeObserver(resignObserver) }
         resignObserver = nil
         panel?.orderOut(nil)

@@ -14,7 +14,9 @@ struct OverviewView: View {
                 if !overview.canRaise || !overview.canSeeTitles { PermissionBanner(overview: overview) }
                 CenteredFlow(spacing: Metrics.gap, lineSpacing: Metrics.gap) {
                     ForEach(overview.windows) { window in
-                        WindowCard(window: window, icon: overview.icon(of: window)) { overview.onPick?([window]) }
+                        WindowCard(
+                            window: window, icon: overview.icon(of: window), picture: overview.thumbnails[window.id]
+                        ) { overview.onPick?([window]) }
                     }
                 }
                 .padding(.horizontal, 30)
@@ -59,12 +61,13 @@ enum Metrics {
 struct WindowCard: View {
     let window: WindowInfo
     let icon: NSImage
+    let picture: NSImage?
     let action: () -> Void
     @State private var isHovered = false
 
     var body: some View {
         VStack(spacing: 9) {
-            WindowThumbnail(icon: icon)
+            WindowThumbnail(icon: icon, picture: picture)
                 .frame(width: Metrics.card.width, height: Metrics.card.height)
                 .overlay {
                     RoundedRectangle(cornerRadius: Metrics.cornerRadius + 2)
@@ -86,18 +89,29 @@ struct WindowCard: View {
     }
 }
 
-/// A window's stand-in: a dark card with its app's icon.
+/// A window's picture, fitted into the card, or until it arrives a dark card with its app's icon.
 struct WindowThumbnail: View {
     let icon: NSImage
+    let picture: NSImage?
 
     var body: some View {
         RoundedRectangle(cornerRadius: Metrics.cornerRadius)
             .fill(Color(red: 0x1E / 255, green: 0x1F / 255, blue: 0x24 / 255))
             .overlay {
-                Image(nsImage: icon)
-                    .resizable()
-                    .frame(width: 48, height: 48)
+                if let picture {
+                    Image(nsImage: picture)
+                        .resizable()
+                        .interpolation(.high)
+                        .scaledToFill()
+                        .transition(.opacity)
+                } else {
+                    Image(nsImage: icon)
+                        .resizable()
+                        .frame(width: 48, height: 48)
+                }
             }
+            .clipShape(RoundedRectangle(cornerRadius: Metrics.cornerRadius))
+            .animation(.easeOut(duration: 0.2), value: picture != nil)
             .overlay {
                 RoundedRectangle(cornerRadius: Metrics.cornerRadius)
                     .strokeBorder(.white.opacity(0.15), lineWidth: 0.5)

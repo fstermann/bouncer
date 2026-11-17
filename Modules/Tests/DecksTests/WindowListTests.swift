@@ -50,3 +50,19 @@ import Testing
         #expect(found.map(\.label) == ["App", "App", "Doc"])
     }
 }
+
+@Suite struct ThumbnailSizeTests {
+    @Test func scalesTheLongerSideDownToFit() {
+        let size = Thumbnails.captureSize(of: CGSize(width: 1600, height: 1000), longest: 400, scale: 2)
+        #expect(size == CGSize(width: 800, height: 500))
+    }
+
+    @Test func neverScalesUp() {
+        let size = Thumbnails.captureSize(of: CGSize(width: 300, height: 200), longest: 400, scale: 2)
+        #expect(size == CGSize(width: 600, height: 400))
+    }
+
+    @Test func anEmptyWindowHasNoPicture() {
+        #expect(Thumbnails.captureSize(of: .zero, longest: 400, scale: 2) == .zero)
+    }
+}
