@@ -73,9 +73,13 @@ public final class DecksController {
         overview.onDismiss = { [weak self] in self?.close() }
         overview.onGrant = { [weak self] in self?.grant($0) }
         overview.onDecksChange = { [weak self] in self?.settings.preferences.decks = $0 }
+        overview.onTile = { [weak self] in self?.tile($0, on: screen) }
         let panel = OverlayPanel(frame: screen.frame)
         let host = PointerHost(rootView: OverviewView(overview: overview))
         host.onPointer = { [weak overview] in overview?.pointerMoved(to: $0) }
+        host.onPress = { [weak overview] in overview?.press(at: $0, option: $1) ?? false }
+        host.onDrag = { [weak overview] in overview?.dragged(to: $0) }
+        host.onRelease = { [weak overview] in overview?.released(at: $0) }
         // The panel covers the display exactly; the content never resizes it.
         host.sizingOptions = []
         panel.contentView = host
@@ -115,6 +119,26 @@ public final class DecksController {
         guard let focused = windows.last else { return }
         NSRunningApplication(processIdentifier: focused.pid)?.activate()
         Task.detached { WindowFocus.raise(windows) }
+    }
+
+    /// Lays the windows side by side over the display's visible area, the front one first, and brings
+    /// them all forward.
+    private func tile(_ windows: [WindowInfo], on screen: NSScreen) {
+        close()
+        let area = Self.windowServerRect(of: screen.visibleFrame)
+        let frames = Array(zip(windows, Tiling.frames(count: windows.count, in: area)))
+        NSRunningApplication(processIdentifier: windows[0].pid)?.activate()
+        Task.detached {
+            Tiling.apply(frames)
+            WindowFocus.raise(windows.reversed())
+        }
+    }
+
+    /// An AppKit screen rectangle as the window server and Accessibility take it: from the top left of
+    /// the main display, y downwards.
+    static func windowServerRect(of rect: CGRect) -> CGRect {
+        let mainHeight = NSScreen.screens.first?.frame.height ?? 0
+        return CGRect(x: rect.minX, y: mainHeight - rect.maxY, width: rect.width, height: rect.height)
     }
 
     private func grant(_ permission: Overview.Permission) {

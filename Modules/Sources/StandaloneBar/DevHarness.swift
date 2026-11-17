@@ -93,11 +93,8 @@ public final class DevHarness {
         case "type":
             await DevInput.type(String(command.dropFirst("type ".count)))
             return "typed"
-        case "move":
-            guard let left = Double(argument), let top = words.count > 2 ? Double(words[2]) : nil
-            else { return "usage: move <x> <y> [seconds]" }
-            await DevInput.move(to: CGPoint(x: left, y: top), over: words.count > 3 ? Double(words[3]) ?? 0.3 : 0.3)
-            return "moved"
+        case "odrag", "pdrag", "move":
+            return await pointer(words)
         case "tap", "rtap":
             guard let left = Double(argument), let top = words.count > 2 ? Double(words[2]) : nil
             else { return "usage: \(words[0]) <x> <y>" }
@@ -109,14 +106,36 @@ public final class DevHarness {
         }
     }
 
+    /// Drags and pointer moves, which leave a click out.
+    private func pointer(_ words: [String]) async -> String {
+        let numbers = words.dropFirst().compactMap(Double.init)
+        if words[0] == "move" {
+            // Pairs of points visited in turn, in one command: a round trip from the shell is too slow
+            // for anything timed between them.
+            guard numbers.count >= 2 else { return "usage: move <x> <y> [<x> <y> ...]" }
+            for index in stride(from: 0, to: numbers.count - 1, by: 2) {
+                await DevInput.move(to: CGPoint(x: numbers[index], y: numbers[index + 1]), over: 0.2)
+            }
+            return "moved"
+        }
+        guard numbers.count == 4 else { return "usage: \(words[0]) <x1> <y1> <x2> <y2>" }
+        await Self.cmdDrag(
+            from: CGPoint(x: numbers[0], y: numbers[1]), to: CGPoint(x: numbers[2], y: numbers[3]), holding: 0.2,
+            flags: words[0] == "odrag" ? .maskAlternate : []
+        )
+        return "dragged"
+    }
+
     /// A Cmd-drag as the user makes one, posted from here because the app holds Accessibility,
     /// which posting needs. It holds the item at `end` for `hold` seconds before letting go, and puts
     /// the pointer back where it was.
-    private static func cmdDrag(from start: CGPoint, to end: CGPoint, holding hold: TimeInterval) async {
+    static func cmdDrag(
+        from start: CGPoint, to end: CGPoint, holding hold: TimeInterval, flags: CGEventFlags = .maskCommand
+    ) async {
         let home = CGEvent(source: nil)?.location ?? start
         func post(_ type: CGEventType, at point: CGPoint) {
             let event = CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: point, mouseButton: .left)
-            event?.flags = .maskCommand
+            event?.flags = flags
             event?.post(tap: .cghidEventTap)
         }
         post(.leftMouseDown, at: start)

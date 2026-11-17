@@ -27,6 +27,8 @@ final class Overview {
     /// The user asked for a permission's pane in System Settings.
     @ObservationIgnored var onGrant: (@MainActor (Permission) -> Void)?
     @ObservationIgnored var onDecksChange: (@MainActor ([Deck]) -> Void)?
+    /// The user asked to tile these windows side by side.
+    @ObservationIgnored var onTile: (@MainActor ([WindowInfo]) -> Void)?
 
     enum Permission {
         case screenRecording, accessibility
@@ -52,6 +54,91 @@ final class Overview {
         return icon
     }
 
+    // MARK: - Editing decks
+
+    /// The deck whose name is being typed, in the tray's head.
+    var renaming: UUID?
+
+    func rename(_ id: UUID, to name: String) {
+        let name = name.trimmingCharacters(in: .whitespaces)
+        renaming = nil
+        guard !name.isEmpty, let index = decks.firstIndex(where: { $0.id == id }) else { return }
+        decks[index].name = name
+    }
+
+    func recolor(_ id: UUID, to color: DeckColor) {
+        guard let index = decks.firstIndex(where: { $0.id == id }) else { return }
+        decks[index].color = color
+    }
+
+    /// Dissolves the deck. Its windows stay open.
+    func ungroup(_ id: UUID) {
+        decks.removeAll { $0.id == id }
+        if trayDeck == id { trayDeck = nil }
+    }
+
+    /// An empty deck, its tray open and its name ready to type.
+    func newDeck() {
+        let deck = DeckMatching.grouping([], in: decks)
+        decks = deck.decks
+        trayDeck = deck.id
+        renaming = deck.id
+    }
+
+    func tile(_ id: UUID) {
+        guard let live = arrangement.decks.first(where: { $0.id == id }), !live.windows.isEmpty else { return }
+        onTile?(live.windows)
+    }
+
+    // MARK: - Dragging
+
+    /// The window being dragged, where it was picked up, and where the pointer has it.
+    struct Drag {
+        let window: WindowInfo
+        let source: DeckDrop.Source
+        var point: CGPoint
+    }
+
+    private(set) var drag: Drag?
+
+    /// Starts a drag on a window in the tray, or on any window with Option held. Returns whether one started.
+    func press(at point: CGPoint, option: Bool) -> Bool {
+        let arrangement = arrangement
+        let pressed = Hover.target(at: point, in: hoverFrames)
+        switch pressed {
+        case .trayWindow(let id):
+            guard let deck = trayDeck, let window = windows.first(where: { $0.id == id }) else { return false }
+            drag = Drag(window: window, source: .tray(deck), point: point)
+        case .window(let id) where option:
+            guard let window = arrangement.ungrouped.first(where: { $0.id == id }) else { return false }
+            drag = Drag(window: window, source: .grid, point: point)
+        default:
+            return false
+        }
+        return true
+    }
+
+    func dragged(to point: CGPoint) {
+        drag?.point = point
+    }
+
+    /// Drops the dragged window where the pointer is. A press in the tray that never moved is a click.
+    func released(at point: CGPoint) {
+        guard let drag else { return }
+        self.drag = nil
+        let target = Hover.target(at: point, in: hoverFrames)
+        if case .tray = drag.source, target == .trayWindow(drag.window.id) {
+            return onPick?([drag.window]) ?? ()
+        }
+        switch DeckDrop.drop(drag.window, from: drag.source, on: target, in: arrangement, decks: decks) {
+        case .changed(let decks, let show):
+            self.decks = decks
+            trayDeck = show
+        case .unchanged:
+            break
+        }
+    }
+
     // MARK: - The pointer and the tray
 
     /// Where each part the pointer can be over is drawn, as the views last reported it.
@@ -70,6 +157,9 @@ final class Overview {
     private func follow() {
         let target = Hover.target(at: pointer, in: hoverFrames)
         if target != hovered { hovered = target }
+        defer { lastTarget = target }
+        // A name being typed holds the tray, so the grid reflowing under a new deck cannot close it.
+        guard renaming == nil else { return stopWaiting() }
         switch TrayRule.step(showing: trayDeck, pointerOn: target, lastOn: lastTarget) {
         case .show(let id):
             stopWaiting()
@@ -88,7 +178,6 @@ final class Overview {
                 trayDeck = nil
             }
         }
-        lastTarget = target
     }
 
     @ObservationIgnored private var lastTarget: HoverTarget?

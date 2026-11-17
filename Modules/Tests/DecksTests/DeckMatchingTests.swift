@@ -149,3 +149,69 @@ import Testing
         #expect(Hover.target(at: CGPoint(x: 600, y: 900), in: frames) == nil)
     }
 }
+
+@Suite struct DeckDropTests {
+    private func window(_ id: CGWindowID) -> WindowInfo {
+        WindowInfo(
+            id: id, pid: 1, bundleID: "com.example.app", appName: "App", title: "w\(id)",
+            frame: CGRect(x: 0, y: 0, width: 800, height: 600)
+        )
+    }
+
+    private let deck = Deck(name: "Deck 1", color: .blue, members: [
+        DeckMember(app: "com.example.app", title: "w1", windowID: 1)
+    ])
+
+    private var windows: [WindowInfo] { [window(1), window(2), window(3)] }
+
+    private func drop(_ id: CGWindowID, from source: DeckDrop.Source, on target: HoverTarget?) -> DeckDrop.Outcome {
+        DeckDrop.drop(
+            window(id), from: source, on: target, in: DeckMatching.arrange([deck], over: windows), decks: [deck]
+        )
+    }
+
+    @Test func ontoAnotherWindowMakesADeckOfBoth() {
+        guard case .changed(let decks, let show) = drop(2, from: .grid, on: .window(3)) else {
+            Issue.record("unchanged")
+            return
+        }
+        #expect(decks.count == 2)
+        #expect(decks[1].members.map(\.windowID) == [3, 2])
+        #expect(show == decks[1].id)
+    }
+
+    @Test func ontoADeckJoinsIt() {
+        guard case .changed(let decks, _) = drop(2, from: .grid, on: .deck(deck.id)) else {
+            Issue.record("unchanged")
+            return
+        }
+        #expect(decks[0].members.map(\.windowID) == [1, 2])
+    }
+
+    @Test func ontoItsOwnDeckOrItselfChangesNothing() {
+        #expect(drop(1, from: .grid, on: .deck(deck.id)) == .unchanged)
+        #expect(drop(2, from: .grid, on: .window(2)) == .unchanged)
+    }
+
+    @Test func ontoTheNewTileMakesADeckOfOne() {
+        guard case .changed(let decks, _) = drop(2, from: .grid, on: .newDeck) else {
+            Issue.record("unchanged")
+            return
+        }
+        #expect(decks[1].members.map(\.windowID) == [2])
+    }
+
+    @Test func outOfTheTrayLeavesTheDeck() {
+        guard case .changed(let decks, let show) = drop(1, from: .tray(deck.id), on: nil) else {
+            Issue.record("unchanged")
+            return
+        }
+        #expect(decks[0].members.isEmpty)
+        #expect(show == nil)
+    }
+
+    @Test func withinTheTrayOrFromTheGridToNowhereChangesNothing() {
+        #expect(drop(1, from: .tray(deck.id), on: .tray) == .unchanged)
+        #expect(drop(2, from: .grid, on: nil) == .unchanged)
+    }
+}

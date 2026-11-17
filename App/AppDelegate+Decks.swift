@@ -1,4 +1,5 @@
 import Decks
+import Settings
 
 extension AppDelegate {
     /// The window overview, and in Bouncer Dev the harness command that opens and closes it.
@@ -14,6 +15,9 @@ extension AppDelegate {
                 return decks.devGroup(words.count > 1 ? Int(words[1]) ?? 2 : 2)
             case "hover":
                 return decks.devHover(words.count > 1 ? Int(words[1]) ?? 0 : 0)
+            case "default-shortcut":
+                settings.preferences.decksShortcut = Preferences.defaultDecksShortcut
+                return "shortcut \(settings.preferences.decksShortcut.name)"
             case "clear":
                 decks.devClearDecks()
                 return "cleared"

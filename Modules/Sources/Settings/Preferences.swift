@@ -98,7 +98,9 @@ public struct Preferences: Codable, Hashable, Sendable {
     /// The overview's decks, in the order it shows them.
     public var decks: [Deck]
 
-    public static let defaultDecksShortcut = HotKey.Shortcut(keyCode: kVK_F3)
+    public static let defaultDecksShortcut = HotKey.Shortcut(
+        keyCode: kVK_ANSI_W, modifiers: HotKey.Shortcut.commandShift
+    )
 
     public init(
         enableMenuBarItems: Bool = true,

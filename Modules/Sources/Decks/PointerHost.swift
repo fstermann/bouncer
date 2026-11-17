@@ -8,6 +8,12 @@ import SwiftUI
 final class PointerHost<Content: View>: NSHostingView<Content> {
     /// The pointer's position in SwiftUI's coordinates, from the top left; `nil` once it leaves.
     var onPointer: (@MainActor (CGPoint?) -> Void)?
+    /// A press, with whether Option is held; returns whether a drag starts there, which then takes the
+    /// press from SwiftUI.
+    var onPress: (@MainActor (CGPoint, Bool) -> Bool)?
+    var onDrag: (@MainActor (CGPoint) -> Void)?
+    var onRelease: (@MainActor (CGPoint) -> Void)?
+    private var isDragging = false
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
@@ -32,9 +38,30 @@ final class PointerHost<Content: View>: NSHostingView<Content> {
         onPointer?(nil)
     }
 
+    override func mouseDown(with event: NSEvent) {
+        isDragging = onPress?(point(of: event), event.modifierFlags.contains(.option)) == true
+        if !isDragging { super.mouseDown(with: event) }
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard isDragging else { return super.mouseDragged(with: event) }
+        onPointer?(point(of: event))
+        onDrag?(point(of: event))
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        guard isDragging else { return super.mouseUp(with: event) }
+        isDragging = false
+        onRelease?(point(of: event))
+    }
+
     private func report(_ event: NSEvent) {
+        onPointer?(point(of: event))
+    }
+
+    private func point(of event: NSEvent) -> CGPoint {
         let point = convert(event.locationInWindow, from: nil)
-        onPointer?(isFlipped ? point : CGPoint(x: point.x, y: bounds.height - point.y))
+        return isFlipped ? point : CGPoint(x: point.x, y: bounds.height - point.y)
     }
 }
 

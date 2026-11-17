@@ -122,10 +122,12 @@ struct Highlight: View {
 
 /// The last tile in the grid, which starts an empty deck.
 struct NewDeckTile: View {
+    let isHovered: Bool
+
     var body: some View {
         VStack(spacing: 9) {
             RoundedRectangle(cornerRadius: 8)
-                .strokeBorder(.white.opacity(0.45), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+                .strokeBorder(.white.opacity(isHovered ? 0.8 : 0.45), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
                 .overlay {
                     Text("+ New group")
                         .font(.system(size: 12))

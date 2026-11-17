@@ -19,9 +19,9 @@ public final class HotKey {
 
         public static let commandShift = cmdKey | shiftKey
 
-        /// As a menu shows it, ⌃⌥⇧⌘ first: "⌘⇧B", "F3".
+        /// As Bouncer writes its shortcuts elsewhere, ⌃⌥⌘⇧ first: "⌘⇧B", "F3".
         public var name: String {
-            let symbols: [(Int, String)] = [(controlKey, "⌃"), (optionKey, "⌥"), (shiftKey, "⇧"), (cmdKey, "⌘")]
+            let symbols: [(Int, String)] = [(controlKey, "⌃"), (optionKey, "⌥"), (cmdKey, "⌘"), (shiftKey, "⇧")]
             return symbols.filter { modifiers & UInt32($0.0) != 0 }.map(\.1).joined() + Self.keyName(keyCode)
         }
 

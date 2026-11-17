@@ -11,7 +11,8 @@
 //   key <shortcut>                     presses it, as cmd+shift+n, escape or cmd+z
 //   type <text>                        types it into whatever has focus
 //   tap <x> <y>                        clicks there, in the coordinates dump prints
-//   move <x> <y> [seconds]             glides the pointer there, 0.3 s by default
+//   odrag|pdrag <x1> <y1> <x2> <y2>     an Option-drag or a plain drag between two points
+//   move <x> <y> [<x> <y> ...]         glides the pointer to each point in turn, 0.2 s each
 //   decks [on|off|group n|hover i|clear]  the window overview: toggle it, or set it up
 import Foundation
 

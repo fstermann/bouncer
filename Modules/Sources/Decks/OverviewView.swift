@@ -23,6 +23,7 @@ struct OverviewView: View {
                         .padding(.top, 34)
                 }
                 .padding(.top, 28)
+                if let drag = overview.drag { DragGhost(drag: drag, overview: overview) }
             }
         }
         .coordinateSpace(name: Hover.space)
@@ -41,19 +42,24 @@ struct OverviewView: View {
         let arrangement = overview.arrangement
         return CenteredFlow(spacing: Metrics.gap, lineSpacing: Metrics.gap) {
             ForEach(arrangement.decks) { live in
-                DeckStack(live: live, overview: overview, isActive: overview.trayDeck == live.id)
+                DeckStack(
+                    live: live, overview: overview,
+                    isActive: overview.trayDeck == live.id || isDropTarget(.deck(live.id))
+                )
                     .hoverTarget(.deck(live.id))
                     .onTapGesture { overview.onPick?(live.windows.reversed()) }
             }
             ForEach(arrangement.ungrouped) { window in
                 WindowCard(
                     window: window, icon: overview.icon(of: window), picture: overview.thumbnails[window.id],
-                    isHovered: overview.hovered == .window(window.id)
+                    isHovered: overview.hovered == .window(window.id) && overview.drag?.window.id != window.id
                 ) { overview.onPick?([window]) }
                 .hoverTarget(.window(window.id))
+                .opacity(overview.drag?.window.id == window.id ? 0.35 : 1)
             }
-            NewDeckTile()
+            NewDeckTile(isHovered: overview.hovered == .newDeck)
                 .hoverTarget(.newDeck)
+                .onTapGesture { overview.newDeck() }
         }
         .hoverTarget(.grid)
         .padding(.horizontal, 30)
@@ -69,6 +75,11 @@ struct OverviewView: View {
             }
         }
         .animation(Springs.tray, value: live != nil)
+    }
+
+    /// Whether a window being dragged would drop on `target`.
+    private func isDropTarget(_ target: HoverTarget) -> Bool {
+        overview.drag != nil && overview.hovered == target
     }
 
     private var backdrop: some View {
@@ -190,5 +201,20 @@ struct PermissionBanner: View {
         case (false, true): "Bouncer needs Accessibility to focus windows."
         default: "Bouncer needs Screen Recording to show window titles and pictures."
         }
+    }
+}
+
+/// The window being dragged, following the pointer.
+struct DragGhost: View {
+    let drag: Overview.Drag
+    let overview: Overview
+
+    var body: some View {
+        WindowThumbnail(icon: overview.icon(of: drag.window), picture: overview.thumbnails[drag.window.id])
+            .frame(width: Metrics.card.width * 0.8, height: Metrics.card.height * 0.8)
+            .rotationEffect(.degrees(-3))
+            .opacity(0.9)
+            .position(drag.point)
+            .allowsHitTesting(false)
     }
 }
