@@ -11,7 +11,7 @@ struct DeckTray: View {
         VStack(spacing: 18) {
             HStack {
                 if overview.renaming == live.id {
-                    RenameField(deck: live.deck, overview: overview)
+                    RenameField(deck: live.deck, overview: overview, showsColors: !overview.trayIsDesktop)
                 } else {
                     DeckLabel(
                         deck: live.deck, count: live.windows.count, font: .system(size: 15, weight: .semibold),
@@ -19,7 +19,9 @@ struct DeckTray: View {
                     )
                 }
                 Spacer()
-                if !overview.trayIsDesktop {
+                if overview.trayIsDesktop {
+                    TrayButton(title: "Rename") { overview.renaming = live.id }
+                } else {
                     HStack(spacing: 8) {
                         if overview.view == .windows {
                             TrayButton(title: "Tile all") { overview.tile(live.id) }
@@ -142,6 +144,7 @@ struct TrayButton: View {
 struct RenameField: View {
     let deck: Deck
     let overview: Overview
+    var showsColors = true
     @State private var name = ""
     @FocusState private var isFocused: Bool
 
@@ -158,7 +161,7 @@ struct RenameField: View {
                 .focused($isFocused)
                 .onSubmit { overview.rename(deck.id, to: name) }
                 .onExitCommand { overview.renaming = nil }
-            ForEach(DeckColor.allCases, id: \.self) { color in
+            ForEach(showsColors ? DeckColor.allCases : [], id: \.self) { color in
                 Circle()
                     .fill(color.color)
                     .frame(width: 14, height: 14)

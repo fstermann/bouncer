@@ -60,22 +60,20 @@ public final class DecksController {
     public func open() {
         guard panel == nil, let screen = Self.pointerScreen else { return }
         permissions.refresh()
-        let spaces = SpaceList.read()
-        let listed = spaces.map(SpaceList.windows(of:))
-        let windows = listed?.map(\.window) ?? WindowList.onScreen()
-        let spaceInventory = spaces.map(SpaceItems.items(for:))
-        let items = spaceInventory ?? []
-        // Brought up to date with what is open before anything is shown, and stored as it is.
-        let decks = SpaceItems.refreshed(
-            settings.preferences.decks, windows: windows, items: spaceInventory, existing: WindowList.existing()
+        let opening = Opening.read(
+            on: screen, decks: settings.preferences.decks, names: settings.preferences.spaceNames
         )
-        settings.preferences.decks = SpaceItems.stored(decks, with: items)
+        let items = opening.items
+        // Brought up to date with what is open before anything is shown, and stored as it is.
+        settings.preferences.decks = SpaceItems.stored(opening.decks, with: items)
+        let windows = opening.windows
         let overview = Overview(
             windows: windows,
-            spaces: Dictionary(listed?.map { ($0.window.id, $0.space) } ?? []) { first, _ in first },
-            spaceItems: items,
-            decks: decks,
-            wallpaper: NSWorkspace.shared.desktopImageURL(for: screen).flatMap(NSImage.init(contentsOf:)),
+            spaces: opening.spaceOf,
+            spaceItems: opening.shownItems,
+            decks: opening.decks,
+            wallpaper: Wallpaper.image(for: screen, spaces: opening.spaces),
+            topInset: screen.safeAreaInsets.top,
             canRaise: permissions.accessibility,
             canSeeTitles: permissions.screenRecording
         )
@@ -87,11 +85,17 @@ public final class DecksController {
         overview.onDecksChange = { [weak self] in
             self?.settings.preferences.decks = SpaceItems.stored($0, with: items)
         }
-        overview.view = items.isEmpty ? .windows : lastView
+        overview.onSpaceRename = { [weak self] uuid, name in self?.settings.preferences.spaceNames[uuid] = name }
+        overview.onFullScreen = { [weak self] in self?.setFullScreen($0, $1) }
+        overview.view = overview.hasSpaces ? lastView : .windows
         overview.onViewChange = { [weak self] in self?.lastView = $0 }
         overview.onTile = { [weak self] in self?.tile($0, on: screen) }
         let panel = Self.panel(showing: overview, on: screen)
         panel.onEscape = { [weak self] in self?.close() }
+        panel.onKey = { [weak overview] event in
+            guard let overview, let key = OverviewKey(event) else { return false }
+            return overview.key(key)
+        }
         panel.orderFrontRegardless()
         panel.makeKey()
         // Another app or window coming forward, Bouncer's settings among them, takes the overview away.
@@ -174,6 +178,11 @@ public final class DecksController {
         }
         NSRunningApplication(processIdentifier: focused.pid)?.activate()
         Task.detached { WindowFocus.raise(windows) }
+    }
+
+    private func setFullScreen(_ window: WindowInfo, _ isOn: Bool) {
+        close()
+        Task.detached { WindowFocus.setFullScreen(window, isOn) }
     }
 
     /// Lays the windows side by side over the display's visible area, the front one first, and brings
@@ -264,6 +273,7 @@ public final class DecksController {
             case .deck(let id):
                 name = (overview.decks.first { $0.id == id }?.name ?? "deck").replacingOccurrences(of: " ", with: "-")
             case .newDeck: name = "new"
+            case .fullScreen: name = "full-screen"
             case .tray, .grid: return nil
             }
             return "\(name) \(Int(frame.midX)) \(Int(frame.midY))"

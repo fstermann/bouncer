@@ -177,6 +177,33 @@ struct Highlight: View {
     }
 }
 
+/// The drop bar at the bottom of the display while a window is dragged that can change full screen: a
+/// desktop's window dropped on it enters full screen, a full screen Space dropped on it leaves it.
+struct FullScreenBar: View {
+    let change: Overview.FullScreenChange
+    let isHovered: Bool
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: change == .leave
+                  ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+            Text(change == .leave ? "Leave full screen" : "Full screen")
+        }
+        .font(.system(size: 14, weight: .medium))
+        .foregroundStyle(.white)
+        .frame(width: 420, height: 64)
+        .background(.black.opacity(isHovered ? 0.45 : 0.3), in: RoundedRectangle(cornerRadius: 14))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14)
+                .strokeBorder(
+                    isHovered ? Metrics.highlight : .white.opacity(0.6),
+                    style: StrokeStyle(lineWidth: isHovered ? 3 : 1.5, dash: isHovered ? [] : [5, 4])
+                )
+        }
+        .contentShape(Rectangle())
+    }
+}
+
 /// The last tile in the grid, which starts an empty deck.
 struct NewDeckTile: View {
     let isHovered: Bool

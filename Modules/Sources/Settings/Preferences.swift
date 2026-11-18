@@ -97,6 +97,8 @@ public struct Preferences: Codable, Hashable, Sendable {
     public var decksShortcut: HotKey.Shortcut
     /// The overview's decks, in the order it shows them.
     public var decks: [Deck]
+    /// The names the user gave desktops in the overview, by Space identifier.
+    public var spaceNames: [String: String]
 
     public static let defaultDecksShortcut = HotKey.Shortcut(
         keyCode: kVK_ANSI_W, modifiers: HotKey.Shortcut.commandShift
@@ -128,7 +130,8 @@ public struct Preferences: Codable, Hashable, Sendable {
         claudeSessions: [String: ClaudeSession] = [:],
         enableDecks: Bool = false,
         decksShortcut: HotKey.Shortcut = Preferences.defaultDecksShortcut,
-        decks: [Deck] = []
+        decks: [Deck] = [],
+        spaceNames: [String: String] = [:]
     ) {
         self.enableMenuBarItems = enableMenuBarItems
         self.enableTodos = enableTodos
@@ -156,6 +159,7 @@ public struct Preferences: Codable, Hashable, Sendable {
         self.enableDecks = enableDecks
         self.decksShortcut = decksShortcut
         self.decks = decks
+        self.spaceNames = spaceNames
     }
 
     /// The notch panel's pages that are on, in the order the page button lists them.
@@ -214,6 +218,7 @@ public struct Preferences: Codable, Hashable, Sendable {
         decksShortcut = try container.decodeIfPresent(HotKey.Shortcut.self, forKey: .decksShortcut)
             ?? Self.defaultDecksShortcut
         decks = try container.decodeIfPresent([Deck].self, forKey: .decks) ?? []
+        spaceNames = try container.decodeIfPresent([String: String].self, forKey: .spaceNames) ?? [:]
     }
 }
 

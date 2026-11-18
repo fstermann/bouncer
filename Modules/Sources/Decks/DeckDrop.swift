@@ -10,6 +10,8 @@ enum DeckDrop {
         case grid
         /// A deck's window, from its tray.
         case tray(UUID)
+        /// A desktop's window, from its tray in the Spaces view.
+        case desktop
     }
 
     enum Outcome: Equatable {
@@ -37,7 +39,7 @@ enum DeckDrop {
         case .newDeck:
             let grouped = DeckMatching.grouping([window], in: decks)
             return .changed(decks: grouped.decks, show: grouped.id)
-        case .tray, .trayWindow:
+        case .tray, .trayWindow, .fullScreen:
             return .unchanged
         case .window, .desktop, .grid, nil:
             guard case .tray = source else { return .unchanged }

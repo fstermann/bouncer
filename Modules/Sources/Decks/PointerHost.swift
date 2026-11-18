@@ -75,6 +75,8 @@ enum HoverTarget: Hashable {
     /// A window in the tray, which hovers only that card and keeps the tray open.
     case trayWindow(CGWindowID)
     case newDeck
+    /// The Spaces view's tile that takes a window into full screen, or a full screen Space out of it.
+    case fullScreen
     case tray
     case grid
 }

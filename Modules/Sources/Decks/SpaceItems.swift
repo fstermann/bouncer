@@ -23,13 +23,14 @@ enum SpaceItems {
                 return (window, space)
             case .desktop:
                 defer { desktops += 1 }
-                let item = WindowInfo(
-                    id: firstDesktopID + desktops, pid: 0, bundleID: nil, appName: space.name, title: space.name,
-                    frame: .zero
-                )
-                return (item, space)
+                return (desktopItem(id: firstDesktopID + desktops, for: space), space)
             }
         }
+    }
+
+    /// The made up window standing for the desktop `space`, titled with its name.
+    static func desktopItem(id: CGWindowID, for space: SpaceInfo) -> WindowInfo {
+        WindowInfo(id: id, pid: 0, bundleID: nil, appName: space.name, title: space.name, frame: .zero)
     }
 
     static func isDesktop(_ item: WindowInfo) -> Bool {

@@ -16,13 +16,17 @@ public struct SpaceInfo: Hashable, Sendable {
     public let isCurrent: Bool
     /// Its ordinary windows, front to back.
     public let windows: [WindowInfo]
+    /// SkyLight's identifier of the display the Space is on: its UUID, or "Main" while displays share Spaces.
+    public var display = ""
+    /// The name the user gave a desktop in the overview.
+    public var customName: String?
 }
 
 extension SpaceInfo {
     /// What the overview calls the Space: "Desktop 2", or the full screen app's window.
     public var name: String {
         switch kind {
-        case .desktop(let number): "Desktop \(number)"
+        case .desktop(let number): customName ?? "Desktop \(number)"
         case .fullScreen: windows.first?.appName ?? "Full screen"
         }
     }
@@ -34,6 +38,12 @@ extension SpaceInfo {
 /// resolved at runtime: if a release drops one, `read` returns `nil` and the overview shows only the
 /// current Space's windows, as the public window list does.
 enum SpaceList {
+    /// The Spaces on the display `display`, or all of them when none is, as while displays share Spaces.
+    static func on(display: String?, among spaces: [SpaceInfo]) -> [SpaceInfo] {
+        let own = spaces.filter { $0.display == display }
+        return own.isEmpty ? spaces : own
+    }
+
     /// Every Space on every display in Mission Control's order, with its windows.
     @MainActor static func read() -> [SpaceInfo]? {
         guard let sky = SkyLight.shared,
@@ -72,6 +82,7 @@ enum SpaceList {
     ) -> [SpaceInfo] {
         let byID = Dictionary(windows.map { ($0.id, $0) }) { first, _ in first }
         return displays.flatMap { display -> [SpaceInfo] in
+            let identifier = display["Display Identifier"] as? String ?? ""
             let current = ((display["Current Space"] as? [String: Any])?["ManagedSpaceID"] as? NSNumber)?.uint64Value
             var desktops = 0
             return (display["Spaces"] as? [[String: Any]] ?? []).compactMap { space in
@@ -90,7 +101,9 @@ enum SpaceList {
                 default:
                     return nil
                 }
-                return SpaceInfo(id: id, uuid: uuid, kind: kind, isCurrent: id == current, windows: found)
+                return SpaceInfo(
+                    id: id, uuid: uuid, kind: kind, isCurrent: id == current, windows: found, display: identifier
+                )
             }
         }
     }

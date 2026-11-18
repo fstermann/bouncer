@@ -419,9 +419,22 @@ default, behind `Preferences.enableDecks`, and in a module of its own, `Decks`, 
 Screen Recording for pictures and titles and Accessibility to focus, tile and read Dock badges.
 While it is off nothing of it runs; while it is on, the hot key is all it installs until it opens.
 
-It has two levels, switched with Tab. Windows lists every ordinary window on every Space, each
-off the current Space tagged with where it lives. Spaces lists one card for each desktop and full
-screen app. A deck belongs to one level (`Deck.kind`). Opening reads the Spaces and their windows
+It has two levels, switched with Tab. Windows lists every ordinary window on every Space of the
+display under the pointer, each off the current Space tagged with where it lives. Spaces lists one
+card for each of that display's desktops and full screen apps. Decks are matched over every
+display (`Opening`), so a member on another display is kept, not forgotten.
+
+Typing narrows the cards to those whose title, app or deck name holds the text (`OverviewFilter`);
+Return picks the first, Escape clears. A digit typed first goes to that desktop. Command-R names
+the deck or desktop under the pointer; a desktop's name is stored by Space identifier
+(`Preferences.spaceNames`). In the Spaces view, dragging a window out of the current desktop's tray,
+or the current full screen Space, shows a drop bar pinned to the display's bottom edge; a window
+dropped there enters full screen, a full screen Space leaves it, both through the window's
+Accessibility `AXFullScreen` attribute.
+
+The backdrop is the current desktop's picture. On a full screen Space, which has none, it is the
+display's first desktop's, read from the wallpaper agent's store (`Wallpaper`); only an image file is
+read from there, so a colour, dynamic or aerial picture falls back to AppKit's answer. A deck belongs to one level (`Deck.kind`). Opening reads the Spaces and their windows
 once (`SpaceList`), brings stored decks up to date with what is open (`SpaceItems.refreshed`,
 `DeckMatching`), and starts the pictures (`Thumbnails`) and the Dock badges (`DockBadges`), each
 arriving on its own. Closing drops all of it but the pictures: the next opening shows each window's
@@ -453,7 +466,11 @@ Known limits:
   shows the old value. An app whose badge the user hid in Notifications settings shows none.
 - The hot key is taken from every app while Decks is on: ⌘⇧W no longer reaches the frontmost
   app. F3 needs Mission Control's own F3 turned off in System Settings first.
-- The overlay covers the display under the pointer only, listing windows from every display.
+- The overlay covers the display under the pointer only, and lists that display's windows.
+- A window leaving full screen goes back to the desktop it came from: no working call picks another.
+- Only the current Space's windows enter or leave full screen, and a window on another Space may not
+  be brought forward: its Accessibility element is not found there (issue #45).
+- A digit goes nowhere for an empty desktop, which no call can switch to.
 - Which level was last shown is kept until Bouncer quits, not across launches.
 
 ### Checking the bar from a shell

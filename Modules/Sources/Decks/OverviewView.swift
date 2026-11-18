@@ -24,7 +24,8 @@ struct OverviewView: View {
                         grid(trayWidth: min(1000, geometry.size.width * 0.92), width: geometry.size.width)
                             .padding(.top, 18)
                     }
-                    .padding(.vertical, 28)
+                    .padding(.top, max(28, overview.topInset + 14))
+                    .padding(.bottom, 28)
                     .frame(maxWidth: .infinity, minHeight: geometry.size.height, alignment: .top)
                     .background {
                         Color.clear.contentShape(Rectangle()).onTapGesture { overview.onDismiss?() }
@@ -32,6 +33,14 @@ struct OverviewView: View {
                 }
                 .scrollIndicators(.hidden)
                 .scrollBounceBehavior(.basedOnSize)
+                if let drag = overview.drag, drag.isMoving, overview.canRaise,
+                   let change = overview.fullScreenDrop(of: drag) {
+                    // Pinned to the display, not the grid, so an open tray never pushes it out of reach.
+                    FullScreenBar(change: change, isHovered: overview.hovered == .fullScreen)
+                        .hoverTarget(.fullScreen)
+                        .frame(maxHeight: .infinity, alignment: .bottom)
+                        .padding(.bottom, 40)
+                }
                 if let drag = overview.drag, drag.isMoving { DragGhost(drag: drag, overview: overview) }
             }
         }
@@ -155,13 +164,29 @@ struct OverviewView: View {
         }
     }
 
-    private var hint: some View {
-        let what = overview.view == .windows ? "window" : "Space"
-        let tab = overview.hasSpaces ? "  ·  tab to switch view" : ""
-        return Text("Hover a deck to expand it  ·  click a \(what) to go to it  ·  "
-             + "drag a \(what) onto another to group them\(tab)  ·  esc to close")
+    @ViewBuilder private var hint: some View {
+        if overview.query.isEmpty {
+            HStack(spacing: 14) {
+                KeyHint(key: "click", action: "go")
+                KeyHint(key: "drag", action: "group")
+                if overview.hasSpaces { KeyHint(key: "tab", action: "view") }
+                KeyHint(key: "esc", action: "close")
+            }
+        } else {
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                Text(overview.query)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.white)
+                KeyHint(key: "esc", action: "clear")
+                    .padding(.leading, 6)
+            }
             .font(.system(size: 12))
             .foregroundStyle(.white.opacity(0.75))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 4)
+            .background(.black.opacity(0.25), in: Capsule())
+        }
     }
 }
 
@@ -202,6 +227,25 @@ struct WindowCard: View {
         }
         .contentShape(Rectangle())
         .onTapGesture(perform: action)
+    }
+}
+
+/// A key or gesture in a small capsule, then what it does.
+struct KeyHint: View {
+    let key: String
+    let action: String
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Text(key)
+                .font(.system(size: 10.5, weight: .medium))
+                .padding(.horizontal, 6)
+                .padding(.vertical, 1)
+                .background(.white.opacity(0.18), in: RoundedRectangle(cornerRadius: 4))
+            Text(action)
+                .font(.system(size: 12))
+        }
+        .foregroundStyle(.white.opacity(0.75))
     }
 }
 

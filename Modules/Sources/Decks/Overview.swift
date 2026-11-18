@@ -8,9 +8,9 @@ import Settings
 final class Overview {
     let windows: [WindowInfo]
     /// The Space each window is on; empty when SkyLight could not be read.
-    let spaces: [CGWindowID: SpaceInfo]
+    private(set) var spaces: [CGWindowID: SpaceInfo]
     /// The Spaces view's items, one for each Space, with the Space it stands for; empty without SkyLight.
-    let spaceItems: [(item: WindowInfo, space: SpaceInfo)]
+    private(set) var spaceItems: [(item: WindowInfo, space: SpaceInfo)]
     /// Which level the grid shows. Tab switches it.
     var view: DeckKind = .windows {
         didSet {
@@ -22,6 +22,8 @@ final class Overview {
         }
     }
     let wallpaper: NSImage?
+    /// The height of the display's menu bar and notch, which the content starts below.
+    let topInset: CGFloat
     let canRaise: Bool
     let canSeeTitles: Bool
     /// Every deck, as stored; written back through `onDecksChange` on every edit.
@@ -46,6 +48,10 @@ final class Overview {
     /// The user asked to tile these windows side by side.
     @ObservationIgnored var onTile: (@MainActor ([WindowInfo]) -> Void)?
     @ObservationIgnored var onViewChange: (@MainActor (DeckKind) -> Void)?
+    /// The user named a desktop, by its Space's identifier; `nil` gives it back its number.
+    @ObservationIgnored var onSpaceRename: (@MainActor (String, String?) -> Void)?
+    /// The user asked for a window to enter full screen, or to leave it.
+    @ObservationIgnored var onFullScreen: (@MainActor (WindowInfo, Bool) -> Void)?
 
     enum Permission {
         case screenRecording, accessibility
@@ -54,13 +60,14 @@ final class Overview {
     init(
         windows: [WindowInfo], spaces: [CGWindowID: SpaceInfo] = [:],
         spaceItems: [(item: WindowInfo, space: SpaceInfo)] = [], decks: [Deck], wallpaper: NSImage?,
-        canRaise: Bool, canSeeTitles: Bool
+        topInset: CGFloat = 0, canRaise: Bool, canSeeTitles: Bool
     ) {
         self.windows = windows
         self.spaces = spaces
         self.spaceItems = spaceItems
         self.decks = decks
         self.wallpaper = wallpaper
+        self.topInset = topInset
         self.canRaise = canRaise
         self.canSeeTitles = canSeeTitles
     }
@@ -73,9 +80,20 @@ final class Overview {
         view == .windows ? windows : spaceItems.map(\.item)
     }
 
-    /// The current view's decks, with the items of each, and the items in none.
+    /// What the user has typed to narrow the cards down.
+    var query = "" {
+        didSet {
+            guard query != oldValue else { return }
+            drag = nil
+            trayDeck = nil
+        }
+    }
+
+    /// The current view's decks, with the items of each, and the items in none, narrowed to `query`.
     var arrangement: Arrangement {
-        DeckMatching.arrange(decks.filter { $0.kind == view }, over: items)
+        OverviewFilter.filtered(DeckMatching.arrange(decks.filter { $0.kind == view }, over: items), by: query) {
+            view == .spaces && SpaceItems.isDesktop($0) ? space(of: $0)?.windows ?? [] : []
+        }
     }
 
     /// What the tray shows: one of the current view's decks, or in the Spaces view a desktop's windows.
@@ -103,38 +121,6 @@ final class Overview {
         return NSUUID(uuidBytes: bytes) as UUID
     }
 
-    /// The Space a Spaces view item stands for.
-    func space(of item: WindowInfo) -> SpaceInfo? {
-        spaceItems.first { $0.item.id == item.id }?.space
-    }
-
-    /// What picking `item` brings forward: itself, or for a desktop its front window. Empty for an empty
-    /// desktop, which no public call can switch to.
-    func pickable(_ item: WindowInfo) -> [WindowInfo] {
-        guard view == .spaces, SpaceItems.isDesktop(item) else { return [item] }
-        guard let desktop = space(of: item) else { return [] }
-        if desktop.isCurrent { return Array(desktop.windows.prefix(1)) }
-        let elsewhere = Set(spaceItems.filter { $0.space.id != desktop.id }.flatMap { $0.space.windows.map(\.id) })
-        return desktop.windows.first { !elsewhere.contains($0.id) }.map { [$0] } ?? []
-    }
-
-    /// Where a window lives, for one off the current Space: "Desktop 2", "Full screen".
-    func place(of window: WindowInfo) -> String? {
-        guard let space = spaces[window.id], !space.isCurrent else { return nil }
-        switch space.kind {
-        case .desktop: return space.name
-        case .fullScreen: return "Full screen"
-        }
-    }
-
-    /// The badge a card shows: its app's, or for a desktop or deck its apps' together, each app counted once.
-    func badge(of items: [WindowInfo]) -> String? {
-        let windows = items.flatMap { item in
-            view == .spaces && SpaceItems.isDesktop(item) ? space(of: item)?.windows ?? [] : [item]
-        }
-        return DockBadges.combined(Set(windows.map(\.pid)).compactMap { badges[$0] })
-    }
-
     func icon(of window: WindowInfo) -> NSImage {
         if let icon = icons[window.pid] { return icon }
         let icon = NSRunningApplication(processIdentifier: window.pid)?.icon
@@ -148,11 +134,34 @@ final class Overview {
     /// The deck whose name is being typed, in the tray's head.
     var renaming: UUID?
 
+    /// Names the deck `id`, or the desktop whose tray goes by `id`; an empty name gives a desktop back its number.
     func rename(_ id: UUID, to name: String) {
         let name = name.trimmingCharacters(in: .whitespaces)
         renaming = nil
-        guard !name.isEmpty, let index = decks.firstIndex(where: { $0.id == id }) else { return }
-        decks[index].name = name
+        if let index = decks.firstIndex(where: { $0.id == id }) {
+            if !name.isEmpty { decks[index].name = name }
+            return
+        }
+        guard let index = spaceItems.firstIndex(where: { Self.trayID(of: $0.item.id) == id }) else { return }
+        var space = spaceItems[index].space
+        space.customName = name.isEmpty ? nil : name
+        spaceItems[index] = (SpaceItems.desktopItem(id: spaceItems[index].item.id, for: space), space)
+        for (window, old) in spaces where old.id == space.id { spaces[window] = space }
+        onSpaceRename?(space.uuid, space.customName)
+    }
+
+    /// Opens the name field of the deck or desktop under the pointer. Returns whether there was one.
+    func renameHovered() -> Bool {
+        let id: UUID
+        switch hovered {
+        case .deck(let deck): id = deck
+        case .desktop(let desktop) where view == .spaces: id = Self.trayID(of: desktop)
+        default: return false
+        }
+        stopWaiting()
+        trayDeck = id
+        renaming = id
+        return true
     }
 
     func recolor(_ id: UUID, to color: DeckColor) {
@@ -172,19 +181,6 @@ final class Overview {
         decks = deck.decks.map { $0.id == deck.id ? kinded($0) : $0 }
         trayDeck = deck.id
         renaming = deck.id
-    }
-
-    func pick(_ items: [WindowInfo]) {
-        let windows = items.flatMap(pickable)
-        guard !windows.isEmpty else { return }
-        onPick?(windows)
-    }
-
-    func tile(_ id: UUID) {
-        guard let live = arrangement.decks.first(where: { $0.id == id }) else { return }
-        let windows = Tiling.tileable(live.windows, spaces: spaces)
-        guard !windows.isEmpty else { return }
-        onTile?(windows)
     }
 
     private func kinded(_ deck: Deck) -> Deck {
@@ -215,8 +211,11 @@ final class Overview {
         let arrangement = arrangement
         let pressed = Hover.target(at: point, in: hoverFrames)
         switch pressed {
+        case .trayWindow(let id) where trayIsDesktop:
+            // A desktop's windows are dragged out only to go full screen.
+            guard canRaise, let window = trayShows?.windows.first(where: { $0.id == id }) else { return false }
+            drag = Drag(window: window, source: .desktop, start: point, point: point)
         case .trayWindow(let id):
-            // A desktop's tray lists its windows to pick, not a deck's to drag out.
             guard let deck = trayDeck, arrangement.decks.contains(where: { $0.id == deck }),
                   let window = items.first(where: { $0.id == id })
             else { return false }
@@ -248,6 +247,11 @@ final class Overview {
         self.drag = nil
         guard drag.isMoving else { return pick([drag.window]) }
         let target = Hover.target(at: point, in: hoverFrames)
+        if let change = fullScreenDrop(of: drag) {
+            if target == .fullScreen { onFullScreen?(drag.window, change == .enter) }
+            return
+        }
+        if target == .fullScreen { return }
         let others = decks.filter { $0.kind != view }
         let mine = decks.filter { $0.kind == view }
         switch DeckDrop.drop(drag.window, from: drag.source, on: dropTarget(target), in: arrangement, decks: mine) {
@@ -323,43 +327,5 @@ final class Overview {
     func stopWaiting() {
         trayClosing?.cancel()
         trayClosing = nil
-    }
-}
-
-/// What the tray does as the pointer moves.
-///
-/// A deck opens it on that deck. An ungrouped window or the new deck tile closes it at once. Leaving
-/// the cards waits a moment before closing, so the pointer can travel from a deck down into the tray;
-/// reaching the tray, or a deck, in that moment keeps it.
-enum TrayRule {
-    enum Step: Equatable {
-        case show(UUID)
-        case close
-        case keep
-        case closeAfter(Duration)
-    }
-
-    /// How long the tray waits after the pointer leaves the grid, so the pointer can reach it below.
-    static let leaveGrace: Duration = .milliseconds(250)
-    /// How long it waits after the pointer leaves the tray itself.
-    static let trayGrace: Duration = .milliseconds(300)
-
-    static func step(showing deck: UUID?, pointerOn target: HoverTarget?, lastOn last: HoverTarget?) -> Step {
-        switch target {
-        case .deck(let id): return .show(id)
-        case .desktop(let id): return .show(Overview.trayID(of: id))
-        case .window, .newDeck: return .close
-        case .tray, .trayWindow: return deck == nil ? .close : .keep
-        case .grid, nil:
-            guard deck != nil else { return .close }
-            return .closeAfter(isTray(last) ? trayGrace : leaveGrace)
-        }
-    }
-
-    private static func isTray(_ target: HoverTarget?) -> Bool {
-        switch target {
-        case .tray, .trayWindow: true
-        default: false
-        }
     }
 }

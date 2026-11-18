@@ -8,6 +8,8 @@ final class OverlayPanel: NSPanel {
     var onEscape: (@MainActor () -> Void)?
     /// Tab; returns whether it was taken, so a text field being typed in keeps it otherwise.
     var onTab: (@MainActor () -> Bool)?
+    /// Any other key; returns whether it was taken, else it goes on to the focused view.
+    var onKey: (@MainActor (NSEvent) -> Bool)?
 
     init(frame: CGRect) {
         super.init(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
@@ -30,6 +32,7 @@ final class OverlayPanel: NSPanel {
         let plainTab = event.type == .keyDown && event.keyCode == 48
             && event.modifierFlags.intersection(.deviceIndependentFlagsMask).subtracting(.capsLock).isEmpty
         if plainTab, onTab?() == true { return }
+        if event.type == .keyDown, !plainTab, onKey?(event) == true { return }
         super.sendEvent(event)
     }
 

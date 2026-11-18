@@ -34,6 +34,13 @@ enum WindowFocus {
         }
     }
 
+    /// Takes `window`, on the current Space, into full screen or out of it. macOS gives a window leaving
+    /// full screen back to the desktop it came from. Blocks on the app's replies, so never on the main actor.
+    static func setFullScreen(_ window: WindowInfo, _ isOn: Bool) {
+        guard let element = element(for: window) else { return }
+        AXUIElementSetAttributeValue(element, "AXFullScreen" as CFString, isOn ? kCFBooleanTrue : kCFBooleanFalse)
+    }
+
     private typealias RemoteElement = @convention(c) (CFData) -> Unmanaged<AXUIElement>?
 
     private static let remoteElement: RemoteElement? = {
