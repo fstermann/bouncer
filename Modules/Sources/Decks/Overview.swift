@@ -15,6 +15,7 @@ final class Overview {
     var view: DeckKind = .windows {
         didSet {
             guard view != oldValue else { return }
+            drag = nil
             trayDeck = nil
             renaming = nil
             onViewChange?(view)
@@ -81,7 +82,7 @@ final class Overview {
     var trayShows: LiveDeck? {
         guard let id = trayDeck else { return nil }
         if let live = arrangement.decks.first(where: { $0.id == id }) { return live }
-        guard let entry = spaceItems.first(where: { Self.trayID(of: $0.item) == id }) else { return nil }
+        guard let entry = spaceItems.first(where: { Self.trayID(of: $0.item.id) == id }) else { return nil }
         return LiveDeck(
             deck: Deck(id: id, name: entry.space.name, color: .blue, kind: .windows), windows: entry.space.windows
         )
@@ -94,9 +95,9 @@ final class Overview {
     }
 
     /// The id a desktop's tray goes by: the desktop item's number, spelled as a UUID.
-    static func trayID(of desktop: WindowInfo) -> UUID {
+    nonisolated static func trayID(of id: CGWindowID) -> UUID {
         var bytes = [UInt8](repeating: 0, count: 16)
-        withUnsafeBytes(of: desktop.id.bigEndian) { raw in
+        withUnsafeBytes(of: id.bigEndian) { raw in
             for (offset, byte) in raw.enumerated() { bytes[12 + offset] = byte }
         }
         return NSUUID(uuidBytes: bytes) as UUID
@@ -111,7 +112,10 @@ final class Overview {
     /// desktop, which no public call can switch to.
     func pickable(_ item: WindowInfo) -> [WindowInfo] {
         guard view == .spaces, SpaceItems.isDesktop(item) else { return [item] }
-        return space(of: item)?.windows.first.map { [$0] } ?? []
+        guard let desktop = space(of: item) else { return [] }
+        if desktop.isCurrent { return Array(desktop.windows.prefix(1)) }
+        let elsewhere = Set(spaceItems.filter { $0.space.id != desktop.id }.flatMap { $0.space.windows.map(\.id) })
+        return desktop.windows.first { !elsewhere.contains($0.id) }.map { [$0] } ?? []
     }
 
     /// Where a window lives, for one off the current Space: "Desktop 2", "Full screen".
@@ -217,7 +221,7 @@ final class Overview {
                   let window = items.first(where: { $0.id == id })
             else { return false }
             drag = Drag(window: window, source: .tray(deck), start: point, point: point)
-        case .window(let id):
+        case .window(let id), .desktop(let id):
             guard let window = arrangement.ungrouped.first(where: { $0.id == id }) else { return false }
             drag = Drag(window: window, source: .grid, start: point, point: point)
         default:
@@ -257,11 +261,14 @@ final class Overview {
         }
     }
 
-    /// A desktop's tile hovers as a deck, for its tray; dropped on, it is the item it stands for.
     private func dropTarget(_ target: HoverTarget?) -> HoverTarget? {
-        guard case .deck(let id) = target, let desktop = spaceItems.first(where: { Self.trayID(of: $0.item) == id })
-        else { return target }
-        return .window(desktop.item.id)
+        switch target {
+        case .tray, .trayWindow:
+            guard let trayDeck, !trayIsDesktop else { return target }
+            return .deck(trayDeck)
+        default:
+            return target
+        }
     }
 
     // MARK: - The pointer and the tray
@@ -340,6 +347,7 @@ enum TrayRule {
     static func step(showing deck: UUID?, pointerOn target: HoverTarget?, lastOn last: HoverTarget?) -> Step {
         switch target {
         case .deck(let id): return .show(id)
+        case .desktop(let id): return .show(Overview.trayID(of: id))
         case .window, .newDeck: return .close
         case .tray, .trayWindow: return deck == nil ? .close : .keep
         case .grid, nil:

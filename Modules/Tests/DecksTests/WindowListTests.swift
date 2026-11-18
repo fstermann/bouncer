@@ -66,3 +66,26 @@ import Testing
         #expect(Thumbnails.captureSize(of: .zero, longest: 400, scale: 2) == .zero)
     }
 }
+
+@Suite @MainActor struct ThumbnailCaptureTests {
+    @Test func closingDuringDeliverySkipsRemainingWindows() async {
+        let context = CGContext(
+            data: nil, width: 2, height: 2, bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        )
+        let image = context?.makeImage()
+        var capture: Task<Void, Never>?
+        var delivered: [CGWindowID] = []
+        capture = Task {
+            await Thumbnails.capture([1, 2, 3], scale: 1, imageOf: { id in
+                #expect(id == 1)
+                return image
+            }, deliver: { id, _ in
+                delivered.append(id)
+                capture?.cancel()
+            })
+        }
+        await capture?.value
+        #expect(delivered == [1])
+    }
+}

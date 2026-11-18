@@ -63,6 +63,15 @@ import Testing
         WindowInfo(id: id, pid: 1, bundleID: "com.example.app", appName: "App", title: "w\(id)", frame: .zero)
     }
 
+    @Test func unavailableSpaceInventoryPreservesStoredMembership() {
+        let deck = Deck(name: "Work", color: .blue, kind: .spaces, members: [
+            DeckMember(app: "", title: nil, windowID: nil, space: "d1"),
+            DeckMember(app: "com.example.app", title: nil, windowID: 9)
+        ])
+        let refreshed = SpaceItems.refreshed([deck], windows: [], items: nil, existing: [])
+        #expect(SpaceItems.stored(refreshed, with: []) == [deck])
+    }
+
     @Test func refreshesEachViewsDecksOverItsOwnItemsAndKeepsDesktopsByIdentifier() {
         let spaces = [SpaceInfo(id: 1, uuid: "d1", kind: .desktop(number: 1), isCurrent: true, windows: [window(10)])]
         let items = SpaceItems.items(for: spaces)

@@ -73,15 +73,15 @@ enum SpaceItems {
     ///
     /// - Parameter existing: the number of every window that exists, on screen or not.
     static func refreshed(
-        _ decks: [Deck], windows: [WindowInfo], items: [(item: WindowInfo, space: SpaceInfo)],
+        _ decks: [Deck], windows: [WindowInfo], items: [(item: WindowInfo, space: SpaceInfo)]?,
         existing: Set<CGWindowID>
     ) -> [Deck] {
         let windowDecks = decks.filter { $0.kind == .windows }
-        let spaceDecks = resolved(decks.filter { $0.kind == .spaces }, with: items)
-        return DeckMatching.refreshed(
-            windowDecks, with: DeckMatching.arrange(windowDecks, over: windows), existing: existing
-        ) + DeckMatching.refreshed(
-            spaceDecks, with: DeckMatching.arrange(spaceDecks, over: items.map(\.item)),
+        let spaceDecks = decks.filter { $0.kind == .spaces }
+        let refreshedWindows = DeckMatching.refreshed(windowDecks, over: windows, existing: existing)
+        guard let items else { return refreshedWindows + spaceDecks }
+        return refreshedWindows + DeckMatching.refreshed(
+            resolved(spaceDecks, with: items), over: items.map(\.item),
             existing: existing.union(items.map(\.item.id))
         )
     }

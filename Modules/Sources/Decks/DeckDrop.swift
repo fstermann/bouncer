@@ -30,7 +30,7 @@ enum DeckDrop {
         case .deck(let id):
             if arrangement.decks.first(where: { $0.id == id })?.windows.contains(window) == true { return .unchanged }
             return .changed(decks: DeckMatching.adding(window, to: id, in: decks), show: id)
-        case .window(let id) where id != window.id:
+        case .window(let id) where id != window.id, .desktop(let id) where id != window.id:
             guard let other = arrangement.ungrouped.first(where: { $0.id == id }) else { return .unchanged }
             let grouped = DeckMatching.grouping([other, window], in: decks)
             return .changed(decks: grouped.decks, show: grouped.id)
@@ -39,7 +39,7 @@ enum DeckDrop {
             return .changed(decks: grouped.decks, show: grouped.id)
         case .tray, .trayWindow:
             return .unchanged
-        case .window, .grid, nil:
+        case .window, .desktop, .grid, nil:
             guard case .tray = source else { return .unchanged }
             return .changed(decks: DeckMatching.removing(window, from: decks), show: nil)
         }

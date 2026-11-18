@@ -37,21 +37,24 @@ final class PointerHost<Content: View>: NSHostingView<Content> {
         onPointer?(nil)
     }
 
-    override func mouseDown(with event: NSEvent) {
-        isDragging = onPress?(point(of: event)) == true
-        if !isDragging { super.mouseDown(with: event) }
-    }
-
-    override func mouseDragged(with event: NSEvent) {
-        guard isDragging else { return super.mouseDragged(with: event) }
-        onPointer?(point(of: event))
-        onDrag?(point(of: event))
-    }
-
-    override func mouseUp(with event: NSEvent) {
-        guard isDragging else { return super.mouseUp(with: event) }
-        isDragging = false
-        onRelease?(point(of: event))
+    /// The panel dispatches presses here before its scroll view chooses a responder.
+    func handlePointerEvent(_ event: NSEvent) -> Bool {
+        switch event.type {
+        case .leftMouseDown:
+            isDragging = onPress?(point(of: event)) == true
+            return isDragging
+        case .leftMouseDragged where isDragging:
+            let point = point(of: event)
+            onPointer?(point)
+            onDrag?(point)
+            return true
+        case .leftMouseUp where isDragging:
+            isDragging = false
+            onRelease?(point(of: event))
+            return true
+        default:
+            return false
+        }
     }
 
     private func report(_ event: NSEvent) {
@@ -66,6 +69,7 @@ final class PointerHost<Content: View>: NSHostingView<Content> {
 
 /// What a part of the overview the pointer can be over is.
 enum HoverTarget: Hashable {
+    case desktop(CGWindowID)
     case deck(UUID)
     case window(CGWindowID)
     /// A window in the tray, which hovers only that card and keeps the tray open.

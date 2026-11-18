@@ -78,15 +78,29 @@ enum WindowFocus {
         guard AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value) == .success,
               let elements = value as? [AXUIElement]
         else { return nil }
-        if let getWindow {
-            let match = elements.first { element in
-                var id: CGWindowID = 0
-                return getWindow(element, &id) == .success && id == window.id
-            }
-            if let match { return match }
+        return matching(window.id, among: elements) { element in
+            var id: CGWindowID = 0
+            guard let getWindow, getWindow(element, &id) == .success else { return nil }
+            return id
+        } fallback: { candidates in
+            candidates.first { frame(of: $0) == window.frame && title(of: $0) == window.title }
+                ?? candidates.first { frame(of: $0) == window.frame }
         }
-        return elements.first { frame(of: $0) == window.frame && title(of: $0) == window.title }
-            ?? elements.first { frame(of: $0) == window.frame }
+    }
+
+    static func matching<Element>(
+        _ target: CGWindowID, among elements: [Element], id: (Element) -> CGWindowID?,
+        fallback: ([Element]) -> Element?
+    ) -> Element? {
+        var unidentified: [Element] = []
+        for element in elements {
+            if let number = id(element) {
+                if number == target { return element }
+            } else {
+                unidentified.append(element)
+            }
+        }
+        return fallback(unidentified)
     }
 
     static func frame(of element: AXUIElement) -> CGRect? {

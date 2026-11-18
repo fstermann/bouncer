@@ -20,23 +20,23 @@ enum Thumbnails {
     /// Calls `deliver` on the main actor with each window's picture as it arrives, on any Space.
     ///
     /// SkyLight's capture takes every window, full screen apps' among them, in about 20 ms each; it
-    /// blocks, so it runs on one thread of its own, front window first. ScreenCaptureKit, which fails on
+    /// blocks, so capture runs outside the main actor, front window first. ScreenCaptureKit, which fails on
     /// full screen apps not in front, takes only what SkyLight could not. A window neither takes keeps its icon.
     static func capture(
-        _ windows: [CGWindowID], scale: CGFloat, deliver: @escaping @MainActor (CGWindowID, CGImage) -> Void
+        _ windows: [CGWindowID], scale: CGFloat,
+        imageOf: @Sendable (CGWindowID) -> CGImage? = WindowCapture.image,
+        deliver: @escaping @MainActor (CGWindowID, CGImage) -> Void
     ) async {
-        let missed = await Task.detached(priority: .userInitiated) {
-            var missed: [CGWindowID] = []
-            for id in windows {
-                guard !Task.isCancelled else { return [CGWindowID]() }
-                if let image = WindowCapture.image(of: id) {
-                    await deliver(id, scaled(image, longest: longestSide, scale: 1))
-                } else {
-                    missed.append(id)
-                }
+        var missed: [CGWindowID] = []
+        for id in windows {
+            guard !Task.isCancelled else { return }
+            if let image = imageOf(id) {
+                guard !Task.isCancelled else { return }
+                await deliver(id, scaled(image, longest: longestSide, scale: 1))
+            } else {
+                missed.append(id)
             }
-            return missed
-        }.value
+        }
         guard !missed.isEmpty, !Task.isCancelled,
               let content = try? await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: false)
         else { return }
@@ -45,10 +45,10 @@ enum Thumbnails {
             .compactMap { request(for: $0, scale: scale) }
         await withTaskGroup(of: Void.self) { group in
             for request in requests {
-                group.addTask {
-                    guard let image = try? await SCScreenshotManager.captureImage(
+                group.addTaskUnlessCancelled {
+                    guard !Task.isCancelled, let image = try? await SCScreenshotManager.captureImage(
                         contentFilter: request.filter, configuration: request.config
-                    ) else { return }
+                    ), !Task.isCancelled else { return }
                     await deliver(request.id, image)
                 }
             }

@@ -27,35 +27,47 @@ enum DeckMatching {
         DeckMember(app: app(of: window), title: window.title, windowID: window.id)
     }
 
+    private struct MemberIndex: Hashable {
+        let deck: Int
+        let member: Int
+    }
+
     /// Each deck's open windows, and the windows in no deck, all front to back.
     ///
     /// A member is matched by window number while that window is open. Otherwise it takes the first
     /// unclaimed window of the same app with the same title: after a relaunch, numbers are new.
     /// A window goes to at most one member, and the first deck to claim it keeps it.
     static func arrange(_ decks: [Deck], over windows: [WindowInfo]) -> Arrangement {
-        var claimed: [CGWindowID: (deck: Int, member: Int)] = [:]
+        let claimed = claims(decks, over: windows)
+        let live = decks.enumerated().map { index, deck in
+            LiveDeck(deck: deck, windows: windows.filter { claimed[$0.id]?.deck == index })
+        }
+        return Arrangement(decks: live, ungrouped: windows.filter { claimed[$0.id] == nil })
+    }
+
+    private static func claims(_ decks: [Deck], over windows: [WindowInfo]) -> [CGWindowID: MemberIndex] {
+        var claimed: [CGWindowID: MemberIndex] = [:]
         let open = Dictionary(windows.map { ($0.id, $0) }) { first, _ in first }
         for (deckIndex, deck) in decks.enumerated() {
             for (memberIndex, member) in deck.members.enumerated() {
-                guard let id = member.windowID, open[id] != nil, claimed[id] == nil else { continue }
-                claimed[id] = (deckIndex, memberIndex)
+                guard let id = member.windowID, let window = open[id], claimed[id] == nil,
+                      member.space != nil || member.app == app(of: window) else { continue }
+                claimed[id] = MemberIndex(deck: deckIndex, member: memberIndex)
             }
         }
         for (deckIndex, deck) in decks.enumerated() {
             for (memberIndex, member) in deck.members.enumerated() {
-                if let id = member.windowID, claimed[id].map({ $0 == (deckIndex, memberIndex) }) == true { continue }
+                let index = MemberIndex(deck: deckIndex, member: memberIndex)
+                if let id = member.windowID, claimed[id] == index { continue }
                 guard let title = member.title, !title.isEmpty,
                       let window = windows.first(where: {
                           claimed[$0.id] == nil && app(of: $0) == member.app && $0.title == title
                       })
                 else { continue }
-                claimed[window.id] = (deckIndex, memberIndex)
+                claimed[window.id] = index
             }
         }
-        let live = decks.enumerated().map { index, deck in
-            LiveDeck(deck: deck, windows: windows.filter { claimed[$0.id]?.deck == index })
-        }
-        return Arrangement(decks: live, ungrouped: windows.filter { claimed[$0.id] == nil })
+        return claimed
     }
 
     /// `decks` with what each member stores brought up to date.
@@ -66,18 +78,20 @@ enum DeckMatching {
     /// so it is forgotten.
     ///
     /// - Parameter existing: the number of every window that exists, on screen or not.
-    static func refreshed(_ decks: [Deck], with arrangement: Arrangement, existing: Set<CGWindowID>) -> [Deck] {
-        zip(decks, arrangement.decks).map { deck, live in
+    static func refreshed(_ decks: [Deck], over windows: [WindowInfo], existing: Set<CGWindowID>) -> [Deck] {
+        let claimed = claims(decks, over: windows)
+        var matches: [MemberIndex: WindowInfo] = [:]
+        for window in windows {
+            if let index = claimed[window.id] { matches[index] = window }
+        }
+        let offScreen = existing.subtracting(windows.map(\.id))
+        return decks.enumerated().map { deckIndex, deck in
             var deck = deck
-            var found = live.windows
-            deck.members = deck.members.compactMap { member in
-                if let index = found.firstIndex(where: { $0.id == member.windowID }) {
-                    return Self.member(for: found.remove(at: index))
+            deck.members = deck.members.enumerated().compactMap { memberIndex, member in
+                if let window = matches[MemberIndex(deck: deckIndex, member: memberIndex)] {
+                    return Self.member(for: window)
                 }
-                if let index = found.firstIndex(where: { app(of: $0) == member.app && $0.title == member.title }) {
-                    return Self.member(for: found.remove(at: index))
-                }
-                if let id = member.windowID, existing.contains(id) { return member }
+                if let id = member.windowID, offScreen.contains(id) { return member }
                 guard let title = member.title, !title.isEmpty else { return nil }
                 return DeckMember(app: member.app, title: title, windowID: nil)
             }

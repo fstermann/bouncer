@@ -59,10 +59,11 @@ public final class DecksController {
         let spaces = SpaceList.read()
         let listed = spaces.map(SpaceList.windows(of:))
         let windows = listed?.map(\.window) ?? WindowList.onScreen()
-        let items = spaces.map(SpaceItems.items(for:)) ?? []
+        let spaceInventory = spaces.map(SpaceItems.items(for:))
+        let items = spaceInventory ?? []
         // Brought up to date with what is open before anything is shown, and stored as it is.
         let decks = SpaceItems.refreshed(
-            settings.preferences.decks, windows: windows, items: items, existing: WindowList.existing()
+            settings.preferences.decks, windows: windows, items: spaceInventory, existing: WindowList.existing()
         )
         settings.preferences.decks = SpaceItems.stored(decks, with: items)
         let overview = Overview(
@@ -97,8 +98,9 @@ public final class DecksController {
         self.overview = overview
         if overview.canRaise { Self.readBadges(into: overview) }
         guard overview.canSeeTitles else { return }
-        capture = Task { [windows = overview.windows.map(\.id), scale = screen.backingScaleFactor] in
-            await Thumbnails.capture(windows, scale: scale) { [weak overview] id, image in
+        let windowIDs = windows.map(\.id)
+        capture = Task.detached(priority: .userInitiated) { [weak overview, scale = screen.backingScaleFactor] in
+            await Thumbnails.capture(windowIDs, scale: scale) { [weak overview] id, image in
                 overview?.thumbnails[id] = NSImage(cgImage: image, size: .zero)
             }
         }
@@ -118,6 +120,7 @@ public final class DecksController {
         host.onPointer = { [weak overview] in overview?.pointerMoved(to: $0) }
         host.onPress = { [weak overview] in overview?.press(at: $0) ?? false }
         host.onDrag = { [weak overview] in overview?.dragged(to: $0) }
+        panel.onPointerEvent = { [weak host] in host?.handlePointerEvent($0) ?? false }
         host.onRelease = { [weak overview] in overview?.released(at: $0) }
         // The panel covers the display exactly; the content never resizes it.
         host.sizingOptions = []
@@ -143,13 +146,16 @@ public final class DecksController {
     }
 
     private func bringForward(_ windows: [WindowInfo]) {
-        let elsewhere = overview.map { overview in windows.filter { overview.spaces[$0.id]?.isCurrent == false } } ?? []
+        let destination = windows.last.flatMap { overview?.spaces[$0.id] }
         close()
         guard let focused = windows.last else { return }
         // The window server fronts a window elsewhere and raising it switches to its Space; the app alone
         // would go to whichever of its windows was last in front.
-        if elsewhere.contains(focused) {
-            Task.detached { SpaceFocus.raise(focused) }
+        if let destination, !destination.isCurrent {
+            let group = SpaceFocus.members(windows, on: destination)
+            Task.detached {
+                for window in group { SpaceFocus.raise(window) }
+            }
             return
         }
         NSRunningApplication(processIdentifier: focused.pid)?.activate()
@@ -238,10 +244,11 @@ public final class DecksController {
             switch target {
             case .window(let id): name = "\(id)"
             case .trayWindow(let id): name = "tray-\(id)"
+            case .desktop(let id):
+                guard let entry = overview.spaceItems.first(where: { $0.item.id == id }) else { return nil }
+                name = "desk-\(entry.space.name)".replacingOccurrences(of: " ", with: "-")
             case .deck(let id):
-                let desktop = overview.spaceItems.first { Overview.trayID(of: $0.item) == id }
-                name = (overview.decks.first { $0.id == id }?.name ?? desktop.map { "desk-\($0.space.name)" } ?? "deck")
-                    .replacingOccurrences(of: " ", with: "-")
+                name = (overview.decks.first { $0.id == id }?.name ?? "deck").replacingOccurrences(of: " ", with: "-")
             case .newDeck: name = "new"
             case .tray, .grid: return nil
             }

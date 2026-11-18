@@ -30,6 +30,12 @@ enum SpaceFocus {
         )
     }()
 
+    /// Deck members on the destination Space, in the order they should be raised.
+    static func members(_ windows: [WindowInfo], on destination: SpaceInfo) -> [WindowInfo] {
+        let ids = Set(destination.windows.map(\.id))
+        return windows.filter { ids.contains($0.id) }
+    }
+
     /// Brings `window` forward and switches to its Space. Blocks on the app's replies, so never on the main actor.
     static func raise(_ window: WindowInfo) {
         guard bringForward(window), let element = WindowFocus.elementElsewhere(for: window) else {

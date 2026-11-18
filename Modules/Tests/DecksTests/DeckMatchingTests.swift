@@ -63,16 +63,30 @@ import Testing
 
     @Test func refreshTakesTheMatchedWindowsNumberAndTitle() {
         let decks = [deck([DeckMember(app: "com.example.code", title: "main.swift", windowID: 99)])]
-        let arrangement = DeckMatching.arrange(decks, over: [window(5)])
-        let refreshed = DeckMatching.refreshed(decks, with: arrangement, existing: [5])
+        let refreshed = DeckMatching.refreshed(decks, over: [window(5)], existing: [5])
         #expect(refreshed[0].members == [DeckMember(app: "com.example.code", title: "main.swift", windowID: 5)])
+    }
+
+    @Test func reusedNumberDoesNotClaimAnotherAppsWindow() {
+        let member = DeckMatching.member(for: window(2))
+        let decks = [deck([member])]
+        let windows = [window(2, app: "other"), window(3)]
+        #expect(DeckMatching.arrange(decks, over: windows).ungrouped.map(\.id) == [2])
+        #expect(DeckMatching.refreshed(decks, over: windows, existing: [2, 3])[0].members
+            == [DeckMatching.member(for: window(3))])
+    }
+
+    @Test func sameTitleDoesNotStealALiveMembersClaimDuringRefresh() {
+        let decks = [deck([window(10), window(20)].map(DeckMatching.member(for:)))]
+        let refreshed = DeckMatching.refreshed(decks, over: [window(20)], existing: [20])
+        #expect(refreshed[0].members.map(\.windowID) == [nil, 20])
+        #expect(refreshed[0].members[0].title == "main.swift")
     }
 
     @Test func refreshKeepsAWindowThatIsOnlyOffScreen() {
         let member = DeckMember(app: "com.example.code", title: nil, windowID: 7)
         let decks = [deck([member])]
-        let arrangement = DeckMatching.arrange(decks, over: [])
-        #expect(DeckMatching.refreshed(decks, with: arrangement, existing: [7])[0].members == [member])
+        #expect(DeckMatching.refreshed(decks, over: [], existing: [7])[0].members == [member])
     }
 
     @Test func refreshForgetsAClosedWindowNothingCanFindAgain() {
@@ -80,8 +94,7 @@ import Testing
             DeckMember(app: "com.example.code", title: nil, windowID: 7),
             DeckMember(app: "com.example.code", title: "kept.swift", windowID: 8)
         ])]
-        let arrangement = DeckMatching.arrange(decks, over: [])
-        let refreshed = DeckMatching.refreshed(decks, with: arrangement, existing: [])
+        let refreshed = DeckMatching.refreshed(decks, over: [], existing: [])
         #expect(refreshed[0].members == [DeckMember(app: "com.example.code", title: "kept.swift", windowID: nil)])
     }
 
@@ -213,5 +226,63 @@ import Testing
     @Test func withinTheTrayOrFromTheGridToNowhereChangesNothing() {
         #expect(drop(1, from: .tray(deck.id), on: .tray) == .unchanged)
         #expect(drop(2, from: .grid, on: nil) == .unchanged)
+    }
+}
+
+@MainActor
+@Suite struct OverviewDragTests {
+    private let first = CGRect(x: 20, y: 20, width: 190, height: 140)
+    private let second = CGRect(x: 236, y: 20, width: 190, height: 140)
+    private let tray = CGRect(x: 0, y: 200, width: 600, height: 250)
+
+    private func center(_ frame: CGRect) -> CGPoint { CGPoint(x: frame.midX, y: frame.midY) }
+
+    private func desktopOverview() -> Overview {
+        let spaces = (1...2).map { index in
+            SpaceInfo(id: UInt64(index), uuid: "d\(index)", kind: .desktop(number: index), isCurrent: index == 1,
+                      windows: [])
+        }
+        let overview = Overview(windows: [], spaceItems: SpaceItems.items(for: spaces), decks: [], wallpaper: nil,
+                                canRaise: true, canSeeTitles: true)
+        overview.view = .spaces
+        return overview
+    }
+
+    @Test func draggingOneDesktopOntoAnotherGroupsBoth() {
+        let overview = desktopOverview()
+        let items = overview.items
+        overview.hoverFrames = [.desktop(items[0].id): first, .desktop(items[1].id): second]
+        #expect(overview.press(at: center(first)))
+        overview.dragged(to: center(second))
+        overview.released(at: center(second))
+        #expect(overview.decks.map(\.kind) == [.spaces])
+        #expect(overview.arrangement.decks.first?.windows == items)
+    }
+
+    @Test func draggingIntoAnOpenDeckTrayAddsTheItem() {
+        for target in [HoverTarget.tray, .trayWindow(1)] {
+            let overview = desktopOverview()
+            let item = overview.items[0]
+            let deck = Deck(name: "Work", color: .blue, kind: .spaces)
+            overview.decks = [deck]
+            overview.hoverFrames = [.desktop(item.id): first, .deck(deck.id): second, target: tray]
+            #expect(overview.press(at: center(first)))
+            overview.pointerMoved(to: center(second))
+            overview.dragged(to: center(tray))
+            overview.pointerMoved(to: center(tray))
+            overview.released(at: center(tray))
+            #expect(overview.arrangement.decks.first?.windows == [item])
+        }
+    }
+
+    @Test func draggingOverADesktopTrayLeavesDecksAlone() {
+        let overview = desktopOverview()
+        let items = overview.items
+        overview.hoverFrames = [.desktop(items[0].id): first, .desktop(items[1].id): second, .tray: tray]
+        #expect(overview.press(at: center(first)))
+        overview.pointerMoved(to: center(second))
+        overview.dragged(to: center(tray))
+        overview.released(at: center(tray))
+        #expect(overview.decks.isEmpty)
     }
 }

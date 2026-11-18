@@ -10,22 +10,28 @@ struct OverviewView: View {
         GeometryReader { geometry in
             ZStack(alignment: .top) {
                 backdrop
-                    .contentShape(Rectangle())
-                    .onTapGesture { overview.onDismiss?() }
-                VStack(spacing: 0) {
-                    if overview.hasSpaces {
-                        ViewSwitch(overview: overview)
-                            .padding(.bottom, 12)
-                    }
-                    hint
-                    if !overview.canRaise || !overview.canSeeTitles {
-                        PermissionBanner(overview: overview)
+                ScrollView {
+                    VStack(spacing: 0) {
+                        if overview.hasSpaces {
+                            ViewSwitch(overview: overview)
+                                .padding(.bottom, 12)
+                        }
+                        hint
+                        if !overview.canRaise || !overview.canSeeTitles {
+                            PermissionBanner(overview: overview)
+                                .padding(.top, 18)
+                        }
+                        grid(trayWidth: min(1000, geometry.size.width * 0.92), width: geometry.size.width)
                             .padding(.top, 18)
                     }
-                    grid(trayWidth: min(1000, geometry.size.width * 0.92), width: geometry.size.width)
-                        .padding(.top, 18)
+                    .padding(.vertical, 28)
+                    .frame(maxWidth: .infinity, minHeight: geometry.size.height, alignment: .top)
+                    .background {
+                        Color.clear.contentShape(Rectangle()).onTapGesture { overview.onDismiss?() }
+                    }
                 }
-                .padding(.top, 28)
+                .scrollIndicators(.hidden)
+                .scrollBounceBehavior(.basedOnSize)
                 if let drag = overview.drag, drag.isMoving { DragGhost(drag: drag, overview: overview) }
             }
         }
@@ -74,7 +80,7 @@ struct OverviewView: View {
     private func trayID(of tile: Tile) -> UUID? {
         switch tile {
         case .deck(let live): live.id
-        case .item(let item) where overview.view == .spaces && SpaceItems.isDesktop(item): Overview.trayID(of: item)
+        case .item(let item) where overview.view == .spaces && SpaceItems.isDesktop(item): Overview.trayID(of: item.id)
         default: nil
         }
     }
@@ -92,9 +98,9 @@ struct OverviewView: View {
                     .onTapGesture { overview.pick(live.windows.reversed()) }
                 case .item(let item) where overview.view == .spaces && SpaceItems.isDesktop(item):
                     DesktopStack(
-                        desktop: item, overview: overview, isActive: overview.trayDeck == Overview.trayID(of: item)
+                        desktop: item, overview: overview, isActive: overview.trayDeck == Overview.trayID(of: item.id)
                     )
-                    .hoverTarget(.deck(Overview.trayID(of: item)))
+                    .hoverTarget(.desktop(item.id))
                     .onTapGesture { overview.pick([item]) }
                 case .item(let item):
                     windowCard(item)
