@@ -7,6 +7,8 @@ import Settings
 @Observable
 final class Overview {
     let windows: [WindowInfo]
+    /// The Space each window is on; empty when SkyLight could not be read.
+    let spaces: [CGWindowID: SpaceInfo]
     let wallpaper: NSImage?
     let canRaise: Bool
     let canSeeTitles: Bool
@@ -34,8 +36,12 @@ final class Overview {
         case screenRecording, accessibility
     }
 
-    init(windows: [WindowInfo], decks: [Deck], wallpaper: NSImage?, canRaise: Bool, canSeeTitles: Bool) {
+    init(
+        windows: [WindowInfo], spaces: [CGWindowID: SpaceInfo] = [:], decks: [Deck], wallpaper: NSImage?,
+        canRaise: Bool, canSeeTitles: Bool
+    ) {
         self.windows = windows
+        self.spaces = spaces
         self.decks = decks
         self.wallpaper = wallpaper
         self.canRaise = canRaise
@@ -44,6 +50,15 @@ final class Overview {
 
     var arrangement: Arrangement {
         DeckMatching.arrange(decks, over: windows)
+    }
+
+    /// Where a window lives, for one off the current Space: "Desktop 2", "Full screen".
+    func place(of window: WindowInfo) -> String? {
+        guard let space = spaces[window.id], !space.isCurrent else { return nil }
+        switch space.kind {
+        case .desktop: return space.name
+        case .fullScreen: return "Full screen"
+        }
     }
 
     func icon(of window: WindowInfo) -> NSImage {

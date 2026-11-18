@@ -9,9 +9,8 @@ import SwiftUI
 /// While the overview is off nothing is registered. While it is on and closed only the hot key is.
 /// Everything else, the window list and the panel among it, exists only while it is open.
 ///
-/// Known limits: minimized windows and windows on other Spaces are not on screen, so the window
-/// server does not list them. Full screen apps live in Spaces of their own and show only while
-/// theirs is the current one.
+/// Lists the windows of every Space, full screen apps' among them, through SkyLight; without it, only
+/// the current Space's. Known limit: minimized windows are left out.
 @MainActor
 public final class DecksController {
     /// The feature's name wherever the user reads it.
@@ -55,7 +54,9 @@ public final class DecksController {
     public func open() {
         guard panel == nil, let screen = Self.pointerScreen else { return }
         permissions.refresh()
-        let windows = WindowList.onScreen()
+        let spaces = SpaceList.read()
+        let listed = spaces.map(SpaceList.windows(of:))
+        let windows = listed?.map(\.window) ?? WindowList.onScreen()
         // Brought up to date with what is open before anything is shown, and stored as it is.
         let decks = DeckMatching.refreshed(
             settings.preferences.decks, with: DeckMatching.arrange(settings.preferences.decks, over: windows),
@@ -64,6 +65,7 @@ public final class DecksController {
         settings.preferences.decks = decks
         let overview = Overview(
             windows: windows,
+            spaces: Dictionary(listed?.map { ($0.window.id, $0.space) } ?? []) { first, _ in first },
             decks: decks,
             wallpaper: NSWorkspace.shared.desktopImageURL(for: screen).flatMap(NSImage.init(contentsOf:)),
             canRaise: permissions.accessibility,
@@ -115,8 +117,15 @@ public final class DecksController {
     }
 
     private func bringForward(_ windows: [WindowInfo]) {
+        let elsewhere = overview.map { overview in windows.filter { overview.spaces[$0.id]?.isCurrent == false } } ?? []
         close()
         guard let focused = windows.last else { return }
+        // The window server fronts a window elsewhere and raising it switches to its Space; the app alone
+        // would go to whichever of its windows was last in front.
+        if elsewhere.contains(focused) {
+            Task.detached { SpaceFocus.raise(focused) }
+            return
+        }
         NSRunningApplication(processIdentifier: focused.pid)?.activate()
         Task.detached { WindowFocus.raise(windows) }
     }
@@ -171,6 +180,43 @@ public final class DecksController {
 
     public func devClearDecks() {
         settings.preferences.decks = []
+    }
+
+    /// Brings the window numbered `id` forward from wherever it is, as picking it in the overview would.
+    public func devFocus(_ id: CGWindowID) -> String {
+        guard let window = SpaceList.read()?.flatMap(\.windows).first(where: { $0.id == id }) else {
+            return "no window \(id)"
+        }
+        Task.detached { SpaceFocus.raise(window) }
+        return "focusing \(window.label)"
+    }
+
+    /// How many of the open overview's windows have their picture, of how many.
+    public func devPictures() -> String {
+        guard let overview else { return "closed" }
+        return "\(overview.thumbnails.count)/\(overview.windows.count)"
+    }
+
+    /// Where the open overview draws each window's card, in screen points from the top left.
+    public func devCards() -> String {
+        guard let overview else { return "closed" }
+        return overview.hoverFrames.compactMap { target, frame -> String? in
+            guard case .window(let id) = target else { return nil }
+            return "\(id) \(Int(frame.midX)) \(Int(frame.midY))"
+        }.sorted().joined(separator: "\n")
+    }
+
+    /// Every Space with its windows, as the overview reads them.
+    public func devSpaces() -> String {
+        guard let spaces = SpaceList.read() else { return "SkyLight unavailable" }
+        return spaces.map { space in
+            let name = switch space.kind {
+            case .desktop(let number): "Desktop \(number)"
+            case .fullScreen: "full screen"
+            }
+            return "\(space.id) \(name)\(space.isCurrent ? " (current)" : ""): "
+                + space.windows.map { "\($0.id) \($0.label)" }.joined(separator: ", ")
+        }.joined(separator: "\n")
     }
     #endif
 

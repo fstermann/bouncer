@@ -51,7 +51,8 @@ struct OverviewView: View {
             }
             ForEach(arrangement.ungrouped) { window in
                 WindowCard(
-                    window: window, icon: overview.icon(of: window), picture: overview.thumbnails[window.id],
+                    window: window, place: overview.place(of: window), icon: overview.icon(of: window),
+                    picture: overview.thumbnails[window.id],
                     isHovered: overview.hovered == .window(window.id) && overview.drag?.window.id != window.id
                 ) { overview.onPick?([window]) }
                 .hoverTarget(.window(window.id))
@@ -100,7 +101,7 @@ struct OverviewView: View {
     }
 
     private var hint: some View {
-        Text("Hover a deck to expand it  ·  click a window to focus  ·  "
+        Text("Hover a deck to expand it  ·  click a window to go to it  ·  "
              + "⌥ drag a window onto another to group them  ·  esc to close")
             .font(.system(size: 12))
             .foregroundStyle(.white.opacity(0.75))
@@ -117,6 +118,8 @@ enum Metrics {
 /// One ungrouped window: its picture, or its app's icon until there is one, over its title.
 struct WindowCard: View {
     let window: WindowInfo
+    /// Where the window lives when that is not the current Space.
+    let place: String?
     let icon: NSImage
     let picture: NSImage?
     let isHovered: Bool
@@ -127,6 +130,9 @@ struct WindowCard: View {
             WindowThumbnail(icon: icon, picture: picture)
                 .frame(width: Metrics.card.width, height: Metrics.card.height)
                 .overlay { Highlight(isOn: isHovered) }
+                .overlay(alignment: .topLeading) {
+                    if let place { PlaceTag(text: place).padding(6) }
+                }
             Text(window.label)
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.white)
@@ -137,6 +143,20 @@ struct WindowCard: View {
         }
         .contentShape(Rectangle())
         .onTapGesture(perform: action)
+    }
+}
+
+/// The small label on a card that says which Space its window is on.
+struct PlaceTag: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 9.5, weight: .semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(.black.opacity(0.55), in: Capsule())
     }
 }
 
