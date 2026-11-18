@@ -25,6 +25,18 @@ enum Tiling {
         return frames
     }
 
+    /// Which of `windows` can be tiled together: those on one desktop, the current one if it holds any,
+    /// else the one holding most. A full screen window cannot be resized, and no public call moves a
+    /// window to another Space. Without Space information every window is taken.
+    static func tileable(_ windows: [WindowInfo], spaces: [CGWindowID: SpaceInfo]) -> [WindowInfo] {
+        guard !spaces.isEmpty else { return windows }
+        let onDesktops = windows.filter { spaces[$0.id].map { $0.kind != .fullScreen } ?? false }
+        let bySpace = Dictionary(grouping: onDesktops) { spaces[$0.id]?.id ?? 0 }
+        let chosen = onDesktops.first { spaces[$0.id]?.isCurrent == true }.flatMap { spaces[$0.id]?.id }
+            ?? bySpace.max { $0.value.count < $1.value.count }?.key
+        return onDesktops.filter { spaces[$0.id]?.id == chosen }
+    }
+
     /// Moves and sizes each window to its frame, in the window server's coordinates.
     ///
     /// Accessibility calls block, so this is never called from the main actor.

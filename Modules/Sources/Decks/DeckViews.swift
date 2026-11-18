@@ -1,7 +1,7 @@
 import Settings
 import SwiftUI
 
-extension DeckColor {
+public extension DeckColor {
     var color: Color {
         switch self {
         case .blue: Color(red: 0x60 / 255, green: 0xA5 / 255, blue: 0xFA / 255)

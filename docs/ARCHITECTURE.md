@@ -411,6 +411,49 @@ next reminder to start or stop showing.
 The pages other than the items page share `NotchPageController`, so the app opens, closes and
 switches between them alike.
 
+### Decks
+
+An overview of every window, opened with a hot key (`Preferences.decksShortcut`, ⌘⇧W by default),
+in which the user groups windows, or whole Spaces, into named decks (`DecksController`). Off by
+default, behind `Preferences.enableDecks`, and in a module of its own, `Decks`, because it needs
+Screen Recording for pictures and titles and Accessibility to focus, tile and read Dock badges.
+While it is off nothing of it runs; while it is on, the hot key is all it installs until it opens.
+
+It has two levels, switched with Tab. Windows lists every ordinary window on every Space, each
+off the current Space tagged with where it lives. Spaces lists one card for each desktop and full
+screen app. A deck belongs to one level (`Deck.kind`). Opening reads the Spaces and their windows
+once (`SpaceList`), brings stored decks up to date with what is open (`SpaceItems.refreshed`,
+`DeckMatching`), and starts the pictures (`Thumbnails`) and the Dock badges (`DockBadges`), each
+arriving on its own. Closing drops all of it.
+
+A deck member is stored by app, title and window number: the number while the window is open, app
+and title once it has gone. A desktop is stored by its Space's identifier, which lasts until the
+desktop is removed; in the overview it stands as a made-up window numbered from `0xF000_0000`, so
+desktops are grouped, dragged and matched by the window code.
+
+Private SkyLight calls, resolved with `dlsym` and dropped without fuss when missing:
+`SLSCopyManagedDisplaySpaces` and the window query calls list Spaces and their windows,
+`SLSHWCaptureWindowList` takes pictures of windows not on screen (ScreenCaptureKit fails on full
+screen apps not in front), and `_SLPSSetFrontProcessWithOptions` with `SLPSPostEventRecordTo`
+fronts a window on another Space. Raising it then needs its Accessibility element, which an app
+lists only for the current Space, so `WindowFocus.elementElsewhere` finds it through
+`_AXUIElementCreateWithRemoteToken` within a 250 ms budget. Without SkyLight the overview shows the
+current Space's windows only, and has no Spaces level.
+
+Known limits:
+
+- Minimized windows are not listed.
+- An empty desktop cannot be switched to: no call goes to a Space that has no window to front.
+- Tile all lays out only the deck's windows on one desktop, the current one if it holds any. A full
+  screen window cannot be resized, and no public call moves a window between Spaces. An app with
+  a minimum width keeps it, overlapping its neighbour.
+- Dock badges are read once per opening, so a count that changes while the overview is open
+  shows the old value. An app whose badge the user hid in Notifications settings shows none.
+- The hot key is taken from every app while Decks is on: ⌘⇧W no longer reaches the frontmost
+  app. F3 needs Mission Control's own F3 turned off in System Settings first.
+- The overlay covers the display under the pointer only, listing windows from every display.
+- Which level was last shown is kept until Bouncer quits, not across launches.
+
 ### Checking the bar from a shell
 
 The bar's bugs are disagreements between where Bouncer draws something and where the real items
@@ -438,6 +481,9 @@ BouncerFoundation   Logging, signposts, observation helper, the panel's springs.
       ↑                  ↑         it needs — capture, cover, click forwarding.
       └────── App ───────┘         AppDelegate: constructs the graph, owns the menu
                                    and window.
+
+Decks   The window overview: windows and Spaces, decks, pictures, focus and tiling.
+        Depends on BouncerFoundation and Settings; BouncerUI and App depend on it.
 
 Todos   The todo, notes and Claude pages: Markdown task lines, meeting notes, their files, the
         panel, and the `claude` process a question runs.

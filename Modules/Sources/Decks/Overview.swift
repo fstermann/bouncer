@@ -177,8 +177,10 @@ final class Overview {
     }
 
     func tile(_ id: UUID) {
-        guard let live = arrangement.decks.first(where: { $0.id == id }), !live.windows.isEmpty else { return }
-        onTile?(live.windows)
+        guard let live = arrangement.decks.first(where: { $0.id == id }) else { return }
+        let windows = Tiling.tileable(live.windows, spaces: spaces)
+        guard !windows.isEmpty else { return }
+        onTile?(windows)
     }
 
     private func kinded(_ deck: Deck) -> Deck {

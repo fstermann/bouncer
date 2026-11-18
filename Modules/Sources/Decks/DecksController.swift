@@ -159,11 +159,17 @@ public final class DecksController {
     /// Lays the windows side by side over the display's visible area, the front one first, and brings
     /// them all forward.
     private func tile(_ windows: [WindowInfo], on screen: NSScreen) {
+        let isElsewhere = overview?.spaces[windows[0].id]?.isCurrent == false
         close()
         let area = Self.windowServerRect(of: screen.visibleFrame)
         let frames = Array(zip(windows, Tiling.frames(count: windows.count, in: area)))
         NSRunningApplication(processIdentifier: windows[0].pid)?.activate()
         Task.detached {
+            // Switched to their desktop first: Accessibility lists only the current Space's windows.
+            if isElsewhere {
+                SpaceFocus.raise(windows[0])
+                try? await Task.sleep(for: .milliseconds(400))
+            }
             Tiling.apply(frames)
             WindowFocus.raise(windows.reversed())
         }

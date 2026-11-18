@@ -19,6 +19,22 @@ public final class HotKey {
 
         public static let commandShift = cmdKey | shiftKey
 
+        /// The shortcut a key press makes, given its AppKit modifier flags; `nil` for a key alone other
+        /// than a function key, which would take that key from every app, and for a modifier key itself.
+        public static func recorded(keyCode: UInt16, flags: UInt) -> Shortcut? {
+            let modifiers = [(1 << 20, cmdKey), (1 << 19, optionKey), (1 << 18, controlKey), (1 << 17, shiftKey)]
+                .filter { flags & UInt($0.0) != 0 }.map(\.1).reduce(0, |)
+            let modifierKeys = [
+                kVK_Command, kVK_RightCommand, kVK_Shift, kVK_RightShift, kVK_Option, kVK_RightOption,
+                kVK_Control, kVK_RightControl, kVK_CapsLock, kVK_Function
+            ]
+            guard !modifierKeys.contains(Int(keyCode)) else { return nil }
+            let shortcut = Shortcut(keyCode: Int(keyCode), modifiers: modifiers)
+            let isFunctionKey = keyName(UInt32(keyCode)).hasPrefix("F") && keyName(UInt32(keyCode)).count > 1
+            guard modifiers & ~shiftKey != 0 || isFunctionKey else { return nil }
+            return shortcut
+        }
+
         /// As Bouncer writes its shortcuts elsewhere, ⌃⌥⌘⇧ first: "⌘⇧B", "F3".
         public var name: String {
             let symbols: [(Int, String)] = [(controlKey, "⌃"), (optionKey, "⌥"), (cmdKey, "⌘"), (shiftKey, "⇧")]
