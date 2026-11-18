@@ -8,9 +8,8 @@ import SwiftUI
 final class PointerHost<Content: View>: NSHostingView<Content> {
     /// The pointer's position in SwiftUI's coordinates, from the top left; `nil` once it leaves.
     var onPointer: (@MainActor (CGPoint?) -> Void)?
-    /// A press, with whether Option is held; returns whether a drag starts there, which then takes the
-    /// press from SwiftUI.
-    var onPress: (@MainActor (CGPoint, Bool) -> Bool)?
+    /// A press; returns whether a drag may start there, which then takes the press from SwiftUI.
+    var onPress: (@MainActor (CGPoint) -> Bool)?
     var onDrag: (@MainActor (CGPoint) -> Void)?
     var onRelease: (@MainActor (CGPoint) -> Void)?
     private var isDragging = false
@@ -39,7 +38,7 @@ final class PointerHost<Content: View>: NSHostingView<Content> {
     }
 
     override func mouseDown(with event: NSEvent) {
-        isDragging = onPress?(point(of: event), event.modifierFlags.contains(.option)) == true
+        isDragging = onPress?(point(of: event)) == true
         if !isDragging { super.mouseDown(with: event) }
     }
 

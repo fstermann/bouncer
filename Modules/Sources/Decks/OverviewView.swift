@@ -1,7 +1,8 @@
+import Settings
 import SwiftUI
 
-/// The overview's content: the dimmed, blurred desktop, a hint, the decks and windows, and under
-/// them the tray of the deck the pointer is on.
+/// The overview's content: the dimmed, blurred desktop, a hint, the decks and windows, and under the
+/// row of the deck the pointer is on, that deck's tray.
 struct OverviewView: View {
     let overview: Overview
 
@@ -12,18 +13,20 @@ struct OverviewView: View {
                     .contentShape(Rectangle())
                     .onTapGesture { overview.onDismiss?() }
                 VStack(spacing: 0) {
+                    if overview.hasSpaces {
+                        ViewSwitch(overview: overview)
+                            .padding(.bottom, 12)
+                    }
                     hint
                     if !overview.canRaise || !overview.canSeeTitles {
                         PermissionBanner(overview: overview)
                             .padding(.top, 18)
                     }
-                    grid
+                    grid(trayWidth: min(1000, geometry.size.width * 0.92), width: geometry.size.width)
                         .padding(.top, 18)
-                    tray(width: min(1000, geometry.size.width * 0.92))
-                        .padding(.top, 34)
                 }
                 .padding(.top, 28)
-                if let drag = overview.drag { DragGhost(drag: drag, overview: overview) }
+                if let drag = overview.drag, drag.isMoving { DragGhost(drag: drag, overview: overview) }
             }
         }
         .coordinateSpace(name: Hover.space)
@@ -38,49 +41,95 @@ struct OverviewView: View {
         .combined(with: .offset(y: -14))
         .combined(with: .scale(scale: 0.98, anchor: .top))
 
-    private var grid: some View {
-        let arrangement = overview.arrangement
-        return CenteredFlow(spacing: Metrics.gap, lineSpacing: Metrics.gap) {
-            ForEach(arrangement.decks) { live in
-                DeckStack(
-                    live: live, overview: overview,
-                    isActive: overview.trayDeck == live.id || isDropTarget(.deck(live.id))
-                )
-                    .hoverTarget(.deck(live.id))
-                    .onTapGesture { overview.onPick?(live.windows.reversed()) }
+    /// One tile of the grid, or the tray between two rows of them.
+    private enum Tile: Identifiable {
+        case deck(LiveDeck)
+        case item(WindowInfo)
+        case newDeck
+        case tray(LiveDeck)
+
+        var id: String {
+            switch self {
+            case .deck(let live): "deck-\(live.id)"
+            case .item(let item): "item-\(item.id)"
+            case .newDeck: "new"
+            case .tray: "tray"
             }
-            ForEach(arrangement.ungrouped) { window in
-                WindowCard(
-                    window: window, place: overview.place(of: window), icon: overview.icon(of: window),
-                    picture: overview.thumbnails[window.id],
-                    isHovered: overview.hovered == .window(window.id) && overview.drag?.window.id != window.id
-                ) { overview.onPick?([window]) }
-                .hoverTarget(.window(window.id))
-                .opacity(overview.drag?.window.id == window.id ? 0.35 : 1)
-            }
-            NewDeckTile(isHovered: overview.hovered == .newDeck)
-                .hoverTarget(.newDeck)
-                .onTapGesture { overview.newDeck() }
         }
+    }
+
+    /// The tiles in order, the tray after the last tile of the row holding the tile it shows, so it opens
+    /// right under that tile however many rows there are.
+    private func tiles(width: CGFloat) -> [Tile] {
+        let arrangement = overview.arrangement
+        var tiles: [Tile] = arrangement.decks.map(Tile.deck) + arrangement.ungrouped.map(Tile.item) + [.newDeck]
+        guard let live = overview.trayShows,
+              let index = tiles.firstIndex(where: { trayID(of: $0) == live.id })
+        else { return tiles }
+        let perRow = itemsPerRow(count: tiles.count, itemWidth: Metrics.card.width, spacing: Metrics.gap, width: width)
+        tiles.insert(.tray(live), at: min(tiles.count, (index / perRow + 1) * perRow))
+        return tiles
+    }
+
+    private func trayID(of tile: Tile) -> UUID? {
+        switch tile {
+        case .deck(let live): live.id
+        case .item(let item) where overview.view == .spaces && SpaceItems.isDesktop(item): Overview.trayID(of: item)
+        default: nil
+        }
+    }
+
+    private func grid(trayWidth: CGFloat, width: CGFloat) -> some View {
+        CenteredFlow(spacing: Metrics.gap, lineSpacing: Metrics.gap) {
+            ForEach(tiles(width: width - 60)) { tile in
+                switch tile {
+                case .deck(let live):
+                    DeckStack(
+                        live: live, overview: overview,
+                        isActive: overview.trayDeck == live.id || isDropTarget(.deck(live.id))
+                    )
+                    .hoverTarget(.deck(live.id))
+                    .onTapGesture { overview.pick(live.windows.reversed()) }
+                case .item(let item) where overview.view == .spaces && SpaceItems.isDesktop(item):
+                    DesktopStack(
+                        desktop: item, overview: overview, isActive: overview.trayDeck == Overview.trayID(of: item)
+                    )
+                    .hoverTarget(.deck(Overview.trayID(of: item)))
+                    .onTapGesture { overview.pick([item]) }
+                case .item(let item):
+                    windowCard(item)
+                case .newDeck:
+                    NewDeckTile(isHovered: overview.hovered == .newDeck)
+                        .hoverTarget(.newDeck)
+                        .onTapGesture { overview.newDeck() }
+                case .tray(let live):
+                    DeckTray(live: live, overview: overview, width: trayWidth)
+                        .hoverTarget(.tray)
+                        .frame(maxWidth: .infinity)
+                        .flowRow()
+                        .transition(Self.trayTransition)
+                }
+            }
+        }
+        .animation(Springs.tray, value: overview.trayDeck)
         .hoverTarget(.grid)
         .padding(.horizontal, 30)
     }
 
-    @ViewBuilder private func tray(width: CGFloat) -> some View {
-        let live = overview.trayDeck.flatMap { id in overview.arrangement.decks.first { $0.id == id } }
-        ZStack {
-            if let live {
-                DeckTray(live: live, overview: overview, width: width)
-                    .hoverTarget(.tray)
-                    .transition(Self.trayTransition)
-            }
-        }
-        .animation(Springs.tray, value: live != nil)
+    private func windowCard(_ window: WindowInfo) -> some View {
+        WindowCard(
+            window: window, place: overview.view == .windows ? overview.place(of: window) : nil,
+            badge: overview.badge(of: [window]),
+            icon: overview.icon(of: window), picture: overview.thumbnails[window.id],
+            isHovered: overview.hovered == .window(window.id) && !overview.isDragging(window)
+        ) { overview.pick([window]) }
+        .hoverTarget(.window(window.id))
+        .opacity(overview.isDragging(window) ? 0.35 : 1)
     }
 
     /// Whether a window being dragged would drop on `target`.
     private func isDropTarget(_ target: HoverTarget) -> Bool {
-        overview.drag != nil && overview.hovered == target
+        overview.drag?.isMoving == true && overview.hovered == target
     }
 
     private var backdrop: some View {
@@ -101,8 +150,10 @@ struct OverviewView: View {
     }
 
     private var hint: some View {
-        Text("Hover a deck to expand it  ·  click a window to go to it  ·  "
-             + "⌥ drag a window onto another to group them  ·  esc to close")
+        let what = overview.view == .windows ? "window" : "Space"
+        let tab = overview.hasSpaces ? "  ·  tab to switch view" : ""
+        return Text("Hover a deck to expand it  ·  click a \(what) to go to it  ·  "
+             + "drag a \(what) onto another to group them\(tab)  ·  esc to close")
             .font(.system(size: 12))
             .foregroundStyle(.white.opacity(0.75))
     }
@@ -120,6 +171,7 @@ struct WindowCard: View {
     let window: WindowInfo
     /// Where the window lives when that is not the current Space.
     let place: String?
+    let badge: String?
     let icon: NSImage
     let picture: NSImage?
     let isHovered: Bool
@@ -133,6 +185,7 @@ struct WindowCard: View {
                 .overlay(alignment: .topLeading) {
                     if let place { PlaceTag(text: place).padding(6) }
                 }
+                .overlay(alignment: .topTrailing) { Badge(text: badge) }
             Text(window.label)
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.white)
@@ -143,6 +196,49 @@ struct WindowCard: View {
         }
         .contentShape(Rectangle())
         .onTapGesture(perform: action)
+    }
+}
+
+/// The two views' names above the grid, the current one lit; a click or Tab switches.
+struct ViewSwitch: View {
+    let overview: Overview
+
+    var body: some View {
+        HStack(spacing: 4) {
+            segment("Windows", .windows)
+            segment("Spaces", .spaces)
+        }
+        .padding(3)
+        .background(.black.opacity(0.25), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func segment(_ title: String, _ kind: DeckKind) -> some View {
+        Text(title)
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(.white.opacity(overview.view == kind ? 1 : 0.6))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 4)
+            .background(.white.opacity(overview.view == kind ? 0.2 : 0), in: RoundedRectangle(cornerRadius: 6))
+            .contentShape(Rectangle())
+            .onTapGesture { overview.view = kind }
+    }
+}
+
+/// An app's Dock badge, at a card's top right corner as the Dock draws it.
+struct Badge: View {
+    let text: String?
+
+    var body: some View {
+        if let text {
+            Text(text)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 6)
+                .frame(minWidth: 20, minHeight: 20)
+                .background(Color(red: 1, green: 0x3B / 255, blue: 0x30 / 255), in: Capsule())
+                .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
+                .offset(x: 7, y: -7)
+        }
     }
 }
 

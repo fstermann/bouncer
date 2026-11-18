@@ -15,19 +15,25 @@ struct DeckTray: View {
                 } else {
                     DeckLabel(
                         deck: live.deck, count: live.windows.count, font: .system(size: 15, weight: .semibold),
-                        countSuffix: live.windows.count == 1 ? " window" : " windows"
+                        countSuffix: " " + noun(live.windows.count), showsDot: !overview.trayIsDesktop
                     )
                 }
                 Spacer()
-                HStack(spacing: 8) {
-                    TrayButton(title: "Tile all") { overview.tile(live.id) }
-                        .opacity(live.windows.isEmpty ? 0.4 : 1)
-                    TrayButton(title: "Rename") { overview.renaming = live.id }
-                    TrayButton(title: "Ungroup") { overview.ungroup(live.id) }
+                if !overview.trayIsDesktop {
+                    HStack(spacing: 8) {
+                        if overview.view == .windows {
+                            TrayButton(title: "Tile all") { overview.tile(live.id) }
+                                .opacity(live.windows.isEmpty ? 0.4 : 1)
+                        }
+                        TrayButton(title: "Rename") { overview.renaming = live.id }
+                        TrayButton(title: "Ungroup") { overview.ungroup(live.id) }
+                    }
                 }
             }
             if live.windows.isEmpty {
-                Text("⌥ drag windows here, or onto this deck above, to add them.")
+                Text(overview.trayIsDesktop
+                     ? "No windows on this desktop."
+                     : "Drag \(noun(2)) here, or onto this deck above, to add them.")
                     .font(.system(size: 13))
                     .foregroundStyle(.white.opacity(0.55))
                     .padding(.top, 60)
@@ -35,7 +41,7 @@ struct DeckTray: View {
             HStack(alignment: .top, spacing: width * 0.025) {
                 ForEach(Array(live.windows.enumerated()), id: \.element.id) { index, window in
                     TrayCard(window: window, overview: overview, index: index)
-                        .opacity(overview.drag?.window.id == window.id ? 0.35 : 1)
+                        .opacity(overview.isDragging(window) ? 0.35 : 1)
                 }
             }
             .frame(maxWidth: .infinity)
@@ -55,6 +61,12 @@ struct DeckTray: View {
         }
         .contentShape(Rectangle())
     }
+
+    /// What the tray counts: windows, or in a deck of Spaces, Spaces.
+    private func noun(_ count: Int) -> String {
+        let word = overview.view == .spaces && !overview.trayIsDesktop ? "Space" : "window"
+        return count == 1 ? word : word + "s"
+    }
 }
 
 /// One of a deck's windows in the tray, fading and sliding in a beat after the one before it.
@@ -66,9 +78,10 @@ struct TrayCard: View {
 
     var body: some View {
         VStack(spacing: 9) {
-            WindowThumbnail(icon: overview.icon(of: window), picture: overview.thumbnails[window.id])
+            ItemThumbnail(item: window, overview: overview)
                 .aspectRatio(16 / 10, contentMode: .fit)
                 .overlay { Highlight(isOn: overview.hovered == .trayWindow(window.id)) }
+                .overlay(alignment: .topTrailing) { Badge(text: overview.badge(of: [window])) }
             Text(window.label)
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.white)
@@ -81,9 +94,29 @@ struct TrayCard: View {
         .offset(y: isShown ? 0 : -10)
         .contentShape(Rectangle())
         .hoverTarget(.trayWindow(window.id))
-        .onTapGesture { overview.onPick?([window]) }
+        .onTapGesture { overview.pick([window]) }
         .onAppear {
             withAnimation(Springs.trayItem.delay(Double(index) * Springs.stagger)) { isShown = true }
+        }
+    }
+}
+
+/// A tray card's picture: the window's, or for a desktop its front window's, or "Empty".
+struct ItemThumbnail: View {
+    let item: WindowInfo
+    let overview: Overview
+
+    var body: some View {
+        if SpaceItems.isDesktop(item) {
+            if let front = overview.space(of: item)?.windows.first {
+                WindowThumbnail(icon: overview.icon(of: front), picture: overview.thumbnails[front.id])
+            } else {
+                RoundedRectangle(cornerRadius: Metrics.cornerRadius)
+                    .strokeBorder(.white.opacity(0.45), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+                    .overlay { Text("Empty").font(.system(size: 11)).foregroundStyle(.white.opacity(0.6)) }
+            }
+        } else {
+            WindowThumbnail(icon: overview.icon(of: item), picture: overview.thumbnails[item.id])
         }
     }
 }

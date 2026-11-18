@@ -44,7 +44,7 @@ struct DeckStack: View {
                     let stack = Array(live.windows.prefix(3).enumerated()).reversed()
                     ForEach(stack, id: \.element.id) { depth, window in
                         let layer = StackLayer(depth: depth, isFanned: isActive)
-                        WindowThumbnail(icon: overview.icon(of: window), picture: overview.thumbnails[window.id])
+                        ItemThumbnail(item: window, overview: overview)
                             .brightness(Self.brightness[depth])
                             .scaleEffect(layer.scale)
                             .rotationEffect(.degrees(layer.rotation))
@@ -56,6 +56,7 @@ struct DeckStack: View {
                 }
             }
             .frame(width: Metrics.card.width, height: Metrics.card.height)
+            .overlay(alignment: .topTrailing) { Badge(text: overview.badge(of: live.windows)) }
             .animation(Springs.fan, value: isActive)
             DeckLabel(deck: live.deck, count: live.windows.count, font: .system(size: 12, weight: .medium))
         }
@@ -63,7 +64,60 @@ struct DeckStack: View {
     }
 
     /// CSS's `brightness(.85)` and `brightness(.7)`, as SwiftUI's additive brightness.
-    private static let brightness: [Double] = [0, -0.12, -0.25]
+    static let brightness: [Double] = [0, -0.12, -0.25]
+}
+
+/// A desktop in the Spaces view: up to three of its windows stacked as a deck's are, over its name and
+/// window count. Hovering it opens the tray on its windows.
+struct DesktopStack: View {
+    let desktop: WindowInfo
+    let overview: Overview
+    let isActive: Bool
+
+    var body: some View {
+        let windows = overview.space(of: desktop)?.windows ?? []
+        VStack(spacing: 9) {
+            ZStack {
+                if windows.isEmpty {
+                    RoundedRectangle(cornerRadius: Metrics.cornerRadius + 1)
+                        .strokeBorder(.white.opacity(0.45), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+                        .overlay {
+                            Text("Empty")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.white.opacity(0.6))
+                        }
+                } else {
+                    let stack = Array(windows.prefix(3).enumerated()).reversed()
+                    ForEach(stack, id: \.element.id) { depth, window in
+                        let layer = StackLayer(depth: depth, isFanned: isActive)
+                        WindowThumbnail(icon: overview.icon(of: window), picture: overview.thumbnails[window.id])
+                            .brightness(DeckStack.brightness[depth])
+                            .scaleEffect(layer.scale)
+                            .rotationEffect(.degrees(layer.rotation))
+                            .offset(layer.offset)
+                            .overlay {
+                                if depth == 0 { Highlight(isOn: isActive) }
+                            }
+                    }
+                }
+            }
+            .frame(width: Metrics.card.width, height: Metrics.card.height)
+            .overlay(alignment: .topTrailing) { Badge(text: overview.badge(of: [desktop])) }
+            .animation(Springs.fan, value: isActive)
+            HStack(spacing: 6) {
+                Text(desktop.label)
+                Text("\(windows.count)")
+                    .font(.system(size: 10.5))
+                    .padding(.horizontal, 6)
+                    .background(.white.opacity(0.25), in: Capsule())
+            }
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(.white)
+            .shadow(color: .black.opacity(0.4), radius: 1.5, y: 1)
+            .lineLimit(1)
+        }
+        .contentShape(Rectangle())
+    }
 }
 
 /// Where the window `depth` back from the front of a stack sits, at rest and fanned out.
@@ -89,12 +143,15 @@ struct DeckLabel: View {
     let count: Int
     let font: Font
     var countSuffix = ""
+    var showsDot = true
 
     var body: some View {
         HStack(spacing: 6) {
-            Circle()
-                .fill(deck.color.color)
-                .frame(width: 8, height: 8)
+            if showsDot {
+                Circle()
+                    .fill(deck.color.color)
+                    .frame(width: 8, height: 8)
+            }
             Text(deck.name)
             Text("\(count)\(countSuffix)")
                 .font(.system(size: 10.5))

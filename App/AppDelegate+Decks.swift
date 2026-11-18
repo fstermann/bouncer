@@ -27,7 +27,7 @@ extension AppDelegate {
             case "spaces":
                 return decks.devSpaces()
             case "clear":
-                decks.devClearDecks()
+                decks.devClearDecks(words.count > 1 ? DeckKind(rawValue: words[1]) : nil)
                 return "cleared"
             default:
                 decks.toggle()

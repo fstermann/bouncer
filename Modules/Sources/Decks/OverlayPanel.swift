@@ -5,6 +5,8 @@ import AppKit
 /// user was in stays frontmost until they pick a window.
 final class OverlayPanel: NSPanel {
     var onEscape: (@MainActor () -> Void)?
+    /// Tab; returns whether it was taken, so a text field being typed in keeps it otherwise.
+    var onTab: (@MainActor () -> Bool)?
 
     init(frame: CGRect) {
         super.init(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
@@ -20,6 +22,13 @@ final class OverlayPanel: NSPanel {
 
     override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
         frameRect
+    }
+
+    override func sendEvent(_ event: NSEvent) {
+        let plainTab = event.type == .keyDown && event.keyCode == 48
+            && event.modifierFlags.intersection(.deviceIndependentFlagsMask).subtracting(.capsLock).isEmpty
+        if plainTab, onTab?() == true { return }
+        super.sendEvent(event)
     }
 
     override func cancelOperation(_ sender: Any?) {

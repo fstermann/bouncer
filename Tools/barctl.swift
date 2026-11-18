@@ -13,7 +13,7 @@
 //   tap <x> <y>                        clicks there, in the coordinates dump prints
 //   odrag|pdrag <x1> <y1> <x2> <y2>     an Option-drag or a plain drag between two points
 //   move <x> <y> [<x> <y> ...]         glides the pointer to each point in turn, 0.2 s each
-//   decks [on|off|group n|hover i|clear|spaces|focus id]  the window overview: toggle it, or set it up
+//   decks [on|off|group n|hover i|clear [windows|spaces]|spaces|cards|pictures|focus id]  the window overview: toggle it, or set it up
 import Foundation
 
 let command = CommandLine.arguments.dropFirst().joined(separator: " ")

@@ -25,6 +25,8 @@ public final class DecksController {
     private var overview: Overview?
     private var resignObserver: NSObjectProtocol?
     private var capture: Task<Void, Never>?
+    /// The view the overview was last left on, to open on again until Bouncer quits.
+    private var lastView: DeckKind = .windows
 
     public var isOpen: Bool { panel != nil }
 
@@ -57,15 +59,16 @@ public final class DecksController {
         let spaces = SpaceList.read()
         let listed = spaces.map(SpaceList.windows(of:))
         let windows = listed?.map(\.window) ?? WindowList.onScreen()
+        let items = spaces.map(SpaceItems.items(for:)) ?? []
         // Brought up to date with what is open before anything is shown, and stored as it is.
-        let decks = DeckMatching.refreshed(
-            settings.preferences.decks, with: DeckMatching.arrange(settings.preferences.decks, over: windows),
-            existing: WindowList.existing()
+        let decks = SpaceItems.refreshed(
+            settings.preferences.decks, windows: windows, items: items, existing: WindowList.existing()
         )
-        settings.preferences.decks = decks
+        settings.preferences.decks = SpaceItems.stored(decks, with: items)
         let overview = Overview(
             windows: windows,
             spaces: Dictionary(listed?.map { ($0.window.id, $0.space) } ?? []) { first, _ in first },
+            spaceItems: items,
             decks: decks,
             wallpaper: NSWorkspace.shared.desktopImageURL(for: screen).flatMap(NSImage.init(contentsOf:)),
             canRaise: permissions.accessibility,
@@ -74,18 +77,13 @@ public final class DecksController {
         overview.onPick = { [weak self] in self?.bringForward($0) }
         overview.onDismiss = { [weak self] in self?.close() }
         overview.onGrant = { [weak self] in self?.grant($0) }
-        overview.onDecksChange = { [weak self] in self?.settings.preferences.decks = $0 }
+        overview.onDecksChange = { [weak self] in
+            self?.settings.preferences.decks = SpaceItems.stored($0, with: items)
+        }
+        overview.view = items.isEmpty ? .windows : lastView
+        overview.onViewChange = { [weak self] in self?.lastView = $0 }
         overview.onTile = { [weak self] in self?.tile($0, on: screen) }
-        let panel = OverlayPanel(frame: screen.frame)
-        let host = PointerHost(rootView: OverviewView(overview: overview))
-        host.onPointer = { [weak overview] in overview?.pointerMoved(to: $0) }
-        host.onPress = { [weak overview] in overview?.press(at: $0, option: $1) ?? false }
-        host.onDrag = { [weak overview] in overview?.dragged(to: $0) }
-        host.onRelease = { [weak overview] in overview?.released(at: $0) }
-        // The panel covers the display exactly; the content never resizes it.
-        host.sizingOptions = []
-        panel.contentView = host
-        panel.setFrame(screen.frame, display: false)
+        let panel = Self.panel(showing: overview, on: screen)
         panel.onEscape = { [weak self] in self?.close() }
         panel.orderFrontRegardless()
         panel.makeKey()
@@ -97,12 +95,40 @@ public final class DecksController {
         }
         self.panel = panel
         self.overview = overview
+        if overview.canRaise { Self.readBadges(into: overview) }
         guard overview.canSeeTitles else { return }
         capture = Task { [windows = overview.windows.map(\.id), scale = screen.backingScaleFactor] in
             await Thumbnails.capture(windows, scale: scale) { [weak overview] id, image in
                 overview?.thumbnails[id] = NSImage(cgImage: image, size: .zero)
             }
         }
+    }
+
+    private static func readBadges(into overview: Overview) {
+        Task.detached(priority: .userInitiated) { [weak overview] in
+            let badges = DockBadges.read()
+            await MainActor.run { overview?.badges = badges }
+        }
+    }
+
+    /// The overview's panel over `screen`, its content reporting the pointer and Tab to `overview`.
+    private static func panel(showing overview: Overview, on screen: NSScreen) -> OverlayPanel {
+        let panel = OverlayPanel(frame: screen.frame)
+        let host = PointerHost(rootView: OverviewView(overview: overview))
+        host.onPointer = { [weak overview] in overview?.pointerMoved(to: $0) }
+        host.onPress = { [weak overview] in overview?.press(at: $0) ?? false }
+        host.onDrag = { [weak overview] in overview?.dragged(to: $0) }
+        host.onRelease = { [weak overview] in overview?.released(at: $0) }
+        // The panel covers the display exactly; the content never resizes it.
+        host.sizingOptions = []
+        panel.contentView = host
+        panel.setFrame(screen.frame, display: false)
+        panel.onTab = { [weak overview] in
+            guard let overview, overview.hasSpaces, overview.renaming == nil else { return false }
+            overview.view = overview.view == .windows ? .spaces : .windows
+            return true
+        }
+        return panel
     }
 
     public func close() {
@@ -178,8 +204,9 @@ public final class DecksController {
         return "hovering \(overview.decks[index].name)"
     }
 
-    public func devClearDecks() {
-        settings.preferences.decks = []
+    /// Removes every deck, or only those of one view.
+    public func devClearDecks(_ kind: DeckKind? = nil) {
+        settings.preferences.decks.removeAll { kind == nil || $0.kind == kind }
     }
 
     /// Brings the window numbered `id` forward from wherever it is, as picking it in the overview would.
@@ -201,8 +228,18 @@ public final class DecksController {
     public func devCards() -> String {
         guard let overview else { return "closed" }
         return overview.hoverFrames.compactMap { target, frame -> String? in
-            guard case .window(let id) = target else { return nil }
-            return "\(id) \(Int(frame.midX)) \(Int(frame.midY))"
+            let name: String
+            switch target {
+            case .window(let id): name = "\(id)"
+            case .trayWindow(let id): name = "tray-\(id)"
+            case .deck(let id):
+                let desktop = overview.spaceItems.first { Overview.trayID(of: $0.item) == id }
+                name = (overview.decks.first { $0.id == id }?.name ?? desktop.map { "desk-\($0.space.name)" } ?? "deck")
+                    .replacingOccurrences(of: " ", with: "-")
+            case .newDeck: name = "new"
+            case .tray, .grid: return nil
+            }
+            return "\(name) \(Int(frame.midX)) \(Int(frame.midY))"
         }.sorted().joined(separator: "\n")
     }
 

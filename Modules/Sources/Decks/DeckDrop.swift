@@ -6,7 +6,7 @@ import Settings
 enum DeckDrop {
     /// Where a window was picked up.
     enum Source: Equatable {
-        /// An ungrouped window or a deck's window, from the grid, with Option held.
+        /// An ungrouped window or a deck's window, from the grid.
         case grid
         /// A deck's window, from its tray.
         case tray(UUID)
