@@ -424,7 +424,9 @@ off the current Space tagged with where it lives. Spaces lists one card for each
 screen app. A deck belongs to one level (`Deck.kind`). Opening reads the Spaces and their windows
 once (`SpaceList`), brings stored decks up to date with what is open (`SpaceItems.refreshed`,
 `DeckMatching`), and starts the pictures (`Thumbnails`) and the Dock badges (`DockBadges`), each
-arriving on its own. Closing drops all of it.
+arriving on its own. Closing drops all of it but the pictures: the next opening shows each window's
+last picture at once (`ThumbnailCache`, matched by window number and process) and retakes them,
+windows without one first, up to eight at a time. Turning Decks off drops the pictures too.
 
 A deck member is stored by app, title and window number: the number while the window is open, app
 and title once it has gone. A desktop is stored by its Space's identifier, which lasts until the

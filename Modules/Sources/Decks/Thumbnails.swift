@@ -1,13 +1,35 @@
 import AppKit
 import ScreenCaptureKit
 
-/// Pictures of windows, taken once each when the overview opens.
+@MainActor
+struct ThumbnailCache {
+    private var entries: [CGWindowID: (pid: pid_t, image: NSImage)] = [:]
+
+    init(windows: [WindowInfo] = [], pictures: [CGWindowID: NSImage] = [:]) {
+        for window in windows {
+            if let image = pictures[window.id] { entries[window.id] = (window.pid, image) }
+        }
+    }
+
+    func pictures(for windows: [WindowInfo]) -> [CGWindowID: NSImage] {
+        var pictures: [CGWindowID: NSImage] = [:]
+        for window in windows {
+            guard let entry = entries[window.id], entry.pid == window.pid else { continue }
+            pictures[window.id] = entry.image
+        }
+        return pictures
+    }
+}
+
+/// Pictures of windows, taken each time the overview opens.
 ///
 /// Each is kept at the size a card shows it rather than the window's own, and arrives on its own, so a
 /// slow window holds up only its own card.
 enum Thumbnails {
     /// The longest side a picture is taken at, in points; a tray card is the largest place one shows.
     static let longestSide: CGFloat = 520
+
+    private static let captureLimit = 8
 
     /// The size a window of `size` is captured at: scaled down to fit `longest` on its longer side,
     /// times the display's scale, never up.
@@ -19,22 +41,34 @@ enum Thumbnails {
 
     /// Calls `deliver` on the main actor with each window's picture as it arrives, on any Space.
     ///
-    /// SkyLight's capture takes every window, full screen apps' among them, in about 20 ms each; it
-    /// blocks, so capture runs outside the main actor, front window first. ScreenCaptureKit, which fails on
-    /// full screen apps not in front, takes only what SkyLight could not. A window neither takes keeps its icon.
+    /// SkyLight captures across Spaces. ScreenCaptureKit retries the windows SkyLight misses.
     static func capture(
         _ windows: [CGWindowID], scale: CGFloat,
-        imageOf: @Sendable (CGWindowID) -> CGImage? = WindowCapture.image,
+        imageOf: @escaping @Sendable (CGWindowID) -> CGImage? = WindowCapture.image,
         deliver: @escaping @MainActor (CGWindowID, CGImage) -> Void
     ) async {
         var missed: [CGWindowID] = []
-        for id in windows {
-            guard !Task.isCancelled else { return }
-            if let image = imageOf(id) {
+        await withTaskGroup(of: (CGWindowID, CGImage?).self) { group in
+            var pending = windows.makeIterator()
+            func enqueue(_ id: CGWindowID) {
+                group.addTask {
+                    guard !Task.isCancelled, let image = imageOf(id), !Task.isCancelled else { return (id, nil) }
+                    return (id, scaled(image, longest: longestSide, scale: 1))
+                }
+            }
+            for _ in 0..<min(captureLimit, windows.count) {
+                if let id = pending.next() { enqueue(id) }
+            }
+            while let (id, image) = await group.next() {
                 guard !Task.isCancelled else { return }
-                await deliver(id, scaled(image, longest: longestSide, scale: 1))
-            } else {
-                missed.append(id)
+                if let image {
+                    await MainActor.run {
+                        if !Task.isCancelled { deliver(id, image) }
+                    }
+                } else {
+                    missed.append(id)
+                }
+                if !Task.isCancelled, let next = pending.next() { enqueue(next) }
             }
         }
         guard !missed.isEmpty, !Task.isCancelled,

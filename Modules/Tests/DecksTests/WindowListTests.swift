@@ -1,4 +1,5 @@
-import CoreGraphics
+import AppKit
+import os
 import Testing
 
 @testable import Decks
@@ -67,18 +68,60 @@ import Testing
     }
 }
 
+@Suite @MainActor struct ThumbnailCacheTests {
+    private func window(_ id: CGWindowID, pid: pid_t = 100, title: String = "Document") -> WindowInfo {
+        WindowInfo(id: id, pid: pid, bundleID: nil, appName: "Editor", title: title, frame: .zero)
+    }
+
+    @Test func reusesPictureAfterTitleChanges() {
+        let picture = NSImage(size: CGSize(width: 2, height: 2))
+        let cache = ThumbnailCache(windows: [window(1)], pictures: [1: picture])
+        let pictures = cache.pictures(for: [window(1, title: "Renamed")])
+        #expect(pictures[1] === picture)
+    }
+
+    @Test func skipsClosedNewAndUncapturedWindowsAndReusedNumbers() {
+        let picture = NSImage(size: CGSize(width: 2, height: 2))
+        let cache = ThumbnailCache(windows: [window(1), window(2), window(3)], pictures: [1: picture, 2: picture])
+        let pictures = cache.pictures(for: [window(2, pid: 200), window(3), window(4)])
+        #expect(pictures.isEmpty)
+    }
+}
+
 @Suite @MainActor struct ThumbnailCaptureTests {
-    @Test func closingDuringDeliverySkipsRemainingWindows() async {
-        let context = CGContext(
+    private func makeImage() throws -> CGImage {
+        try #require(CGContext(
             data: nil, width: 2, height: 2, bitsPerComponent: 8, bytesPerRow: 0,
             space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        )
-        let image = context?.makeImage()
+        )?.makeImage())
+    }
+
+    @Test func deliversEveryWindowWithAtMostEightCapturesOutstanding() async throws {
+        let image = try makeImage()
+        let windows: [CGWindowID] = Array(1...24)
+        let outstanding = OSAllocatedUnfairLock(initialState: 0)
+        var delivered: [CGWindowID] = []
+        await Thumbnails.capture(windows, scale: 1, imageOf: { _ in
+            let count = outstanding.withLock { count in
+                count += 1
+                return count
+            }
+            #expect(count <= 8)
+            return image
+        }, deliver: { id, _ in
+            outstanding.withLock { $0 -= 1 }
+            delivered.append(id)
+        })
+        #expect(delivered.sorted() == windows)
+    }
+
+    @Test func closingDuringDeliverySkipsRemainingWindows() async throws {
+        let image = try makeImage()
         var capture: Task<Void, Never>?
         var delivered: [CGWindowID] = []
         capture = Task {
-            await Thumbnails.capture([1, 2, 3], scale: 1, imageOf: { id in
-                #expect(id == 1)
+            await Thumbnails.capture(Array(1...24), scale: 1, imageOf: { id in
+                #expect(id <= 8)
                 return image
             }, deliver: { id, _ in
                 delivered.append(id)
@@ -86,6 +129,6 @@ import Testing
             })
         }
         await capture?.value
-        #expect(delivered == [1])
+        #expect(delivered.count == 1)
     }
 }

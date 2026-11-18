@@ -7,7 +7,7 @@ import SwiftUI
 /// window, and brings forward the one picked.
 ///
 /// While the overview is off nothing is registered. While it is on and closed only the hot key is.
-/// Everything else, the window list and the panel among it, exists only while it is open.
+/// The most recent thumbnails stay in memory between openings.
 ///
 /// Lists the windows of every Space, full screen apps' among them, through SkyLight; without it, only
 /// the current Space's. Known limit: minimized windows are left out.
@@ -25,6 +25,7 @@ public final class DecksController {
     private var overview: Overview?
     private var resignObserver: NSObjectProtocol?
     private var capture: Task<Void, Never>?
+    private var thumbnailCache = ThumbnailCache()
     /// The view the overview was last left on, to open on again until Bouncer quits.
     private var lastView: DeckKind = .windows
 
@@ -46,7 +47,10 @@ public final class DecksController {
         hotKey?.unregister()
         hotKey = wanted.flatMap { HotKey($0, id: Self.hotKeyID) { [weak self] in self?.toggle() } }
         registered = wanted
-        if wanted == nil { close() }
+        if wanted == nil {
+            close()
+            thumbnailCache = ThumbnailCache()
+        }
     }
 
     public func toggle() {
@@ -75,6 +79,8 @@ public final class DecksController {
             canRaise: permissions.accessibility,
             canSeeTitles: permissions.screenRecording
         )
+        if overview.canSeeTitles { overview.thumbnails = thumbnailCache.pictures(for: windows) }
+        thumbnailCache = ThumbnailCache()
         overview.onPick = { [weak self] in self?.bringForward($0) }
         overview.onDismiss = { [weak self] in self?.close() }
         overview.onGrant = { [weak self] in self?.grant($0) }
@@ -97,9 +103,14 @@ public final class DecksController {
         self.panel = panel
         self.overview = overview
         if overview.canRaise { Self.readBadges(into: overview) }
-        guard overview.canSeeTitles else { return }
-        let windowIDs = windows.map(\.id)
-        capture = Task.detached(priority: .userInitiated) { [weak overview, scale = screen.backingScaleFactor] in
+        if overview.canSeeTitles { capturePictures(into: overview, scale: screen.backingScaleFactor) }
+    }
+
+    /// Takes every window's picture, those with none from the last opening first.
+    private func capturePictures(into overview: Overview, scale: CGFloat) {
+        let ids = overview.windows.map(\.id)
+        let windowIDs = ids.filter { overview.thumbnails[$0] == nil } + ids.filter { overview.thumbnails[$0] != nil }
+        capture = Task.detached(priority: .userInitiated) { [weak overview] in
             await Thumbnails.capture(windowIDs, scale: scale) { [weak overview] id, image in
                 overview?.thumbnails[id] = NSImage(cgImage: image, size: .zero)
             }
@@ -141,7 +152,10 @@ public final class DecksController {
         resignObserver = nil
         panel?.orderOut(nil)
         panel = nil
-        overview?.stopWaiting()
+        if let overview {
+            thumbnailCache = ThumbnailCache(windows: overview.windows, pictures: overview.thumbnails)
+            overview.stopWaiting()
+        }
         overview = nil
     }
 

@@ -276,7 +276,6 @@ struct WindowThumbnail: View {
                         .resizable()
                         .interpolation(.high)
                         .scaledToFill()
-                        .transition(.opacity)
                 } else {
                     Image(nsImage: icon)
                         .resizable()
@@ -284,7 +283,6 @@ struct WindowThumbnail: View {
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: Metrics.cornerRadius))
-            .animation(.easeOut(duration: 0.2), value: picture != nil)
             .overlay {
                 RoundedRectangle(cornerRadius: Metrics.cornerRadius)
                     .strokeBorder(.white.opacity(0.15), lineWidth: 0.5)
