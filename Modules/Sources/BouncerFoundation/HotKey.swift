@@ -22,8 +22,11 @@ public final class HotKey {
         /// The shortcut a key press makes, given its AppKit modifier flags; `nil` for a key alone other
         /// than a function key, which would take that key from every app, and for a modifier key itself.
         public static func recorded(keyCode: UInt16, flags: UInt) -> Shortcut? {
-            let modifiers = [(1 << 20, cmdKey), (1 << 19, optionKey), (1 << 18, controlKey), (1 << 17, shiftKey)]
-                .filter { flags & UInt($0.0) != 0 }.map(\.1).reduce(0, |)
+            // Typed out: CI's older compiler times out inferring the tuple types.
+            let flagKeys: [(UInt, Int)] = [
+                (1 << 20, cmdKey), (1 << 19, optionKey), (1 << 18, controlKey), (1 << 17, shiftKey)
+            ]
+            let modifiers = flagKeys.filter { flags & $0.0 != 0 }.map(\.1).reduce(0, |)
             let modifierKeys = [
                 kVK_Command, kVK_RightCommand, kVK_Shift, kVK_RightShift, kVK_Option, kVK_RightOption,
                 kVK_Control, kVK_RightControl, kVK_CapsLock, kVK_Function
