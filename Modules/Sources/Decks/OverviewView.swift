@@ -41,7 +41,18 @@ struct OverviewView: View {
                         .frame(maxHeight: .infinity, alignment: .bottom)
                         .padding(.bottom, 40)
                 }
-                if let drag = overview.drag, drag.isMoving { DragGhost(drag: drag, overview: overview) }
+                if let incoming = overview.incoming {
+                    DisplayDrop()
+                    DragGhost(
+                        window: incoming.window, picture: incoming.picture, point: incoming.point, overview: overview
+                    )
+                }
+                if let drag = overview.drag, drag.isMoving {
+                    DragGhost(
+                        window: drag.window, picture: overview.thumbnails[drag.window.id], point: drag.point,
+                        overview: overview
+                    )
+                }
             }
         }
         .coordinateSpace(name: Hover.space)
@@ -365,20 +376,5 @@ struct PermissionBanner: View {
         case (false, true): "Bouncer needs Accessibility to focus windows."
         default: "Bouncer needs Screen Recording to show window titles and pictures."
         }
-    }
-}
-
-/// The window being dragged, following the pointer.
-struct DragGhost: View {
-    let drag: Overview.Drag
-    let overview: Overview
-
-    var body: some View {
-        WindowThumbnail(icon: overview.icon(of: drag.window), picture: overview.thumbnails[drag.window.id])
-            .frame(width: Metrics.card.width * 0.8, height: Metrics.card.height * 0.8)
-            .rotationEffect(.degrees(-3))
-            .opacity(0.9)
-            .position(drag.point)
-            .allowsHitTesting(false)
     }
 }

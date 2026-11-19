@@ -3,8 +3,8 @@ import BouncerFoundation
 import Settings
 import SwiftUI
 
-/// The window overview: opens on its shortcut over the display under the pointer, lists every
-/// window, and brings forward the one picked.
+/// The window overview: opens on its shortcut over every display, each listing its own windows, and
+/// brings forward the one picked. A window dragged onto another display's overview moves there.
 ///
 /// While the overview is off nothing is registered. While it is on and closed only the hot key is.
 /// The most recent thumbnails stay in memory between openings.
@@ -16,20 +16,32 @@ public final class DecksController {
     /// The feature's name wherever the user reads it.
     public static let name = "Decks"
 
-    private let settings: SettingsStore
+    let settings: SettingsStore
     public let permissions = DecksPermissions()
     private var hotKey: HotKey?
+    private var swipe: SwipeUp?
     private var registered: HotKey.Shortcut?
     private var arming: ObservationLoop?
-    private var panel: OverlayPanel?
-    private var overview: Overview?
-    private var resignObserver: NSObjectProtocol?
+    /// One overview for each display while open.
+    private(set) var sessions: [Session] = []
+    private var resignObservers: [NSObjectProtocol] = []
     private var capture: Task<Void, Never>?
     private var thumbnailCache = ThumbnailCache()
     /// The view the overview was last left on, to open on again until Bouncer quits.
     private var lastView: DeckKind = .windows
 
-    public var isOpen: Bool { panel != nil }
+    public var isOpen: Bool { !sessions.isEmpty }
+
+    struct Session {
+        let area: Area
+        let panel: OverlayPanel
+        let overview: Overview
+    }
+
+    /// The overview of the display under the pointer, else the first.
+    var overview: Overview? {
+        (sessions.first { NSMouseInRect(NSEvent.mouseLocation, $0.area.frame, false) } ?? sessions.first)?.overview
+    }
 
     public init(settings: SettingsStore) {
         self.settings = settings
@@ -42,6 +54,7 @@ public final class DecksController {
 
     private func arm() {
         let preferences = settings.preferences
+        armSwipe(preferences.enableDecks && preferences.decksSwipe)
         let wanted = preferences.enableDecks ? preferences.decksShortcut : nil
         guard wanted != registered else { return }
         hotKey?.unregister()
@@ -53,70 +66,118 @@ public final class DecksController {
         }
     }
 
+    /// Listens for the swipe only while it is on. Without Accessibility the tap cannot be made; turning
+    /// the swipe off and on again retries.
+    private func armSwipe(_ isOn: Bool) {
+        guard isOn != (swipe != nil) else { return }
+        swipe?.stop()
+        swipe = nil
+        guard isOn else { return }
+        let listener = SwipeUp { [weak self] in
+            guard let self, !isOpen else { return }
+            open()
+        }
+        if listener.start() { swipe = listener }
+    }
+
     public func toggle() {
         if isOpen { close() } else { open() }
     }
 
-    public func open() {
-        guard panel == nil, let screen = Self.pointerScreen else { return }
+    /// Opens one overview over each of `areas`: each display, or in Bouncer Dev's split two halves of one.
+    func open(on areas: [Area]) {
+        guard sessions.isEmpty, !areas.isEmpty else { return }
         permissions.refresh()
-        let opening = Opening.read(
-            on: screen, decks: settings.preferences.decks, names: settings.preferences.spaceNames
-        )
+        let opening = Opening.read(decks: settings.preferences.decks, names: settings.preferences.spaceNames)
         let items = opening.items
         // Brought up to date with what is open before anything is shown, and stored as it is.
         settings.preferences.decks = SpaceItems.stored(opening.decks, with: items)
-        let windows = opening.windows
+        let cached = thumbnailCache
+        thumbnailCache = ThumbnailCache()
+        sessions = areas.map { area in
+            let overview = overview(showing: opening.shown(on: area.screen), decks: opening.decks, on: area.screen)
+            if overview.canSeeTitles { overview.thumbnails = cached.pictures(for: overview.windows) }
+            return Session(area: area, panel: Self.panel(showing: overview, over: area.frame), overview: overview)
+        }
+        for session in sessions {
+            wire(session, items: items)
+            session.panel.orderFrontRegardless()
+        }
+        (sessions.first { NSMouseInRect(NSEvent.mouseLocation, $0.area.frame, false) } ?? sessions[0]).panel.makeKey()
+        for session in sessions where session.overview.canRaise { Self.readBadges(into: session.overview) }
+        if let first = sessions.first, first.overview.canSeeTitles { capturePictures() }
+    }
+
+    private func overview(showing shown: Opening.Shown, decks: [Deck], on screen: NSScreen) -> Overview {
         let overview = Overview(
-            windows: windows,
-            spaces: opening.spaceOf,
-            spaceItems: opening.shownItems,
-            decks: opening.decks,
-            wallpaper: Wallpaper.image(for: screen, spaces: opening.spaces),
+            windows: shown.windows,
+            spaces: shown.spaceOf,
+            spaceItems: shown.items,
+            decks: decks,
+            wallpaper: Wallpaper.image(for: screen, spaces: shown.spaces),
             topInset: screen.safeAreaInsets.top,
             canRaise: permissions.accessibility,
             canSeeTitles: permissions.screenRecording
         )
-        if overview.canSeeTitles { overview.thumbnails = thumbnailCache.pictures(for: windows) }
-        thumbnailCache = ThumbnailCache()
+        overview.view = overview.hasSpaces ? lastView : .windows
+        return overview
+    }
+
+    /// Connects one display's overview to the others and to the stored decks.
+    private func wire(_ session: Session, items: [(item: WindowInfo, space: SpaceInfo)]) {
+        let overview = session.overview
+        let panel = session.panel
         overview.onPick = { [weak self] in self?.bringForward($0) }
         overview.onDismiss = { [weak self] in self?.close() }
         overview.onGrant = { [weak self] in self?.grant($0) }
-        overview.onDecksChange = { [weak self] in
-            self?.settings.preferences.decks = SpaceItems.stored($0, with: items)
+        overview.onDecksChange = { [weak self, weak overview] decks in
+            guard let self else { return }
+            settings.preferences.decks = SpaceItems.stored(decks, with: items)
+            for other in sessions where other.overview !== overview && other.overview.decks != decks {
+                other.overview.decks = decks
+            }
         }
         overview.onSpaceRename = { [weak self] uuid, name in self?.settings.preferences.spaceNames[uuid] = name }
         overview.onFullScreen = { [weak self] in self?.setFullScreen($0, $1) }
-        overview.view = overview.hasSpaces ? lastView : .windows
-        overview.onViewChange = { [weak self] in self?.lastView = $0 }
-        overview.onTile = { [weak self] in self?.tile($0, on: screen) }
-        let panel = Self.panel(showing: overview, on: screen)
+        overview.onViewChange = { [weak self, weak overview] view in
+            guard let self else { return }
+            lastView = view
+            for other in sessions where other.overview !== overview && other.overview.hasSpaces {
+                other.overview.view = view
+            }
+        }
+        overview.onTile = { [weak self] in self?.tile($0, in: session.area.visibleFrame) }
         panel.onEscape = { [weak self] in self?.close() }
         panel.onKey = { [weak overview] event in
             guard let overview, let key = OverviewKey(event) else { return false }
             return overview.key(key)
         }
-        panel.orderFrontRegardless()
-        panel.makeKey()
-        // Another app or window coming forward, Bouncer's settings among them, takes the overview away.
-        resignObserver = NotificationCenter.default.addObserver(
+        wirePointer(session)
+        // Another app or window coming forward, Bouncer's settings among them, takes the overview away;
+        // another display's overview taking the keys does not.
+        resignObservers.append(NotificationCenter.default.addObserver(
             forName: NSWindow.didResignKeyNotification, object: panel, queue: .main
         ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.close() }
-        }
-        self.panel = panel
-        self.overview = overview
-        if overview.canRaise { Self.readBadges(into: overview) }
-        if overview.canSeeTitles { capturePictures(into: overview, scale: screen.backingScaleFactor) }
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard let self, !self.sessions.contains(where: { $0.panel.isKeyWindow }) else { return }
+                    self.close()
+                }
+            }
+        })
     }
 
-    /// Takes every window's picture, those with none from the last opening first.
-    private func capturePictures(into overview: Overview, scale: CGFloat) {
-        let ids = overview.windows.map(\.id)
-        let windowIDs = ids.filter { overview.thumbnails[$0] == nil } + ids.filter { overview.thumbnails[$0] != nil }
-        capture = Task.detached(priority: .userInitiated) { [weak overview] in
-            await Thumbnails.capture(windowIDs, scale: scale) { [weak overview] id, image in
-                overview?.thumbnails[id] = NSImage(cgImage: image, size: .zero)
+    /// Takes every window's picture on every display, those with none from the last opening first.
+    private func capturePictures() {
+        let overviews = sessions.map(\.overview)
+        let all = overviews.flatMap { overview in overview.windows.map { ($0.id, overview) } }
+        let owner = Dictionary(all) { first, _ in first }
+        let missing = all.filter { $0.1.thumbnails[$0.0] == nil }.map(\.0)
+        let cached = all.filter { $0.1.thumbnails[$0.0] != nil }.map(\.0)
+        let scale = NSScreen.screens.map(\.backingScaleFactor).max() ?? 2
+        capture = Task.detached(priority: .userInitiated) {
+            await Thumbnails.capture(missing + cached, scale: scale) { id, image in
+                owner[id]?.thumbnails[id] = NSImage(cgImage: image, size: .zero)
             }
         }
     }
@@ -128,19 +189,16 @@ public final class DecksController {
         }
     }
 
-    /// The overview's panel over `screen`, its content reporting the pointer and Tab to `overview`.
-    private static func panel(showing overview: Overview, on screen: NSScreen) -> OverlayPanel {
-        let panel = OverlayPanel(frame: screen.frame)
+    /// The overview's panel over `frame`, its content reporting the pointer and Tab to `overview`.
+    private static func panel(showing overview: Overview, over frame: CGRect) -> OverlayPanel {
+        let panel = OverlayPanel(frame: frame)
         let host = PointerHost(rootView: OverviewView(overview: overview))
-        host.onPointer = { [weak overview] in overview?.pointerMoved(to: $0) }
         host.onPress = { [weak overview] in overview?.press(at: $0) ?? false }
-        host.onDrag = { [weak overview] in overview?.dragged(to: $0) }
         panel.onPointerEvent = { [weak host] in host?.handlePointerEvent($0) ?? false }
-        host.onRelease = { [weak overview] in overview?.released(at: $0) }
         // The panel covers the display exactly; the content never resizes it.
         host.sizingOptions = []
         panel.contentView = host
-        panel.setFrame(screen.frame, display: false)
+        panel.setFrame(frame, display: false)
         panel.onTab = { [weak overview] in
             guard let overview, overview.hasSpaces, overview.renaming == nil else { return false }
             overview.view = overview.view == .windows ? .spaces : .windows
@@ -152,32 +210,60 @@ public final class DecksController {
     public func close() {
         capture?.cancel()
         capture = nil
-        if let resignObserver { NotificationCenter.default.removeObserver(resignObserver) }
-        resignObserver = nil
-        panel?.orderOut(nil)
-        panel = nil
-        if let overview {
-            thumbnailCache = ThumbnailCache(windows: overview.windows, pictures: overview.thumbnails)
-            overview.stopWaiting()
+        for observer in resignObservers { NotificationCenter.default.removeObserver(observer) }
+        resignObservers = []
+        let closing = sessions
+        sessions = []
+        for session in closing { session.panel.orderOut(nil) }
+        if !closing.isEmpty {
+            let overviews = closing.map(\.overview)
+            thumbnailCache = ThumbnailCache(
+                windows: overviews.flatMap(\.windows),
+                pictures: overviews.reduce(into: [:]) { $0.merge($1.thumbnails) { first, _ in first } }
+            )
+            for overview in overviews { overview.stopWaiting() }
         }
-        overview = nil
     }
 
-    private func bringForward(_ windows: [WindowInfo]) {
-        let destination = windows.last.flatMap { overview?.spaces[$0.id] }
+    func bringForward(_ windows: [WindowInfo]) {
+        let destination = windows.last.flatMap { window in
+            sessions.lazy.compactMap { $0.overview.spaces[window.id] }.first
+        }
+        let order = destination.map(spaceOrder(of:)) ?? []
         close()
         guard let focused = windows.last else { return }
-        // The window server fronts a window elsewhere and raising it switches to its Space; the app alone
-        // would go to whichever of its windows was last in front.
+        // The display switches to the window's Space at once, then the window comes forward there. Failing
+        // that, the window server fronts it and raising it slides to its Space; the app alone would go to
+        // whichever of its windows was last in front.
         if let destination, !destination.isCurrent {
             let group = SpaceFocus.members(windows, on: destination)
             Task.detached {
-                for window in group { SpaceFocus.raise(window) }
+                if SpaceSwitch.go(to: destination.id, on: destination.display, order: order) {
+                    await MainActor.run { _ = NSRunningApplication(processIdentifier: focused.pid)?.activate() }
+                    WindowFocus.raise(group)
+                } else {
+                    for window in group { SpaceFocus.raise(window) }
+                }
             }
             return
         }
         NSRunningApplication(processIdentifier: focused.pid)?.activate()
         Task.detached { WindowFocus.raise(windows) }
+    }
+
+    /// Switches to `space`, the Space of `window`, before its windows are moved: Accessibility lists only
+    /// the current Space's windows. Failing the instant switch, raising `window` slides there.
+    nonisolated static func switchFirst(to space: SpaceInfo, order: [UInt64], raising window: WindowInfo) async {
+        if SpaceSwitch.go(to: space.id, on: space.display, order: order) { return }
+        SpaceFocus.raise(window)
+        try? await Task.sleep(for: .milliseconds(400))
+    }
+
+    /// The Spaces of `space`'s display, in Mission Control's order, as this opening read them.
+    func spaceOrder(of space: SpaceInfo) -> [UInt64] {
+        let spaces = sessions.flatMap { $0.overview.spaceItems.map(\.space) }.filter { $0.display == space.display }
+        var seen = Set<UInt64>()
+        return spaces.map(\.id).filter { seen.insert($0).inserted }
     }
 
     private func setFullScreen(_ window: WindowInfo, _ isOn: Bool) {
@@ -187,18 +273,16 @@ public final class DecksController {
 
     /// Lays the windows side by side over the display's visible area, the front one first, and brings
     /// them all forward.
-    private func tile(_ windows: [WindowInfo], on screen: NSScreen) {
-        let isElsewhere = overview?.spaces[windows[0].id]?.isCurrent == false
+    private func tile(_ windows: [WindowInfo], in visibleFrame: CGRect) {
+        let space = sessions.lazy.compactMap { $0.overview.spaces[windows[0].id] }.first
+        let elsewhere = space.flatMap { $0.isCurrent ? nil : ($0, spaceOrder(of: $0)) }
         close()
-        let area = Self.windowServerRect(of: screen.visibleFrame)
+        let area = Self.windowServerRect(of: visibleFrame)
         let frames = Array(zip(windows, Tiling.frames(count: windows.count, in: area)))
         NSRunningApplication(processIdentifier: windows[0].pid)?.activate()
         Task.detached {
             // Switched to their desktop first: Accessibility lists only the current Space's windows.
-            if isElsewhere {
-                SpaceFocus.raise(windows[0])
-                try? await Task.sleep(for: .milliseconds(400))
-            }
+            if let (space, order) = elsewhere { await Self.switchFirst(to: space, order: order, raising: windows[0]) }
             Tiling.apply(frames)
             WindowFocus.raise(windows.reversed())
         }
@@ -223,80 +307,6 @@ public final class DecksController {
         }
     }
 
-    #if DEV
-    /// Groups the `count` frontmost windows on screen into a new deck, for checking decks from a shell.
-    public func devGroup(_ count: Int) -> String {
-        let windows = Array(WindowList.onScreen().prefix(count))
-        guard !windows.isEmpty else { return "no windows" }
-        settings.preferences.decks = DeckMatching.grouping(windows, in: settings.preferences.decks).decks
-        return "grouped \(windows.map(\.label))"
-    }
-
-    /// Hovers the deck at `index` in the open overview, as the pointer would.
-    public func devHover(_ index: Int) -> String {
-        guard let overview, index < overview.decks.count else { return "no such deck" }
-        overview.devShow(overview.decks[index].id)
-        return "hovering \(overview.decks[index].name)"
-    }
-
-    /// Removes every deck, or only those of one view.
-    public func devClearDecks(_ kind: DeckKind? = nil) {
-        settings.preferences.decks.removeAll { kind == nil || $0.kind == kind }
-    }
-
-    /// Brings the window numbered `id` forward from wherever it is, as picking it in the overview would.
-    public func devFocus(_ id: CGWindowID) -> String {
-        guard let window = SpaceList.read()?.flatMap(\.windows).first(where: { $0.id == id }) else {
-            return "no window \(id)"
-        }
-        Task.detached { SpaceFocus.raise(window) }
-        return "focusing \(window.label)"
-    }
-
-    /// How many of the open overview's windows have their picture, of how many.
-    public func devPictures() -> String {
-        guard let overview else { return "closed" }
-        return "\(overview.thumbnails.count)/\(overview.windows.count)"
-    }
-
-    /// Where the open overview draws each window's card, in screen points from the top left.
-    public func devCards() -> String {
-        guard let overview else { return "closed" }
-        return overview.hoverFrames.compactMap { target, frame -> String? in
-            let name: String
-            switch target {
-            case .window(let id): name = "\(id)"
-            case .trayWindow(let id): name = "tray-\(id)"
-            case .desktop(let id):
-                guard let entry = overview.spaceItems.first(where: { $0.item.id == id }) else { return nil }
-                name = "desk-\(entry.space.name)".replacingOccurrences(of: " ", with: "-")
-            case .deck(let id):
-                name = (overview.decks.first { $0.id == id }?.name ?? "deck").replacingOccurrences(of: " ", with: "-")
-            case .newDeck: name = "new"
-            case .fullScreen: name = "full-screen"
-            case .tray, .grid: return nil
-            }
-            return "\(name) \(Int(frame.midX)) \(Int(frame.midY))"
-        }.sorted().joined(separator: "\n")
-    }
-
-    /// Every Space with its windows, as the overview reads them.
-    public func devSpaces() -> String {
-        guard let spaces = SpaceList.read() else { return "SkyLight unavailable" }
-        return spaces.map { space in
-            let name = switch space.kind {
-            case .desktop(let number): "Desktop \(number)"
-            case .fullScreen: "full screen"
-            }
-            return "\(space.id) \(name)\(space.isCurrent ? " (current)" : ""): "
-                + space.windows.map { "\($0.id) \($0.label)" }.joined(separator: ", ")
-        }.joined(separator: "\n")
-    }
-    #endif
-
     private static let hotKeyID: UInt32 = 10
 
-    private static var pointerScreen: NSScreen? {
-        NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main
-    }
 }

@@ -34,6 +34,19 @@ struct DeckOptions: View {
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }
+                Toggle(isOn: $preferences.decksSwipe) {
+                    Text("Swipe up with three fingers to open")
+                    Text("Turn off Mission Control's swipe in Trackpad settings, More Gestures, first, or macOS "
+                         + "opens Mission Control as well. Needs Accessibility.")
+                }
+                if preferences.decksSwipe {
+                    LabeledContent("Mission Control swipe") {
+                        Button("Open Trackpad Settings") {
+                            let pane = "x-apple.systempreferences:com.apple.Trackpad-Settings.extension"
+                            if let url = URL(string: pane) { NSWorkspace.shared.open(url) }
+                        }
+                    }
+                }
                 PermissionRow(
                     name: "Screen Recording",
                     status: permissions.screenRecording ? .granted : .missing,

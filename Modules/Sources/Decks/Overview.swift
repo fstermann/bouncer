@@ -199,12 +199,15 @@ final class Overview {
         var point: CGPoint
         /// Whether the pointer has gone far enough to be a drag rather than a click.
         var isMoving = false
+        /// The deck dragged whole, its front window standing for it; `nil` for one window.
+        var deck: UUID?
     }
 
-    /// Less than this from where it started, in points, a press is still a click.
-    static let dragThreshold: CGFloat = 4
+    /// The press being dragged, set only by the dragging methods here and in `Overview+Items`.
+    var drag: Drag?
 
-    private(set) var drag: Drag?
+    /// A window dragged in from another display's overview, and where the pointer has it here.
+    var incoming: Incoming?
 
     /// Takes a press on a window, in the grid or the tray, as a possible drag. Returns whether it took it.
     func press(at point: CGPoint) -> Bool {
@@ -220,6 +223,10 @@ final class Overview {
                   let window = items.first(where: { $0.id == id })
             else { return false }
             drag = Drag(window: window, source: .tray(deck), start: point, point: point)
+        case .deck(let id) where view == .windows && canRaise:
+            // A deck is dragged only to another display; let go here, it is a click.
+            guard let front = arrangement.decks.first(where: { $0.id == id })?.windows.first else { return false }
+            drag = Drag(window: front, source: .grid, start: point, point: point, deck: id)
         case .window(let id), .desktop(let id):
             guard let window = arrangement.ungrouped.first(where: { $0.id == id }) else { return false }
             drag = Drag(window: window, source: .grid, start: point, point: point)
@@ -229,22 +236,16 @@ final class Overview {
         return true
     }
 
-    /// Whether `window` is being dragged away from its card.
-    func isDragging(_ window: WindowInfo) -> Bool {
-        drag?.isMoving == true && drag?.window.id == window.id
-    }
-
-    func dragged(to point: CGPoint) {
-        guard var drag else { return }
-        drag.point = point
-        drag.isMoving = drag.isMoving || hypot(point.x - drag.start.x, point.y - drag.start.y) >= Self.dragThreshold
-        self.drag = drag
-    }
-
     /// Drops the dragged window where the pointer is. A press that never moved is a click.
     func released(at point: CGPoint) {
         guard let drag else { return }
         self.drag = nil
+        if let deck = drag.deck {
+            if !drag.isMoving, let live = arrangement.decks.first(where: { $0.id == deck }) {
+                pick(live.windows.reversed())
+            }
+            return
+        }
         guard drag.isMoving else { return pick([drag.window]) }
         let target = Hover.target(at: point, in: hoverFrames)
         if let change = fullScreenDrop(of: drag) {

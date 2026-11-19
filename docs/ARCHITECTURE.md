@@ -417,12 +417,26 @@ An overview of every window, opened with a hot key (`Preferences.decksShortcut`,
 in which the user groups windows, or whole Spaces, into named decks (`DecksController`). Off by
 default, behind `Preferences.enableDecks`, and in a module of its own, `Decks`, because it needs
 Screen Recording for pictures and titles and Accessibility to focus, tile and read Dock badges.
-While it is off nothing of it runs; while it is on, the hot key is all it installs until it opens.
+While it is off nothing of it runs; while it is on, the hot key is all it installs until it opens,
+and, with `Preferences.decksSwipe`, a listen-only event tap on the trackpad's gesture events
+(`SwipeUp`). Three fingers whose average height rises 0.12 of the trackpad open the overview
+(`SwipeUpDetector`); swipes measured rose 0.16 to 0.27. The tap leaves the Dock's own swipe events
+alone, since tapping those stops an auto-hidden Dock from showing on hover. Mission Control's swipe
+must be off in System Settings: writing its keys (`TrackpadThreeFingerVertSwipeGesture` and others)
+does not take effect, even after restarting the Dock, so settings link to the Trackpad pane.
 
-It has two levels, switched with Tab. Windows lists every ordinary window on every Space of the
-display under the pointer, each off the current Space tagged with where it lives. Spaces lists one
-card for each of that display's desktops and full screen apps. Decks are matched over every
-display (`Opening`), so a member on another display is kept, not forgotten.
+It opens on every display at once, one panel and one `Overview` each. It has two levels, switched
+with Tab on all displays together. Windows lists every ordinary window on every Space of that
+display, each off the current Space tagged with where it lives. Spaces lists one card for each of the
+display's desktops and full screen apps. Opening reads the Spaces once for every display
+(`Opening`); decks are matched over all of them and shared, so an edit on one display shows on the
+others. Keys go to the display under the pointer. A window dragged onto another display's overview
+shows there and, dropped, moves to that display's current desktop at the same relative place
+(`DisplayMove`), through Accessibility. A deck dragged there moves all its windows but full screen
+ones; a deck pressed and let go without moving is a click. A window on a desktop that is not current
+is reached by switching to that desktop first, as tiling does, since Accessibility lists only the
+current Space's windows and the remote-token lookup misses some apps. Bouncer Dev's `decks split`
+opens two overviews on halves of one display to check this without a second one.
 
 Typing narrows the cards to those whose title, app or deck name holds the text (`OverviewFilter`);
 Return picks the first, Escape clears. A digit typed first goes to that desktop. Command-R names
@@ -433,8 +447,10 @@ dropped there enters full screen, a full screen Space leaves it, both through th
 Accessibility `AXFullScreen` attribute.
 
 The backdrop is the current desktop's picture. On a full screen Space, which has none, it is the
-display's first desktop's, read from the wallpaper agent's store (`Wallpaper`); only an image file is
-read from there, so a colour, dynamic or aerial picture falls back to AppKit's answer. A deck belongs to one level (`Deck.kind`). Opening reads the Spaces and their windows
+display's first desktop's. It is captured from the window the Dock draws it in, named
+`Wallpaper-<Space UUID>` (`Wallpaper`). AppKit's `desktopImageURL` names the system default for some
+displays, and the wallpaper agent's store can name a colour where an image shows, so both are only
+fallbacks when the capture fails. A deck belongs to one level (`Deck.kind`). Opening reads the Spaces and their windows
 once (`SpaceList`), brings stored decks up to date with what is open (`SpaceItems.refreshed`,
 `DeckMatching`), and starts the pictures (`Thumbnails`) and the Dock badges (`DockBadges`), each
 arriving on its own. Closing drops all of it but the pictures: the next opening shows each window's
@@ -452,7 +468,18 @@ Private SkyLight calls, resolved with `dlsym` and dropped without fuss when miss
 screen apps not in front), and `_SLPSSetFrontProcessWithOptions` with `SLPSPostEventRecordTo`
 fronts a window on another Space. Raising it then needs its Accessibility element, which an app
 lists only for the current Space, so `WindowFocus.elementElsewhere` finds it through
-`_AXUIElementCreateWithRemoteToken` within a 250 ms budget. Without SkyLight the overview shows the
+`_AXUIElementCreateWithRemoteToken` within a 250 ms budget.
+
+Picking a window on another Space first switches there with `SpaceSwitch`: fake Dock swipes, one per
+Space to cross, posted in one burst. Measured on macOS 26.6 over 12 Spaces: about 0.1 s and one cut
+(10 of 11 runs), where waiting for each swipe to land took about 1 s and showed every Space on the way.
+macOS 27 drops a swipe without the IOHID record a trackpad attaches, so there `SwipePayload` builds one,
+after noswoosh; not yet run on 27.
+Tried and dropped: raising the window alone slides there, but finds no element for some apps (Finder,
+Terminal, WhatsApp: 0 of 3); ⌃-digit reaches desktops 1 to 9 only and slides for 0.3 s; Mission
+Control's Spaces bar takes 0.9 s and shows Mission Control; `SLSManagedDisplaySetCurrentSpace` cuts at
+once but leaves the Dock and menu bar out of step; keeping the overview on screen does not hide the
+switch, since full screen Spaces show through it. Without SkyLight the overview shows the
 current Space's windows only, and has no Spaces level.
 
 Known limits:
@@ -466,7 +493,10 @@ Known limits:
   shows the old value. An app whose badge the user hid in Notifications settings shows none.
 - The hot key is taken from every app while Decks is on: ⌘⇧W no longer reaches the frontmost
   app. F3 needs Mission Control's own F3 turned off in System Settings first.
-- The overlay covers the display under the pointer only, and lists that display's windows.
+- A desktop cannot move to another display, and a window cannot be dropped into a particular
+  desktop. `SLSMoveWindowsToManagedSpace` does nothing for another app's window, and the compat-ID
+  route (`SLSSpaceSetCompatID`, `SLSSetWindowListWorkspace`) fails with error 1006 (macOS 26). Both
+  need code injected into the Dock, as yabai's scripting addition does with SIP off.
 - A window leaving full screen goes back to the desktop it came from: no working call picks another.
 - Only the current Space's windows enter or leave full screen, and a window on another Space may not
   be brought forward: its Accessibility element is not found there (issue #45).

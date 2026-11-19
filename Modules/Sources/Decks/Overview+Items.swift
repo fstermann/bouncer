@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 
 /// What the overview's items stand for: a desktop's Space and front window, a window's place and badge;
 /// and picking or tiling them.
@@ -51,5 +51,52 @@ extension Overview {
         let windows = Tiling.tileable(live.windows, spaces: spaces)
         guard !windows.isEmpty else { return }
         onTile?(windows)
+    }
+
+    /// Whether `window` is being dragged away from its card.
+    func isDragging(_ window: WindowInfo) -> Bool {
+        drag?.isMoving == true && drag?.window.id == window.id
+    }
+
+    // MARK: - Dragging
+
+    /// Less than this from where it started, in points, a press is still a click.
+    static let dragThreshold: CGFloat = 4
+
+    /// Ends the drag with no drop here, the pointer having let go over another display; returns the drag.
+    func endDrag() -> Drag? {
+        defer { drag = nil }
+        return drag
+    }
+
+    func dragged(to point: CGPoint) {
+        guard var drag else { return }
+        drag.point = point
+        drag.isMoving = drag.isMoving || hypot(point.x - drag.start.x, point.y - drag.start.y) >= Self.dragThreshold
+        self.drag = drag
+    }
+
+    // MARK: - Other displays
+
+    /// A window dragged in from another display's overview, its picture, and where the pointer has it.
+    struct Incoming {
+        let window: WindowInfo
+        let picture: NSImage?
+        var point: CGPoint
+    }
+
+    /// Whether `drag` can be dropped on another display's overview: a moving deck or window off any full
+    /// screen Space, not a desktop, and Accessibility to move it.
+    func canMoveAcross(_ drag: Drag) -> Bool {
+        drag.isMoving && canRaise && !(view == .spaces && SpaceItems.isDesktop(drag.window))
+            && !moved(by: drag).isEmpty
+    }
+
+    /// The windows a drop on another display moves: the dragged window, or the dragged deck's, less any
+    /// on a full screen Space, which cannot be moved.
+    func moved(by drag: Drag) -> [WindowInfo] {
+        let windows = drag.deck.map { deck in arrangement.decks.first { $0.id == deck }?.windows ?? [] }
+            ?? [drag.window]
+        return windows.filter { spaces[$0.id]?.kind != .fullScreen }
     }
 }

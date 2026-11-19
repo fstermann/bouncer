@@ -224,3 +224,39 @@ struct NewDeckTile: View {
         .contentShape(Rectangle())
     }
 }
+
+/// The window being dragged, following the pointer.
+struct DragGhost: View {
+    let window: WindowInfo
+    let picture: NSImage?
+    let point: CGPoint
+    let overview: Overview
+
+    var body: some View {
+        WindowThumbnail(icon: overview.icon(of: window), picture: picture)
+            .frame(width: Metrics.card.width * 0.8, height: Metrics.card.height * 0.8)
+            .rotationEffect(.degrees(-3))
+            .opacity(0.9)
+            .position(point)
+            .allowsHitTesting(false)
+    }
+}
+
+/// The outline over a display while a window from another display's overview is dragged over it.
+struct DisplayDrop: View {
+    var body: some View {
+        RoundedRectangle(cornerRadius: 18)
+            .strokeBorder(Metrics.highlight, style: StrokeStyle(lineWidth: 3, dash: [8, 6]))
+            .overlay(alignment: .bottom) {
+                Text("Move to this display")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(.black.opacity(0.35), in: Capsule())
+                    .padding(.bottom, 40)
+            }
+            .padding(12)
+            .allowsHitTesting(false)
+    }
+}

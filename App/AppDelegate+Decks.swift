@@ -20,12 +20,8 @@ extension AppDelegate {
                 return "shortcut \(settings.preferences.decksShortcut.name)"
             case "focus":
                 return decks.devFocus(words.count > 1 ? UInt32(words[1]) ?? 0 : 0)
-            case "pictures":
-                return decks.devPictures()
-            case "cards":
-                return decks.devCards()
-            case "spaces":
-                return decks.devSpaces()
+            case "pictures", "cards", "spaces", "split":
+                return decks.devReport(words[0])
             case "clear":
                 decks.devClearDecks(words.count > 1 ? DeckKind(rawValue: words[1]) : nil)
                 return "cleared"

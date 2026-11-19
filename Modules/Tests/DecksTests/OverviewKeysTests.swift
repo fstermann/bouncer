@@ -77,6 +77,22 @@ private func window(_ id: CGWindowID, app: String = "Code", title: String? = nil
         ]
         #expect(Wallpaper.fullScreenDesktop(among: spaces)?.uuid == "d1")
         #expect(Wallpaper.fullScreenDesktop(among: Array(spaces.prefix(3))) == nil)
+        #expect(Wallpaper.shownDesktop(among: spaces)?.uuid == "d1")
+        let onDesktop = spaces.map {
+            SpaceInfo(id: $0.id, uuid: $0.uuid, kind: $0.kind, isCurrent: $0.uuid == "d2", windows: [])
+        }
+        #expect(Wallpaper.shownDesktop(among: onDesktop)?.uuid == "d2")
+    }
+
+    @Test func findsTheDocksWindowForADesktop() {
+        func entry(_ owner: String, _ name: String, _ number: Int) -> [String: Any] {
+            [kCGWindowOwnerName as String: owner, kCGWindowName as String: name, kCGWindowNumber as String: number]
+        }
+        let entries = [
+            entry("Dock", "Wallpaper-d1", 7), entry("Dock", "Wallpaper-d2", 9), entry("Finder", "Wallpaper-d3", 4)
+        ]
+        #expect(Wallpaper.dockWindow(of: "d2", in: entries) == 9)
+        #expect(Wallpaper.dockWindow(of: "d3", in: entries) == nil)
     }
 }
 
