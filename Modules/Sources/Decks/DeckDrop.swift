@@ -39,7 +39,7 @@ enum DeckDrop {
         case .newDeck:
             let grouped = DeckMatching.grouping([window], in: decks)
             return .changed(decks: grouped.decks, show: grouped.id)
-        case .tray, .trayWindow, .fullScreen:
+        case .tray, .trayWindow, .fullScreen, .newDesktop, .removeDesktop:
             return .unchanged
         case .window, .desktop, .grid, nil:
             guard case .tray = source else { return .unchanged }

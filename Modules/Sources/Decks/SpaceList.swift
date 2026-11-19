@@ -63,6 +63,25 @@ enum SpaceList {
         return assemble(displays: displays, windowsOnSpace: onSpace, windows: windows)
     }
 
+    /// Where the Space `id` sits among every Space of its display, full screen ones counted, as Mission
+    /// Control's Spaces bar lists them, and how many that display has.
+    @MainActor static func position(of id: UInt64) -> (index: Int, count: Int)? {
+        guard let sky = SkyLight.shared,
+              let displays = sky.displaySpaces(sky.connection)?.takeRetainedValue() as? [[String: Any]]
+        else { return nil }
+        return position(of: id, in: displays)
+    }
+
+    static func position(of id: UInt64, in displays: [[String: Any]]) -> (index: Int, count: Int)? {
+        for display in displays {
+            let ids = (display["Spaces"] as? [[String: Any]] ?? []).map {
+                ($0["ManagedSpaceID"] as? NSNumber)?.uint64Value
+            }
+            if let index = ids.firstIndex(of: id) { return (index, ids.count) }
+        }
+        return nil
+    }
+
     /// Every window on every Space, the current Space's first, then by Space in Mission Control's order,
     /// each paired with the Space it is on.
     static func windows(of spaces: [SpaceInfo]) -> [(window: WindowInfo, space: SpaceInfo)] {

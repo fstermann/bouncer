@@ -75,9 +75,9 @@ extension DecksController {
                 name = "desk-\(entry.space.name)".replacingOccurrences(of: " ", with: "-")
             case .deck(let id):
                 name = (overview.decks.first { $0.id == id }?.name ?? "deck").replacingOccurrences(of: " ", with: "-")
-            case .newDeck: name = "new"
+            case .newDeck, .newDesktop: name = target == .newDeck ? "new" : "new-desktop"
             case .fullScreen: name = "full-screen"
-            case .tray, .grid: return nil
+            case .tray, .grid, .removeDesktop: return nil
             }
             return "\(name) \(Int(frame.midX)) \(Int(frame.midY))"
         }.sorted().joined(separator: "\n")

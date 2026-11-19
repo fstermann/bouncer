@@ -29,6 +29,8 @@ public final class DecksController {
     private var thumbnailCache = ThumbnailCache()
     /// The view the overview was last left on, to open on again until Bouncer quits.
     private var lastView: DeckKind = .windows
+    /// While Mission Control adds or removes a desktop under the overview, which then loses the keys.
+    var isChangingDesktops = false
 
     public var isOpen: Bool { !sessions.isEmpty }
 
@@ -113,6 +115,7 @@ public final class DecksController {
             windows: shown.windows,
             spaces: shown.spaceOf,
             spaceItems: shown.items,
+            elsewhere: shown.elsewhere,
             decks: decks,
             wallpaper: Wallpaper.image(for: screen, spaces: shown.spaces),
             topInset: screen.safeAreaInsets.top,
@@ -146,6 +149,7 @@ public final class DecksController {
         }
         overview.onSpaceRename = { [weak self] uuid, name in self?.settings.preferences.spaceNames[uuid] = name }
         overview.onFullScreen = { [weak self] in self?.setFullScreen($0, $1) }
+        wireDesktops(session)
         overview.onViewChange = { [weak self, weak overview] view in
             guard let self else { return }
             lastView = view
@@ -167,7 +171,8 @@ public final class DecksController {
         ) { [weak self] _ in
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
-                    guard let self, !self.sessions.contains(where: { $0.panel.isKeyWindow }) else { return }
+                    guard let self, !self.isChangingDesktops,
+                          !self.sessions.contains(where: { $0.panel.isKeyWindow }) else { return }
                     self.close()
                 }
             }
@@ -215,13 +220,17 @@ public final class DecksController {
     }
 
     public func close() {
+        for panel in closeKeepingPanels() { panel.orderOut(nil) }
+    }
+
+    /// Ends the sessions but leaves their panels on screen, for the caller to take down.
+    func closeKeepingPanels() -> [OverlayPanel] {
         capture?.cancel()
         capture = nil
         for observer in resignObservers { NotificationCenter.default.removeObserver(observer) }
         resignObservers = []
         let closing = sessions
         sessions = []
-        for session in closing { session.panel.orderOut(nil) }
         if !closing.isEmpty {
             let overviews = closing.map(\.overview)
             thumbnailCache = ThumbnailCache(
@@ -230,6 +239,7 @@ public final class DecksController {
             )
             for overview in overviews { overview.stopWaiting() }
         }
+        return closing.map(\.panel)
     }
 
     func bringForward(_ windows: [WindowInfo]) {
@@ -285,13 +295,6 @@ public final class DecksController {
             Tiling.apply(frames)
             WindowFocus.raise(windows.reversed())
         }
-    }
-
-    /// An AppKit screen rectangle as the window server and Accessibility take it: from the top left of
-    /// the main display, y downwards.
-    static func windowServerRect(of rect: CGRect) -> CGRect {
-        let mainHeight = NSScreen.screens.first?.frame.height ?? 0
-        return CGRect(x: rect.minX, y: mainHeight - rect.maxY, width: rect.width, height: rect.height)
     }
 
     private func grant(_ permission: Overview.Permission) {

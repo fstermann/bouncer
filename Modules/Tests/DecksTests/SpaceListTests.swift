@@ -41,6 +41,16 @@ import Testing
         #expect(spaces[0].windows.map(\.id) == [20])
     }
 
+    @Test func findsASpacesPlaceAmongItsDisplaysSpacesFullScreenOnesCounted() {
+        let displays: [[String: Any]] = [
+            ["Spaces": [space(1, type: 0), space(2, type: 0)]],
+            ["Spaces": [space(3, type: 0), space(4, type: 4), space(5, type: 0)]]
+        ]
+        #expect(SpaceList.position(of: 5, in: displays).map { [$0.index, $0.count] } == [2, 3])
+        #expect(SpaceList.position(of: 2, in: displays).map { [$0.index, $0.count] } == [1, 2])
+        #expect(SpaceList.position(of: 9, in: displays) == nil)
+    }
+
     /// Bits read from real windows: a document window, a full screen app's toolbar, a hidden helper.
     @Test func tellsDocumentWindowsFromToolbarsAndHelpers() {
         #expect(SpaceList.isOrdinary(parent: 0, level: 0, attributes: 0x3, tags: 0x3_0004_0100_0824_01))

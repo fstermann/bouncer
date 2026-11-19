@@ -75,6 +75,9 @@ enum HoverTarget: Hashable {
     /// A window in the tray, which hovers only that card and keeps the tray open.
     case trayWindow(CGWindowID)
     case newDeck
+    case newDesktop
+    /// The close button on a desktop's card.
+    case removeDesktop(CGWindowID)
     /// The Spaces view's tile that takes a window into full screen, or a full screen Space out of it.
     case fullScreen
     case tray
@@ -108,7 +111,8 @@ enum Hover {
     static func target(at point: CGPoint?, in frames: [HoverTarget: CGRect]) -> HoverTarget? {
         guard let point else { return nil }
         let hits = frames.filter { $0.value.contains(point) }.map(\.key)
-        return hits.first { if case .trayWindow = $0 { true } else { false } }
+        return hits.first { if case .removeDesktop = $0 { true } else { false } }
+            ?? hits.first { if case .trayWindow = $0 { true } else { false } }
             ?? hits.first { $0 != .tray && $0 != .grid }
             ?? (hits.contains(.tray) ? .tray : nil)
             ?? (hits.contains(.grid) ? .grid : nil)

@@ -79,6 +79,7 @@ struct OverviewView: View {
         case deck(LiveDeck)
         case item(WindowInfo)
         case newDeck
+        case newDesktop
         case tray(LiveDeck)
 
         var id: String {
@@ -86,6 +87,7 @@ struct OverviewView: View {
             case .deck(let live): "deck-\(live.id)"
             case .item(let item): "item-\(item.id)"
             case .newDeck: "new"
+            case .newDesktop: "new-desktop"
             case .tray: "tray"
             }
         }
@@ -96,6 +98,7 @@ struct OverviewView: View {
     private func tiles(width: CGFloat) -> [Tile] {
         let arrangement = overview.arrangement
         var tiles: [Tile] = arrangement.decks.map(Tile.deck) + arrangement.ungrouped.map(Tile.item) + [.newDeck]
+        if overview.view == .spaces, overview.canRaise { tiles.append(.newDesktop) }
         guard let live = overview.trayShows,
               let index = tiles.firstIndex(where: { trayID(of: $0) == live.id })
         else { return tiles }
@@ -135,6 +138,10 @@ struct OverviewView: View {
                     NewDeckTile(isHovered: overview.hovered == .newDeck)
                         .hoverTarget(.newDeck)
                         .onTapGesture { overview.newDeck() }
+                case .newDesktop:
+                    NewDeckTile(title: "+ New desktop", isHovered: overview.hovered == .newDesktop)
+                        .hoverTarget(.newDesktop)
+                        .onTapGesture { overview.onAddDesktop?() }
                 case .tray(let live):
                     DeckTray(live: live, overview: overview, width: trayWidth)
                         .hoverTarget(.tray)

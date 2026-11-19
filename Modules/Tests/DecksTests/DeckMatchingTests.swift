@@ -26,6 +26,17 @@ import Testing
         #expect(arrangement.ungrouped.map(\.id) == [1, 3])
     }
 
+    @Test func hidesAnEmptyDeckWhoseWindowsAreOnAnotherDisplay() {
+        let decks = [
+            deck([DeckMember(app: "com.example.code", title: nil, windowID: 1)], name: "Here"),
+            deck([DeckMember(app: "com.example.code", title: nil, windowID: 2)], name: "There"),
+            deck([], name: "New")
+        ]
+        let here = DeckMatching.arrange(decks, over: [window(1)])
+        let shown = DeckMatching.hidingElsewhere(here, over: [window(2)])
+        #expect(shown.decks.map(\.deck.name) == ["Here", "New"])
+    }
+
     @Test func matchesByAppAndTitleAfterARelaunch() {
         let decks = [deck([DeckMember(app: "com.example.code", title: "b.swift", windowID: 99)])]
         let windows = [

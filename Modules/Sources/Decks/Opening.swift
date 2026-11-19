@@ -24,6 +24,8 @@ struct Opening {
         let spaceOf: [CGWindowID: SpaceInfo]
         /// The items of the display's Spaces.
         let items: [(item: WindowInfo, space: SpaceInfo)]
+        /// Each view's items on the other displays.
+        let elsewhere: [DeckKind: [WindowInfo]]
     }
 
     /// - Parameter names: the names the user gave desktops, by Space identifier.
@@ -48,8 +50,13 @@ struct Opening {
     func shown(on screen: NSScreen) -> Shown {
         guard let spaces else {
             let area = DecksController.windowServerRect(of: screen.frame)
-            let windows = WindowList.onScreen().filter { area.contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY)) }
-            return Shown(spaces: nil, windows: windows, spaceOf: [:], items: [])
+            let all = WindowList.onScreen()
+            let windows = all.filter { area.contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY)) }
+            let own = Set(windows.map(\.id))
+            return Shown(
+                spaces: nil, windows: windows, spaceOf: [:], items: [],
+                elsewhere: [.windows: all.filter { !own.contains($0.id) }]
+            )
         }
         let own = SpaceList.on(display: Self.displayIdentifier(of: screen), among: spaces)
         let ids = Set(own.map(\.id))
@@ -58,7 +65,11 @@ struct Opening {
             spaces: own,
             windows: listed.map(\.window),
             spaceOf: Dictionary(listed.map { ($0.window.id, $0.space) }) { first, _ in first },
-            items: items.filter { ids.contains($0.space.id) }
+            items: items.filter { ids.contains($0.space.id) },
+            elsewhere: [
+                .windows: SpaceList.windows(of: spaces.filter { !ids.contains($0.id) }).map(\.window),
+                .spaces: items.filter { !ids.contains($0.space.id) }.map(\.item)
+            ]
         )
     }
 

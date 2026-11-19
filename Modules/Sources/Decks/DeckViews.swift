@@ -103,6 +103,7 @@ struct DesktopStack: View {
             }
             .frame(width: Metrics.card.width, height: Metrics.card.height)
             .overlay(alignment: .topTrailing) { Badge(text: overview.badge(of: [desktop])) }
+            .overlay(alignment: .topLeading) { removeButton }
             .animation(Springs.fan, value: isActive)
             HStack(spacing: 6) {
                 Text(desktop.label)
@@ -117,6 +118,26 @@ struct DesktopStack: View {
             .lineLimit(1)
         }
         .contentShape(Rectangle())
+    }
+}
+
+extension DesktopStack {
+    /// Mission Control's close button, over the corner while the pointer is on a desktop that can go.
+    @ViewBuilder private var removeButton: some View {
+        let isOver = overview.hovered == .removeDesktop(desktop.id)
+        if overview.drag == nil, isOver || overview.hovered == .desktop(desktop.id),
+           let space = overview.removable(desktop) {
+            Image(systemName: "xmark")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(.black.opacity(0.75))
+                .frame(width: 20, height: 20)
+                .background(.white.opacity(isOver ? 1 : 0.85), in: Circle())
+                .shadow(color: .black.opacity(0.35), radius: 2, y: 1)
+                .padding(6)
+                .hoverTarget(.removeDesktop(desktop.id))
+                .contentShape(Rectangle())
+                .onTapGesture { overview.onRemoveDesktop?(space) }
+        }
     }
 }
 
@@ -206,6 +227,7 @@ struct FullScreenBar: View {
 
 /// The last tile in the grid, which starts an empty deck.
 struct NewDeckTile: View {
+    var title = "+ New group"
     let isHovered: Bool
 
     var body: some View {
@@ -213,7 +235,7 @@ struct NewDeckTile: View {
             RoundedRectangle(cornerRadius: 8)
                 .strokeBorder(.white.opacity(isHovered ? 0.8 : 0.45), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
                 .overlay {
-                    Text("+ New group")
+                    Text(title)
                         .font(.system(size: 12))
                         .foregroundStyle(.white.opacity(0.7))
                 }

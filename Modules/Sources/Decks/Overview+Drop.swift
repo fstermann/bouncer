@@ -43,6 +43,8 @@ extension Overview {
         case .tray, .trayWindow:
             guard let trayDeck, !trayIsDesktop else { return target }
             return .deck(trayDeck)
+        case .removeDesktop(let id):
+            return .desktop(id)
         default:
             return target
         }

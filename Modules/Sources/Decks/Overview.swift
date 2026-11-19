@@ -11,6 +11,8 @@ final class Overview {
     private(set) var spaces: [CGWindowID: SpaceInfo]
     /// The Spaces view's items, one for each Space, with the Space it stands for; empty without SkyLight.
     private(set) var spaceItems: [(item: WindowInfo, space: SpaceInfo)]
+    /// Each view's items on the other displays, which keep their decks off this one.
+    let elsewhere: [DeckKind: [WindowInfo]]
     /// Which level the grid shows. Tab switches it.
     var view: DeckKind = .windows {
         didSet {
@@ -57,6 +59,10 @@ final class Overview {
     @ObservationIgnored var onSpaceRename: (@MainActor (String, String?) -> Void)?
     /// The user asked for a window to enter full screen, or to leave it.
     @ObservationIgnored var onFullScreen: (@MainActor (WindowInfo, Bool) -> Void)?
+    /// The user asked for a new desktop on this display.
+    @ObservationIgnored var onAddDesktop: (@MainActor () -> Void)?
+    /// The user asked for a desktop to go; its windows move to another.
+    @ObservationIgnored var onRemoveDesktop: (@MainActor (SpaceInfo) -> Void)?
 
     enum Permission {
         case screenRecording, accessibility
@@ -64,12 +70,14 @@ final class Overview {
 
     init(
         windows: [WindowInfo], spaces: [CGWindowID: SpaceInfo] = [:],
-        spaceItems: [(item: WindowInfo, space: SpaceInfo)] = [], decks: [Deck], wallpaper: NSImage?,
+        spaceItems: [(item: WindowInfo, space: SpaceInfo)] = [], elsewhere: [DeckKind: [WindowInfo]] = [:],
+        decks: [Deck], wallpaper: NSImage?,
         topInset: CGFloat = 0, canRaise: Bool, canSeeTitles: Bool
     ) {
         self.windows = windows
         self.spaces = spaces
         self.spaceItems = spaceItems
+        self.elsewhere = elsewhere
         self.decks = decks
         self.wallpaper = wallpaper
         self.topInset = topInset
@@ -96,7 +104,8 @@ final class Overview {
 
     /// The current view's decks, with the items of each, and the items in none, narrowed to `query`.
     var arrangement: Arrangement {
-        OverviewFilter.filtered(DeckMatching.arrange(decks.filter { $0.kind == view }, over: items), by: query) {
+        let arranged = DeckMatching.arrange(decks.filter { $0.kind == view }, over: items)
+        return OverviewFilter.filtered(DeckMatching.hidingElsewhere(arranged, over: elsewhere[view] ?? []), by: query) {
             view == .spaces && SpaceItems.isDesktop($0) ? space(of: $0)?.windows ?? [] : []
         }
     }
@@ -167,6 +176,13 @@ final class Overview {
         trayDeck = id
         renaming = id
         return true
+    }
+
+    /// The desktop `item` stands for, if it can be removed: not the current one, nor its display's last.
+    func removable(_ item: WindowInfo) -> SpaceInfo? {
+        guard canRaise, let space = space(of: item), case .desktop = space.kind, !space.isCurrent else { return nil }
+        let desktops = spaceItems.filter { if case .desktop = $0.space.kind { true } else { false } }
+        return desktops.count > 1 ? space : nil
     }
 
     func recolor(_ id: UUID, to color: DeckColor) {

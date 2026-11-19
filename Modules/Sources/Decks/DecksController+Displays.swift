@@ -10,6 +10,13 @@ extension DecksController {
         let visibleFrame: CGRect
     }
 
+    /// An AppKit screen rectangle as the window server and Accessibility take it: from the top left of
+    /// the main display, y downwards.
+    static func windowServerRect(of rect: CGRect) -> CGRect {
+        let mainHeight = NSScreen.screens.first?.frame.height ?? 0
+        return CGRect(x: rect.minX, y: mainHeight - rect.maxY, width: rect.width, height: rect.height)
+    }
+
     public func open() {
         guard !isOpen else { return }
         open(on: NSScreen.screens.map { Area(screen: $0, frame: $0.frame, visibleFrame: $0.visibleFrame) })

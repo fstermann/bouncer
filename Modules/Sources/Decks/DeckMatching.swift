@@ -46,6 +46,17 @@ enum DeckMatching {
         return Arrangement(decks: live, ungrouped: windows.filter { claimed[$0.id] == nil })
     }
 
+    /// `arrangement` without its empty decks that have members open on another display, among `elsewhere`,
+    /// so each display lists its own decks. A deck open nowhere stays, so a new one can still be filled.
+    static func hidingElsewhere(_ arrangement: Arrangement, over elsewhere: [WindowInfo]) -> Arrangement {
+        let empty = arrangement.decks.filter(\.windows.isEmpty).map(\.deck)
+        guard !empty.isEmpty, !elsewhere.isEmpty else { return arrangement }
+        let away = Set(arrange(empty, over: elsewhere).decks.filter { !$0.windows.isEmpty }.map(\.deck.id))
+        return Arrangement(
+            decks: arrangement.decks.filter { !away.contains($0.deck.id) }, ungrouped: arrangement.ungrouped
+        )
+    }
+
     private static func claims(_ decks: [Deck], over windows: [WindowInfo]) -> [CGWindowID: MemberIndex] {
         var claimed: [CGWindowID: MemberIndex] = [:]
         let open = Dictionary(windows.map { ($0.id, $0) }) { first, _ in first }

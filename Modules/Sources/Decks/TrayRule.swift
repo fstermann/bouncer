@@ -21,8 +21,8 @@ enum TrayRule {
     static func step(showing deck: UUID?, pointerOn target: HoverTarget?, lastOn last: HoverTarget?) -> Step {
         switch target {
         case .deck(let id): return .show(id)
-        case .desktop(let id): return .show(Overview.trayID(of: id))
-        case .window, .newDeck, .fullScreen: return .close
+        case .desktop(let id), .removeDesktop(let id): return .show(Overview.trayID(of: id))
+        case .window, .newDeck, .newDesktop, .fullScreen: return .close
         case .tray, .trayWindow: return deck == nil ? .close : .keep
         case .grid, nil:
             guard deck != nil else { return .close }
