@@ -1,47 +1,49 @@
 import AppKit
 
-/// Tells a three-finger swipe up from the trackpad's touches.
+/// Tells a three-finger swipe up or down from the trackpad's touches.
 ///
 /// A swipe is a run of frames with exactly three fingers down; it counts once the fingers' average height
-/// has risen `rise` since the run began. Heights are the trackpad's, 0 at the bottom edge to 1 at the top.
-struct SwipeUpDetector {
-    /// How far up the fingers travel, as a share of the trackpad's height. Swipes measured on a built-in
+/// has moved `travel` since the run began. Heights are the trackpad's, 0 at the bottom edge to 1 at the top.
+struct SwipeDetector {
+    enum Direction { case up, down }
+
+    /// How far the fingers travel, as a share of the trackpad's height. Swipes up measured on a built-in
     /// trackpad rose 0.16 to 0.27; a three-finger rest drifts far less.
-    static let rise: Double = 0.12
+    static let travel: Double = 0.12
 
     private var start: Double?
     private var fired = false
 
-    /// Takes one frame's finger heights; returns whether this frame completes a swipe up.
-    mutating func feed(_ heights: [Double]) -> Bool {
+    /// Takes one frame's finger heights; returns the direction of the swipe this frame completes, if any.
+    mutating func feed(_ heights: [Double]) -> Direction? {
         guard heights.count == 3 else {
             start = nil
             fired = false
-            return false
+            return nil
         }
         let height = heights.reduce(0, +) / 3
         guard let start else {
             self.start = height
-            return false
+            return nil
         }
-        guard !fired, height - start >= Self.rise else { return false }
+        guard !fired, abs(height - start) >= Self.travel else { return nil }
         fired = true
-        return true
+        return height > start ? .up : .down
     }
 }
 
-/// Listens to the trackpad's touches while the swipe is on, and reports a three-finger swipe up.
+/// Listens to the trackpad's touches while the swipe is on, and reports a three-finger swipe up or down.
 ///
 /// A listen-only event tap on gesture events, which Accessibility allows. It leaves the Dock's own swipe
 /// events alone: tapping those stops an auto-hidden Dock from showing on hover.
 @MainActor
-final class SwipeUp {
+final class ThreeFingerSwipe {
     private var tap: CFMachPort?
     private var source: CFRunLoopSource?
-    private var detector = SwipeUpDetector()
-    private let onSwipe: @MainActor () -> Void
+    private var detector = SwipeDetector()
+    private let onSwipe: @MainActor (SwipeDetector.Direction) -> Void
 
-    init(onSwipe: @escaping @MainActor () -> Void) {
+    init(onSwipe: @escaping @MainActor (SwipeDetector.Direction) -> Void) {
         self.onSwipe = onSwipe
     }
 
@@ -53,7 +55,7 @@ final class SwipeUp {
             tap: .cgSessionEventTap, place: .tailAppendEventTap, options: .listenOnly, eventsOfInterest: 1 << 29,
             callback: { _, type, event, info in
                 if let info {
-                    let watcher = Unmanaged<SwipeUp>.fromOpaque(info).takeUnretainedValue()
+                    let watcher = Unmanaged<ThreeFingerSwipe>.fromOpaque(info).takeUnretainedValue()
                     MainActor.assumeIsolated { watcher.handle(type, event) }
                 }
                 return Unmanaged.passUnretained(event)
@@ -73,7 +75,7 @@ final class SwipeUp {
         if let source { CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes) }
         tap = nil
         source = nil
-        detector = SwipeUpDetector()
+        detector = SwipeDetector()
     }
 
     private func handle(_ type: CGEventType, _ event: CGEvent) {
@@ -84,6 +86,6 @@ final class SwipeUp {
         guard let touches = NSEvent(cgEvent: event)?.allTouches() else { return }
         let heights = touches.filter { $0.phase != .ended && $0.phase != .cancelled }
             .map { Double($0.normalizedPosition.y) }
-        if detector.feed(heights) { onSwipe() }
+        if let direction = detector.feed(heights) { onSwipe(direction) }
     }
 }

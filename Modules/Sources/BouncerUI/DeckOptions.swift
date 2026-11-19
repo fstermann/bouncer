@@ -35,7 +35,7 @@ struct DeckOptions: View {
                         .foregroundStyle(.secondary)
                 }
                 Toggle(isOn: $preferences.decksSwipe) {
-                    Text("Swipe up with three fingers to open")
+                    Text("Swipe up with three fingers to open, down to close")
                     Text("Turn off Mission Control's swipe in Trackpad settings, More Gestures, first, or macOS "
                          + "opens Mission Control as well. Needs Accessibility.")
                 }

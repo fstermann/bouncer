@@ -95,7 +95,8 @@ public struct Preferences: Codable, Hashable, Sendable {
     public var enableDecks: Bool
     /// Opens and closes the window overview.
     public var decksShortcut: HotKey.Shortcut
-    /// A three-finger swipe up opens the window overview. Needs Mission Control's own swipe turned off.
+    /// A three-finger swipe up opens the window overview, and down closes it. Needs Mission Control's own
+    /// swipe turned off.
     public var decksSwipe: Bool
     /// The overview's decks, in the order it shows them.
     public var decks: [Deck]

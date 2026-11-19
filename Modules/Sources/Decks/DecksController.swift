@@ -19,7 +19,7 @@ public final class DecksController {
     let settings: SettingsStore
     public let permissions = DecksPermissions()
     private var hotKey: HotKey?
-    private var swipe: SwipeUp?
+    private var swipe: ThreeFingerSwipe?
     private var registered: HotKey.Shortcut?
     private var arming: ObservationLoop?
     /// One overview for each display while open.
@@ -75,9 +75,10 @@ public final class DecksController {
         swipe?.stop()
         swipe = nil
         guard isOn else { return }
-        let listener = SwipeUp { [weak self] in
-            guard let self, !isOpen else { return }
-            open()
+        // Up only opens and down only closes.
+        let listener = ThreeFingerSwipe { [weak self] direction in
+            guard let self, (direction == .up) != isOpen else { return }
+            toggle()
         }
         if listener.start() { swipe = listener }
     }

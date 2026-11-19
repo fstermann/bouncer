@@ -31,26 +31,31 @@ import Testing
     }
 }
 
-@Suite struct SwipeUpDetectorTests {
-    /// Whether each frame completed a swipe, fed in turn to one detector.
-    private func fired(_ frames: [[Double]]) -> [Bool] {
-        var detector = SwipeUpDetector()
+@Suite struct SwipeDetectorTests {
+    /// The swipe each frame completed, fed in turn to one detector.
+    private func fired(_ frames: [[Double]]) -> [SwipeDetector.Direction?] {
+        var detector = SwipeDetector()
         return frames.map { detector.feed($0) }
     }
 
     @Test func firesOnceWhenThreeFingersRise() {
         let frames = [[0.40, 0.45, 0.50], [0.45, 0.50, 0.55], [0.53, 0.58, 0.63], [0.60, 0.65, 0.70]]
-        #expect(fired(frames) == [false, false, true, false])
+        #expect(fired(frames) == [nil, nil, .up, nil])
     }
 
-    @Test func ignoresOtherFingerCountsAndDownwardSwipes() {
-        let frames = [[0.2, 0.3], [0.2, 0.3, 0.4, 0.5], [0.74, 0.74, 0.74], [0.51, 0.51, 0.51]]
-        #expect(!fired(frames).contains(true))
+    @Test func firesOnceWhenThreeFingersFall() {
+        let frames = [[0.60, 0.65, 0.70], [0.55, 0.60, 0.65], [0.47, 0.52, 0.57], [0.40, 0.45, 0.50]]
+        #expect(fired(frames) == [nil, nil, .down, nil])
+    }
+
+    @Test func ignoresOtherFingerCountsAndSmallDrift() {
+        let frames = [[0.2, 0.3], [0.2, 0.3, 0.4, 0.5], [0.74, 0.74, 0.74], [0.66, 0.66, 0.66]]
+        #expect(fired(frames).allSatisfy { $0 == nil })
     }
 
     @Test func liftingTheFingersStartsAgain() {
-        let frames = [[0.3, 0.3, 0.3], [0.45, 0.45, 0.45], [], [0.3, 0.3, 0.3], [0.45, 0.45, 0.45]]
-        #expect(fired(frames) == [false, true, false, false, true])
+        let frames = [[0.3, 0.3, 0.3], [0.45, 0.45, 0.45], [], [0.45, 0.45, 0.45], [0.3, 0.3, 0.3]]
+        #expect(fired(frames) == [nil, .up, nil, nil, .down])
     }
 }
 
