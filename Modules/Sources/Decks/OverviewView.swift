@@ -1,7 +1,7 @@
 import Settings
 import SwiftUI
 
-/// The overview's content: the dimmed, blurred desktop, a hint, the decks and windows, and under the
+/// The overview's content: the dimmed, blurred desktop, the filter, the decks and windows, and under the
 /// row of the deck the pointer is on, that deck's tray.
 struct OverviewView: View {
     let overview: Overview
@@ -16,7 +16,7 @@ struct OverviewView: View {
                             ViewSwitch(overview: overview)
                                 .padding(.bottom, 12)
                         }
-                        hint
+                        filter
                         if !overview.canRaise || !overview.canSeeTitles {
                             PermissionBanner(overview: overview)
                                 .padding(.top, 18)
@@ -175,29 +175,22 @@ struct OverviewView: View {
         }
     }
 
-    @ViewBuilder private var hint: some View {
-        if overview.query.isEmpty {
-            HStack(spacing: 14) {
-                KeyHint(key: "click", action: "go")
-                KeyHint(key: "drag", action: "group")
-                if overview.hasSpaces { KeyHint(key: "tab", action: "view") }
-                KeyHint(key: "esc", action: "close")
-            }
-        } else {
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                Text(overview.query)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.white)
-                KeyHint(key: "esc", action: "clear")
-                    .padding(.leading, 6)
-            }
-            .font(.system(size: 12))
-            .foregroundStyle(.white.opacity(0.75))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 4)
-            .background(.black.opacity(0.25), in: Capsule())
+    /// The filter typed so far. Kept in the layout while empty, so the first key does not push the cards down.
+    private var filter: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+            Text(overview.query)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.white)
+            KeyHint(key: "esc", action: "clear")
+                .padding(.leading, 6)
         }
+        .font(.system(size: 12))
+        .foregroundStyle(.white.opacity(0.75))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
+        .background(.black.opacity(0.25), in: Capsule())
+        .opacity(overview.query.isEmpty ? 0 : 1)
     }
 }
 
