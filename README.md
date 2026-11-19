@@ -111,6 +111,12 @@ Working today:
 - Standalone bar: the hidden section replicated below the menu bar rather than revealed in
   it — opt-in, and experimental. One display only, and nothing is drawn in a full screen
   space
+- Decks: a window overview to use instead of Mission Control, opt-in and experimental. ⌘⇧W (or
+  any shortcut set in Settings) shows every window on every Space, and with Tab every desktop and
+  full screen app. Drag one card onto another to group them into a named, coloured deck; hover a
+  deck to see its members; click to go there. Each card carries its app's Dock badge, and a deck
+  the sum of its apps'. Limits: see
+  [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#decks)
 
 Not built yet — see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#roadmap):
 

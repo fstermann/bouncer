@@ -1,4 +1,5 @@
 import AppKit
+import Decks
 import Settings
 import StandaloneBar
 import SwiftUI
@@ -9,16 +10,21 @@ struct SettingsForm: View {
     @Bindable var settings: SettingsStore
     let updates: UpdateController
     @Bindable var permissions: StandaloneBarPermissions
+    let decksPermissions: DecksPermissions
     @State private var launchAtLogin = LaunchAtLogin.isEnabled
     // Mirrors of Sparkle's own state, the way `launchAtLogin` mirrors the system. Nothing else
     // writes them, so they are seeded here and re-read only where Sparkle moves them itself.
     @State private var checkForUpdates: Bool
     @State private var installUpdates: Bool
 
-    init(settings: SettingsStore, updates: UpdateController, permissions: StandaloneBarPermissions) {
+    init(
+        settings: SettingsStore, updates: UpdateController, permissions: StandaloneBarPermissions,
+        decksPermissions: DecksPermissions
+    ) {
         _settings = Bindable(settings)
         self.updates = updates
         _permissions = Bindable(permissions)
+        self.decksPermissions = decksPermissions
         _checkForUpdates = State(initialValue: updates.automaticallyChecks)
         _installUpdates = State(initialValue: updates.automaticallyDownloads)
     }
@@ -54,6 +60,7 @@ struct SettingsForm: View {
             if settings.preferences.enableNotes || settings.preferences.enableClaude {
                 ScreenshotOptions(preferences: $settings.preferences)
             }
+            DeckOptions(preferences: $settings.preferences, permissions: decksPermissions)
             updatesSection
         }
         .formStyle(.grouped)
@@ -61,6 +68,7 @@ struct SettingsForm: View {
         // rather than on a timer.
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             permissions.refresh()
+            decksPermissions.refresh()
         }
     }
 

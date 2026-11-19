@@ -158,11 +158,11 @@ private final class MemoryPersistence: PreferencesPersistence, @unchecked Sendab
         #expect(store.preferences == Preferences())
     }
 
-    @Test func burstOfEditsCoalescesIntoOneWrite() async throws {
+    @Test func burstOfEditsCoalescesIntoOneWrite() async {
         let persistence = MemoryPersistence()
         let store = SettingsStore(persistence: persistence)
         for _ in 0..<10 { store.preferences.revealOnHover.toggle() }
-        try await Task.sleep(for: .milliseconds(500))
+        await store.pendingSave?.value
         #expect(persistence.writeCount == 1)
     }
 }

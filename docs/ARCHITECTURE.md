@@ -411,6 +411,104 @@ next reminder to start or stop showing.
 The pages other than the items page share `NotchPageController`, so the app opens, closes and
 switches between them alike.
 
+### Decks
+
+An overview of every window, opened with a hot key (`Preferences.decksShortcut`, ⌘⇧W by default),
+in which the user groups windows, or whole Spaces, into named decks (`DecksController`). Off by
+default, behind `Preferences.enableDecks`, and in a module of its own, `Decks`, because it needs
+Screen Recording for pictures and titles and Accessibility to focus, tile and read Dock badges.
+While it is off nothing of it runs; while it is on, the hot key is all it installs until it opens,
+and, with `Preferences.decksSwipe`, a listen-only event tap on the trackpad's gesture events
+(`SwipeUp`). Three fingers whose average height rises 0.12 of the trackpad open the overview
+(`SwipeUpDetector`); swipes measured rose 0.16 to 0.27. The tap leaves the Dock's own swipe events
+alone, since tapping those stops an auto-hidden Dock from showing on hover. Mission Control's swipe
+must be off in System Settings: writing its keys (`TrackpadThreeFingerVertSwipeGesture` and others)
+does not take effect, even after restarting the Dock, so settings link to the Trackpad pane.
+
+It opens on every display at once, one panel and one `Overview` each. It has two levels, switched
+with Tab on all displays together. Windows lists every ordinary window on every Space of that
+display, each off the current Space tagged with where it lives. Spaces lists one card for each of the
+display's desktops and full screen apps. Opening reads the Spaces once for every display
+(`Opening`); decks are matched over all of them and shared, so an edit on one display shows on the
+others. Keys go to the display under the pointer. A window dragged onto another display's overview
+shows there and, dropped, moves to that display's current desktop at the same relative place
+(`DisplayMove`), through Accessibility. A deck dragged there moves all its windows but full screen
+ones; a deck pressed and let go without moving is a click. A window on a desktop that is not current
+is reached by switching to that desktop first, as tiling does, since Accessibility lists only the
+current Space's windows and the remote-token lookup misses some apps. Bouncer Dev's `decks split`
+opens two overviews on halves of one display to check this without a second one.
+
+Typing narrows the cards to those whose title, app or deck name holds the text (`OverviewFilter`);
+Return picks the first, Escape clears. A digit typed first goes to that desktop. Command-R names
+the deck or desktop under the pointer; a desktop's name is stored by Space identifier
+(`Preferences.spaceNames`). In the Spaces view, dragging a window out of the current desktop's tray,
+or the current full screen Space, shows a drop bar pinned to the display's bottom edge; a window
+dropped there enters full screen, a full screen Space leaves it, both through the window's
+Accessibility `AXFullScreen` attribute.
+
+The backdrop is the current desktop's picture. On a full screen Space, which has none, it is the
+display's first desktop's. It is captured from the window the Dock draws it in, named
+`Wallpaper-<Space UUID>` (`Wallpaper`). AppKit's `desktopImageURL` names the system default for some
+displays, and the wallpaper agent's store can name a colour where an image shows, so both are only
+fallbacks when the capture fails. A deck belongs to one level (`Deck.kind`). Opening reads the Spaces and their windows
+once (`SpaceList`), brings stored decks up to date with what is open (`SpaceItems.refreshed`,
+`DeckMatching`), and starts the pictures (`Thumbnails`) and the Dock badges (`DockBadges`), each
+arriving on its own. Closing drops all of it but the pictures: the next opening shows each window's
+last picture at once (`ThumbnailCache`, matched by window number and process) and retakes them,
+windows without one first, up to eight at a time. Turning Decks off drops the pictures too.
+
+Dragging reorders within a kind (`Reorder`): decks among decks, a deck's cards in its tray, and Spaces
+in no deck among each other, where the middle half of a card still groups and its edges or the gap
+reorder. A deck's windows show and tile in its members' order; clicking it still fronts the one used
+last. The Spaces' order is Bouncer's own (`Preferences.spaceOrder`), since no call reorders Mission
+Control's: switching, desktop numbers and digits keep macOS's order.
+
+A deck member is stored by app, title and window number: the number while the window is open, app
+and title once it has gone. A desktop is stored by its Space's identifier, which lasts until the
+desktop is removed; in the overview it stands as a made-up window numbered from `0xF000_0000`, so
+desktops are grouped, dragged and matched by the window code.
+
+Private SkyLight calls, resolved with `dlsym` and dropped without fuss when missing:
+`SLSCopyManagedDisplaySpaces` and the window query calls list Spaces and their windows,
+`SLSHWCaptureWindowList` takes pictures of windows not on screen (ScreenCaptureKit fails on full
+screen apps not in front), and `_SLPSSetFrontProcessWithOptions` with `SLPSPostEventRecordTo`
+fronts a window on another Space. Raising it then needs its Accessibility element, which an app
+lists only for the current Space, so `WindowFocus.elementElsewhere` finds it through
+`_AXUIElementCreateWithRemoteToken` within a 250 ms budget.
+
+Picking a window on another Space first switches there with `SpaceSwitch`: fake Dock swipes, one per
+Space to cross, posted in one burst. Measured on macOS 26.6 over 12 Spaces: about 0.1 s and one cut
+(10 of 11 runs), where waiting for each swipe to land took about 1 s and showed every Space on the way.
+macOS 27 drops a swipe without the IOHID record a trackpad attaches, so there `SwipePayload` builds one,
+after noswoosh; not yet run on 27.
+Tried and dropped: raising the window alone slides there, but finds no element for some apps (Finder,
+Terminal, WhatsApp: 0 of 3); ⌃-digit reaches desktops 1 to 9 only and slides for 0.3 s; Mission
+Control's Spaces bar takes 0.9 s and shows Mission Control; `SLSManagedDisplaySetCurrentSpace` cuts at
+once but leaves the Dock and menu bar out of step; keeping the overview on screen does not hide the
+switch, since full screen Spaces show through it. Without SkyLight the overview shows the
+current Space's windows only, and has no Spaces level.
+
+Known limits:
+
+- Minimized windows are not listed.
+- An empty desktop cannot be switched to: no call goes to a Space that has no window to front.
+- Tile all lays out only the deck's windows on one desktop, the current one if it holds any. A full
+  screen window cannot be resized, and no public call moves a window between Spaces. An app with
+  a minimum width keeps it, overlapping its neighbour.
+- Dock badges are read once per opening, so a count that changes while the overview is open
+  shows the old value. An app whose badge the user hid in Notifications settings shows none.
+- The hot key is taken from every app while Decks is on: ⌘⇧W no longer reaches the frontmost
+  app. F3 needs Mission Control's own F3 turned off in System Settings first.
+- A desktop cannot move to another display, and a window cannot be dropped into a particular
+  desktop. `SLSMoveWindowsToManagedSpace` does nothing for another app's window, and the compat-ID
+  route (`SLSSpaceSetCompatID`, `SLSSetWindowListWorkspace`) fails with error 1006 (macOS 26). Both
+  need code injected into the Dock, as yabai's scripting addition does with SIP off.
+- A window leaving full screen goes back to the desktop it came from: no working call picks another.
+- Only the current Space's windows enter or leave full screen, and a window on another Space may not
+  be brought forward: its Accessibility element is not found there (issue #45).
+- A digit goes nowhere for an empty desktop, which no call can switch to.
+- Which level was last shown is kept until Bouncer quits, not across launches.
+
 ### Checking the bar from a shell
 
 The bar's bugs are disagreements between where Bouncer draws something and where the real items
@@ -438,6 +536,9 @@ BouncerFoundation   Logging, signposts, observation helper, the panel's springs.
       ↑                  ↑         it needs — capture, cover, click forwarding.
       └────── App ───────┘         AppDelegate: constructs the graph, owns the menu
                                    and window.
+
+Decks   The window overview: windows and Spaces, decks, pictures, focus and tiling.
+        Depends on BouncerFoundation and Settings; BouncerUI and App depend on it.
 
 Todos   The todo, notes and Claude pages: Markdown task lines, meeting notes, their files, the
         panel, and the `claude` process a question runs.

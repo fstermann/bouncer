@@ -1,6 +1,7 @@
 import AppKit
 import BouncerFoundation
 import BouncerUI
+import Decks
 import MenuBar
 import Settings
 import StandaloneBar
@@ -35,11 +36,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// A page turning into the other, which nothing else may open or close until it has.
     private var isSwitching = false
     private let permissions = StandaloneBarPermissions()
+    lazy var decks = DecksController(settings: settings)
     private let updates = UpdateController()
     private var settingsWindow: NSWindow?
     private var welcomeWindow: NSWindow?
     #if DEV
-    private var harness: DevHarness?
+    var harness: DevHarness?
     #endif
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -62,6 +64,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         harness = DevHarness(controller: standaloneBar, menuBar: menuBar)
         harness?.listen()
         #endif
+        wireDecks()
         Log.app.info("Bouncer launched")
     }
 
@@ -286,7 +289,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // content would otherwise keep the state it was first built with, so the view's mirrors
         // of Sparkle's and the login item's state would go stale when those change out of band.
         let hosting = NSHostingController(
-            rootView: SettingsView(settings: settings, updates: updates, permissions: permissions)
+            rootView: SettingsView(
+                settings: settings, updates: updates, permissions: permissions, decksPermissions: decks.permissions
+            )
         )
         hosting.sizingOptions = [.preferredContentSize]
         if settingsWindow == nil {

@@ -1,4 +1,5 @@
 import AppKit
+import BouncerFoundation
 
 /// ⌘⇧← and ⌘⇧→ step to the page before or after the one open in the notch panel.
 ///

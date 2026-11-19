@@ -30,7 +30,7 @@ public struct UserDefaultsPersistence: PreferencesPersistence {
 public final class SettingsStore {
     @ObservationIgnored private var storage: Preferences
     @ObservationIgnored private let persistence: PreferencesPersistence
-    @ObservationIgnored private var pendingSave: Task<Void, Never>?
+    @ObservationIgnored private(set) var pendingSave: Task<Void, Never>?
 
     /// How long edits are coalesced before hitting disk.
     @ObservationIgnored private let saveDebounce = Duration.milliseconds(250)
