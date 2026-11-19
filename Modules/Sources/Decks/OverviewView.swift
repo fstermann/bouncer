@@ -41,6 +41,13 @@ struct OverviewView: View {
                         .frame(maxHeight: .infinity, alignment: .bottom)
                         .padding(.bottom, 40)
                 }
+                if let marker = overview.reorderTarget?.marker {
+                    RoundedRectangle(cornerRadius: 1.5)
+                        .fill(Metrics.highlight)
+                        .frame(width: marker.width, height: marker.height)
+                        .position(x: marker.midX, y: marker.midY)
+                        .allowsHitTesting(false)
+                }
                 if let incoming = overview.incoming {
                     DisplayDrop()
                     DragGhost(
@@ -115,7 +122,7 @@ struct OverviewView: View {
                         isActive: overview.trayDeck == live.id || isDropTarget(.deck(live.id))
                     )
                     .hoverTarget(.deck(live.id))
-                    .onTapGesture { overview.pick(live.windows.reversed()) }
+                    .onTapGesture { overview.pick(deck: live) }
                 case .item(let item) where overview.view == .spaces && SpaceItems.isDesktop(item):
                     DesktopStack(
                         desktop: item, overview: overview, isActive: overview.trayDeck == Overview.trayID(of: item.id)
@@ -148,6 +155,7 @@ struct OverviewView: View {
             badge: overview.badge(of: [window]),
             icon: overview.icon(of: window), picture: overview.thumbnails[window.id],
             isHovered: overview.hovered == .window(window.id) && !overview.isDragging(window)
+                && overview.reorderTarget == nil
         ) { overview.pick([window]) }
         .hoverTarget(.window(window.id))
         .opacity(overview.isDragging(window) ? 0.35 : 1)
@@ -155,7 +163,7 @@ struct OverviewView: View {
 
     /// Whether a window being dragged would drop on `target`.
     private func isDropTarget(_ target: HoverTarget) -> Bool {
-        overview.drag?.isMoving == true && overview.hovered == target
+        overview.drag?.isMoving == true && overview.hovered == target && overview.reorderTarget == nil
     }
 
     private var backdrop: some View {

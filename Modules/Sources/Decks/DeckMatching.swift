@@ -2,7 +2,7 @@ import CoreGraphics
 import Foundation
 import Settings
 
-/// A deck with the windows of it that are open now, front to back.
+/// A deck with the windows of it that are open now, in the deck's order.
 public struct LiveDeck: Hashable, Sendable, Identifiable {
     public let deck: Deck
     public let windows: [WindowInfo]
@@ -32,7 +32,7 @@ enum DeckMatching {
         let member: Int
     }
 
-    /// Each deck's open windows, and the windows in no deck, all front to back.
+    /// Each deck's open windows in the deck's order, and the windows in no deck front to back.
     ///
     /// A member is matched by window number while that window is open. Otherwise it takes the first
     /// unclaimed window of the same app with the same title: after a relaunch, numbers are new.
@@ -40,7 +40,8 @@ enum DeckMatching {
     static func arrange(_ decks: [Deck], over windows: [WindowInfo]) -> Arrangement {
         let claimed = claims(decks, over: windows)
         let live = decks.enumerated().map { index, deck in
-            LiveDeck(deck: deck, windows: windows.filter { claimed[$0.id]?.deck == index })
+            LiveDeck(deck: deck, windows: windows.filter { claimed[$0.id]?.deck == index }
+                .sorted { claimed[$0.id]?.member ?? 0 < claimed[$1.id]?.member ?? 0 })
         }
         return Arrangement(decks: live, ungrouped: windows.filter { claimed[$0.id] == nil })
     }

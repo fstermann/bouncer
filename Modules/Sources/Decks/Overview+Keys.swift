@@ -16,7 +16,7 @@ extension Overview {
     func pickFirst() {
         let arrangement = arrangement
         if let live = arrangement.decks.first(where: { !$0.windows.isEmpty }) {
-            pick(live.windows.reversed())
+            pick(deck: live)
         } else if let item = arrangement.ungrouped.first {
             pick([item])
         }
@@ -58,6 +58,7 @@ extension Overview {
     /// screen, the current full screen Space leaves it. `nil` for anything else: a window on another Space
     /// cannot be reached through Accessibility (issue #45).
     func fullScreenDrop(of drag: Drag) -> FullScreenChange? {
+        guard drag.deck == nil else { return nil }
         if drag.source == .desktop { return spaces[drag.window.id]?.isCurrent == true ? .enter : nil }
         guard view == .spaces, let space = spaceItems.first(where: { $0.item.id == drag.window.id })?.space,
               space.kind == .fullScreen, space.isCurrent

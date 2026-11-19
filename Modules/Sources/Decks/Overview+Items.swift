@@ -74,6 +74,8 @@ extension Overview {
         drag.point = point
         drag.isMoving = drag.isMoving || hypot(point.x - drag.start.x, point.y - drag.start.y) >= Self.dragThreshold
         self.drag = drag
+        let reorder = currentReorderTarget()
+        if reorder != reorderTarget { reorderTarget = reorder }
     }
 
     // MARK: - Other displays
@@ -88,7 +90,8 @@ extension Overview {
     /// Whether `drag` can be dropped on another display's overview: a moving deck or window off any full
     /// screen Space, not a desktop, and Accessibility to move it.
     func canMoveAcross(_ drag: Drag) -> Bool {
-        drag.isMoving && canRaise && !(view == .spaces && SpaceItems.isDesktop(drag.window))
+        drag.isMoving && canRaise && (drag.deck == nil || view == .windows)
+            && !(view == .spaces && SpaceItems.isDesktop(drag.window))
             && !moved(by: drag).isEmpty
     }
 

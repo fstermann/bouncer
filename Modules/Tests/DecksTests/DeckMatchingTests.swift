@@ -52,13 +52,13 @@ import Testing
         #expect(arrangement.decks[1].windows.map(\.id) == [1])
     }
 
-    @Test func keepsWindowsFrontToBack() {
+    @Test func keepsWindowsInTheDecksOrder() {
         let decks = [deck([
             DeckMember(app: "com.example.code", title: nil, windowID: 3),
             DeckMember(app: "com.example.code", title: nil, windowID: 1)
         ])]
         let arrangement = DeckMatching.arrange(decks, over: [window(1), window(2), window(3)])
-        #expect(arrangement.decks[0].windows.map(\.id) == [1, 3])
+        #expect(arrangement.decks[0].windows.map(\.id) == [3, 1])
     }
 
     @Test func refreshTakesTheMatchedWindowsNumberAndTitle() {
@@ -256,7 +256,8 @@ import Testing
         overview.dragged(to: center(second))
         overview.released(at: center(second))
         #expect(overview.decks.map(\.kind) == [.spaces])
-        #expect(overview.arrangement.decks.first?.windows == items)
+        // The one dropped onto first, then the one dropped.
+        #expect(overview.arrangement.decks.first?.windows == items.reversed())
     }
 
     @Test func draggingIntoAnOpenDeckTrayAddsTheItem() {

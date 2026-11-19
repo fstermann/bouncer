@@ -34,7 +34,7 @@ import Testing
         ])]
         let resolved = SpaceItems.resolved(stored, with: items)
         let arrangement = DeckMatching.arrange(resolved, over: items.map(\.item))
-        #expect(arrangement.decks[0].windows.map(\.id) == [20, SpaceItems.firstDesktopID + 1])
+        #expect(arrangement.decks[0].windows.map(\.id) == [SpaceItems.firstDesktopID + 1, 20])
         #expect(arrangement.ungrouped.map(\.id) == [SpaceItems.firstDesktopID])
         #expect(SpaceItems.stored(resolved, with: items) == stored)
     }

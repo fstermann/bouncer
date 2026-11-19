@@ -101,6 +101,9 @@ public struct Preferences: Codable, Hashable, Sendable {
     public var decks: [Deck]
     /// The names the user gave desktops in the overview, by Space identifier.
     public var spaceNames: [String: String]
+    /// The order the user dragged Spaces into in the overview, by Space identifier. Bouncer's alone:
+    /// Mission Control keeps its own.
+    public var spaceOrder: [String]
 
     public static let defaultDecksShortcut = HotKey.Shortcut(
         keyCode: kVK_ANSI_W, modifiers: HotKey.Shortcut.commandShift
@@ -134,7 +137,8 @@ public struct Preferences: Codable, Hashable, Sendable {
         decksShortcut: HotKey.Shortcut = Preferences.defaultDecksShortcut,
         decksSwipe: Bool = false,
         decks: [Deck] = [],
-        spaceNames: [String: String] = [:]
+        spaceNames: [String: String] = [:],
+        spaceOrder: [String] = []
     ) {
         self.enableMenuBarItems = enableMenuBarItems
         self.enableTodos = enableTodos
@@ -164,6 +168,7 @@ public struct Preferences: Codable, Hashable, Sendable {
         self.decksSwipe = decksSwipe
         self.decks = decks
         self.spaceNames = spaceNames
+        self.spaceOrder = spaceOrder
     }
 
     /// The notch panel's pages that are on, in the order the page button lists them.
@@ -224,6 +229,7 @@ public struct Preferences: Codable, Hashable, Sendable {
         decksSwipe = try container.decodeIfPresent(Bool.self, forKey: .decksSwipe) ?? false
         decks = try container.decodeIfPresent([Deck].self, forKey: .decks) ?? []
         spaceNames = try container.decodeIfPresent([String: String].self, forKey: .spaceNames) ?? [:]
+        spaceOrder = try container.decodeIfPresent([String].self, forKey: .spaceOrder) ?? []
     }
 }
 

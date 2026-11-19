@@ -96,4 +96,12 @@ extension DecksController {
         }
         return true
     }
+
+    /// Switches to `space`, the Space of `window`, before its windows are moved: Accessibility lists only
+    /// the current Space's windows. Failing the instant switch, raising `window` slides there.
+    nonisolated static func switchFirst(to space: SpaceInfo, order: [UInt64], raising window: WindowInfo) async {
+        if SpaceSwitch.go(to: space.id, on: space.display, order: order) { return }
+        SpaceFocus.raise(window)
+        try? await Task.sleep(for: .milliseconds(400))
+    }
 }

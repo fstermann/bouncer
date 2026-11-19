@@ -457,6 +457,12 @@ arriving on its own. Closing drops all of it but the pictures: the next opening 
 last picture at once (`ThumbnailCache`, matched by window number and process) and retakes them,
 windows without one first, up to eight at a time. Turning Decks off drops the pictures too.
 
+Dragging reorders within a kind (`Reorder`): decks among decks, a deck's cards in its tray, and Spaces
+in no deck among each other, where the middle half of a card still groups and its edges or the gap
+reorder. A deck's windows show and tile in its members' order; clicking it still fronts the one used
+last. The Spaces' order is Bouncer's own (`Preferences.spaceOrder`), since no call reorders Mission
+Control's: switching, desktop numbers and digits keep macOS's order.
+
 A deck member is stored by app, title and window number: the number while the window is open, app
 and title once it has gone. A desktop is stored by its Space's identifier, which lasts until the
 desktop is removed; in the overview it stands as a made-up window numbered from `0xF000_0000`, so

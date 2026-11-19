@@ -82,7 +82,9 @@ struct TrayCard: View {
         VStack(spacing: 9) {
             ItemThumbnail(item: window, overview: overview)
                 .aspectRatio(16 / 10, contentMode: .fit)
-                .overlay { Highlight(isOn: overview.hovered == .trayWindow(window.id)) }
+                .overlay {
+                    Highlight(isOn: overview.hovered == .trayWindow(window.id) && overview.reorderTarget == nil)
+                }
                 .overlay(alignment: .topTrailing) { Badge(text: overview.badge(of: [window])) }
             Text(window.label)
                 .font(.system(size: 12, weight: .medium))

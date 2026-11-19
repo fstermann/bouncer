@@ -120,6 +120,7 @@ public final class DecksController {
             canSeeTitles: permissions.screenRecording
         )
         overview.view = overview.hasSpaces ? lastView : .windows
+        overview.spaceOrder = settings.preferences.spaceOrder
         return overview
     }
 
@@ -136,6 +137,12 @@ public final class DecksController {
             for other in sessions where other.overview !== overview && other.overview.decks != decks {
                 other.overview.decks = decks
             }
+        }
+        overview.onSpaceOrderChange = { [weak self] order in
+            // Each display orders only its own Spaces; the others' keep their place in the list.
+            guard let self else { return }
+            let mine = Set(order)
+            settings.preferences.spaceOrder = settings.preferences.spaceOrder.filter { !mine.contains($0) } + order
         }
         overview.onSpaceRename = { [weak self] uuid, name in self?.settings.preferences.spaceNames[uuid] = name }
         overview.onFullScreen = { [weak self] in self?.setFullScreen($0, $1) }
@@ -249,14 +256,6 @@ public final class DecksController {
         }
         NSRunningApplication(processIdentifier: focused.pid)?.activate()
         Task.detached { WindowFocus.raise(windows) }
-    }
-
-    /// Switches to `space`, the Space of `window`, before its windows are moved: Accessibility lists only
-    /// the current Space's windows. Failing the instant switch, raising `window` slides there.
-    nonisolated static func switchFirst(to space: SpaceInfo, order: [UInt64], raising window: WindowInfo) async {
-        if SpaceSwitch.go(to: space.id, on: space.display, order: order) { return }
-        SpaceFocus.raise(window)
-        try? await Task.sleep(for: .milliseconds(400))
     }
 
     /// The Spaces of `space`'s display, in Mission Control's order, as this opening read them.

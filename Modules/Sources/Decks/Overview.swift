@@ -30,12 +30,16 @@ final class Overview {
     var decks: [Deck] {
         didSet { onDecksChange?(decks) }
     }
+    /// The order the user dragged Spaces into, by Space identifier; written back through `onSpaceOrderChange`.
+    var spaceOrder: [String] = [] {
+        didSet { if spaceOrder != oldValue { onSpaceOrderChange?(spaceOrder) } }
+    }
     /// Each window's picture, once it has arrived.
     var thumbnails: [CGWindowID: NSImage] = [:]
     /// Each app's Dock badge, by process, once read.
     var badges: [pid_t: String] = [:]
     /// The deck the tray shows, or `nil` while it is closed.
-    private(set) var trayDeck: UUID?
+    var trayDeck: UUID?
     @ObservationIgnored private var icons: [pid_t: NSImage] = [:]
     @ObservationIgnored private var trayClosing: Task<Void, Never>?
 
@@ -45,6 +49,7 @@ final class Overview {
     /// The user asked for a permission's pane in System Settings.
     @ObservationIgnored var onGrant: (@MainActor (Permission) -> Void)?
     @ObservationIgnored var onDecksChange: (@MainActor ([Deck]) -> Void)?
+    @ObservationIgnored var onSpaceOrderChange: (@MainActor ([String]) -> Void)?
     /// The user asked to tile these windows side by side.
     @ObservationIgnored var onTile: (@MainActor ([WindowInfo]) -> Void)?
     @ObservationIgnored var onViewChange: (@MainActor (DeckKind) -> Void)?
@@ -75,9 +80,9 @@ final class Overview {
     /// Whether there is a Spaces view to switch to.
     var hasSpaces: Bool { !spaceItems.isEmpty }
 
-    /// The items the grid shows in the current view: windows, or one for each Space.
+    /// The items the grid shows in the current view: windows, or one for each Space in the user's order.
     var items: [WindowInfo] {
-        view == .windows ? windows : spaceItems.map(\.item)
+        view == .windows ? windows : Reorder.ordered(spaceItems, by: spaceOrder) { $0.space.uuid }.map(\.item)
     }
 
     /// What the user has typed to narrow the cards down.
@@ -183,7 +188,7 @@ final class Overview {
         renaming = deck.id
     }
 
-    private func kinded(_ deck: Deck) -> Deck {
+    func kinded(_ deck: Deck) -> Deck {
         var deck = deck
         deck.kind = view
         return deck
@@ -204,7 +209,11 @@ final class Overview {
     }
 
     /// The press being dragged, set only by the dragging methods here and in `Overview+Items`.
-    var drag: Drag?
+    var drag: Drag? {
+        didSet { if drag == nil { reorderTarget = nil } }
+    }
+    /// Where the dragged card would land among its kind, while a drop would reorder rather than group.
+    var reorderTarget: ReorderTarget?
 
     /// A window dragged in from another display's overview, and where the pointer has it here.
     var incoming: Incoming?
@@ -223,8 +232,8 @@ final class Overview {
                   let window = items.first(where: { $0.id == id })
             else { return false }
             drag = Drag(window: window, source: .tray(deck), start: point, point: point)
-        case .deck(let id) where view == .windows && canRaise:
-            // A deck is dragged only to another display; let go here, it is a click.
+        case .deck(let id):
+            // Dragged among the decks, or in the Windows view to another display; let go unmoved, a click.
             guard let front = arrangement.decks.first(where: { $0.id == id })?.windows.first else { return false }
             drag = Drag(window: front, source: .grid, start: point, point: point, deck: id)
         case .window(let id), .desktop(let id):
@@ -234,46 +243,6 @@ final class Overview {
             return false
         }
         return true
-    }
-
-    /// Drops the dragged window where the pointer is. A press that never moved is a click.
-    func released(at point: CGPoint) {
-        guard let drag else { return }
-        self.drag = nil
-        if let deck = drag.deck {
-            if !drag.isMoving, let live = arrangement.decks.first(where: { $0.id == deck }) {
-                pick(live.windows.reversed())
-            }
-            return
-        }
-        guard drag.isMoving else { return pick([drag.window]) }
-        let target = Hover.target(at: point, in: hoverFrames)
-        if let change = fullScreenDrop(of: drag) {
-            if target == .fullScreen { onFullScreen?(drag.window, change == .enter) }
-            return
-        }
-        if target == .fullScreen { return }
-        let others = decks.filter { $0.kind != view }
-        let mine = decks.filter { $0.kind == view }
-        switch DeckDrop.drop(drag.window, from: drag.source, on: dropTarget(target), in: arrangement, decks: mine) {
-        case .changed(let changed, let show):
-            // A deck made by the drop takes the view's kind; the other view's decks are left as they are.
-            let known = Set(mine.map(\.id))
-            self.decks = others + changed.map { known.contains($0.id) ? $0 : kinded($0) }
-            trayDeck = show
-        case .unchanged:
-            break
-        }
-    }
-
-    private func dropTarget(_ target: HoverTarget?) -> HoverTarget? {
-        switch target {
-        case .tray, .trayWindow:
-            guard let trayDeck, !trayIsDesktop else { return target }
-            return .deck(trayDeck)
-        default:
-            return target
-        }
     }
 
     // MARK: - The pointer and the tray
