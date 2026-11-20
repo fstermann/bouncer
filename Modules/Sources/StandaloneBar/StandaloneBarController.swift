@@ -378,11 +378,12 @@ public final class StandaloneBarController {
     /// dipping below it on the way across, should not put it away — and the pointer coming
     /// back cancels the close before it happens.
     func closeIfThePointerHasLeft() {
-        let isUp = NSEvent.mouseLocation.y >= panelBottomEdge
+        let depth = panelBottomEdge - NSEvent.mouseLocation.y
+        let isUp = depth <= 0
         // Not mid-handoff: the pointer is up in the menu bar, where the user has taken it.
         let hasLeft = isOpen && !isMenuOpen && !handover.isUnderway && !isUp
         guard hasLeft else { return closing.pointerReturned(intoTheBar: isOpen && isUp) }
-        closing.pointerLeft(for: settings.preferences.autoRehide) { [weak self] in
+        closing.pointerLeft(for: settings.preferences.autoRehide, depth: depth) { [weak self] in
             guard let self else { return }
             // On macOS 27 the user clicks the real items, whose menus hang below the bar, and the
             // pointer reaching into one must not take the section away. The next move asks again.

@@ -13,9 +13,13 @@ import Settings
 @MainActor
 final class BarClosing {
     private var pending: Task<Void, Never>?
-    /// Set for a bar the pointer opened at the notch, which goes the moment the pointer leaves it,
-    /// the way the Dock does, whatever "Hide again" says.
+    /// Set for a bar the pointer opened at the notch, which goes once the pointer has left it, the
+    /// way the Dock does, whatever "Hide again" says: at once well clear of it, else after a grace,
+    /// so a slip below the band is taken back. The same tolerance as the notch's pages.
     var closesOnLeave = false
+    private static let leaveGrace: Duration = .milliseconds(1500)
+    /// How far below the bar the pointer can stray before it has plainly left.
+    private static let reach: CGFloat = 80
     /// Set for a bar a page turned into, which the pointer may never have been over: on the page
     /// menu below it, or anywhere for a key. Leaving counts once the pointer has come up into it.
     var waitsForPointer = false
@@ -33,9 +37,13 @@ final class BarClosing {
         }
     }
 
-    /// The pointer has left the bar: close once the delay is up, where there is one.
-    func pointerLeft(for mode: AutoRehide, onClose: @MainActor @escaping () -> Void) {
-        guard pending == nil, !waitsForPointer, let delay = delay(for: mode) else { return }
+    /// The pointer has left the bar, `depth` below it: close once the delay is up, where there is one.
+    func pointerLeft(for mode: AutoRehide, depth: CGFloat, onClose: @MainActor @escaping () -> Void) {
+        let isWellClear = closesOnLeave && depth > Self.reach
+        guard pending == nil || isWellClear, !waitsForPointer,
+              let delay = isWellClear ? .zero : delay(for: mode)
+        else { return }
+        pending?.cancel()
         pending = Task {
             try? await Task.sleep(for: delay)
             guard !Task.isCancelled else { return }
@@ -44,7 +52,7 @@ final class BarClosing {
     }
 
     private func delay(for mode: AutoRehide) -> Duration? {
-        if closesOnLeave { return .zero }
+        if closesOnLeave { return Self.leaveGrace }
         guard case .afterDelay(let seconds) = mode else { return nil }
         return .seconds(seconds)
     }
