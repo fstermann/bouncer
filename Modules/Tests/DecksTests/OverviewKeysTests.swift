@@ -97,14 +97,14 @@ private func window(_ id: CGWindowID, app: String = "Code", title: String? = nil
 }
 
 @Suite struct OverviewFilterTests {
-    private let deck = Deck(name: "Work", color: .blue)
+    private let deck = Deck(name: "Work")
 
     @Test func keepsMatchingItemsAndDecksByNameOrWindow() {
         let arrangement = Arrangement(
             decks: [
                 LiveDeck(deck: deck, windows: [window(1, title: "Inbox")]),
                 LiveDeck(
-                    deck: Deck(name: "Play", color: .pink),
+                    deck: Deck(name: "Play"),
                     windows: [window(2, title: "Inbox"), window(3, title: "Game")]
                 )
             ],

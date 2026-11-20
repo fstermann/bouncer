@@ -11,11 +11,11 @@ struct DeckTray: View {
         VStack(spacing: 18) {
             HStack {
                 if overview.renaming == live.id {
-                    RenameField(deck: live.deck, overview: overview, showsColors: !overview.trayIsDesktop)
+                    RenameField(deck: live.deck, overview: overview, showsSymbols: !overview.trayIsDesktop)
                 } else {
                     DeckLabel(
                         deck: live.deck, count: live.windows.count, font: .system(size: 15, weight: .semibold),
-                        countSuffix: " " + noun(live.windows.count), showsDot: !overview.trayIsDesktop
+                        countSuffix: " " + noun(live.windows.count), showsBadge: !overview.trayIsDesktop
                     )
                 }
                 Spacer()
@@ -86,12 +86,7 @@ struct TrayCard: View {
                     Highlight(isOn: overview.hovered == .trayWindow(window.id) && overview.reorderTarget == nil)
                 }
                 .overlay(alignment: .topTrailing) { Badge(text: overview.badge(of: [window])) }
-            Text(window.label)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.white)
-                .shadow(color: .black.opacity(0.4), radius: 1.5, y: 1)
-                .lineLimit(1)
-                .truncationMode(.tail)
+            WindowName(label: window.label, icon: SpaceItems.isDesktop(window) ? nil : overview.icon(of: window))
         }
         .frame(maxWidth: 260)
         .opacity(isShown ? 1 : 0)
@@ -141,40 +136,36 @@ struct TrayButton: View {
     }
 }
 
-/// The deck's name as a field, and its colours as swatches beside it. Return or a swatch keeps the
-/// name; Escape keeps the old one.
+/// The deck's name as a field and its symbols below. Return keeps the name; Escape keeps the old one.
 struct RenameField: View {
     let deck: Deck
     let overview: Overview
-    var showsColors = true
+    var showsSymbols = true
     @State private var name = ""
     @FocusState private var isFocused: Bool
 
     var body: some View {
-        HStack(spacing: 10) {
-            TextField("Name", text: $name)
-                .textFieldStyle(.plain)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 180)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(.white.opacity(0.18), in: RoundedRectangle(cornerRadius: 6))
-                .focused($isFocused)
-                .onSubmit { overview.rename(deck.id, to: name) }
-                .onExitCommand { overview.renaming = nil }
-            ForEach(showsColors ? DeckColor.allCases : [], id: \.self) { color in
-                Circle()
-                    .fill(color.color)
-                    .frame(width: 14, height: 14)
-                    .overlay { Circle().strokeBorder(.white, lineWidth: color == deck.color ? 2 : 0) }
-                    .contentShape(Circle())
-                    .onTapGesture { overview.recolor(deck.id, to: color) }
-            }
+        VStack(alignment: .leading, spacing: 10) {
+            nameField
+            if showsSymbols { SymbolPicker(deck: deck, overview: overview) }
         }
         .onAppear {
             name = deck.name
             isFocused = true
         }
+    }
+
+    private var nameField: some View {
+        TextField("Name", text: $name)
+            .textFieldStyle(.plain)
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: 180)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(.white.opacity(0.18), in: RoundedRectangle(cornerRadius: 6))
+            .focused($isFocused)
+            .onSubmit { overview.rename(deck.id, to: name) }
+            .onExitCommand { overview.renaming = nil }
     }
 }

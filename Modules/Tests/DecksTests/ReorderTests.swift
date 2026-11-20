@@ -115,8 +115,8 @@ import Testing
     }
 
     @Test func aDeckDraggedPastAnotherMovesAfterIt() {
-        let first = Deck(name: "A", color: .blue, members: [member(1)])
-        let second = Deck(name: "B", color: .green, members: [member(2)])
+        let first = Deck(name: "A", members: [member(1)])
+        let second = Deck(name: "B", members: [member(2)])
         let overview = Overview(windows: [window(1), window(2)], decks: [first, second], wallpaper: nil,
                                 canRaise: true, canSeeTitles: true)
         overview.hoverFrames = [.deck(first.id): frames[0], .deck(second.id): frames[1]]
@@ -125,7 +125,7 @@ import Testing
     }
 
     @Test func aTrayCardDraggedFirstLeadsTheDeck() {
-        let deck = Deck(name: "A", color: .blue, members: [member(1), member(2), member(3)])
+        let deck = Deck(name: "A", members: [member(1), member(2), member(3)])
         let overview = Overview(windows: [window(1), window(2), window(3)], decks: [deck], wallpaper: nil,
                                 canRaise: true, canSeeTitles: true)
         overview.trayDeck = deck.id

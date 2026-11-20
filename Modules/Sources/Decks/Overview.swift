@@ -116,7 +116,7 @@ final class Overview {
         if let live = arrangement.decks.first(where: { $0.id == id }) { return live }
         guard let entry = spaceItems.first(where: { Self.trayID(of: $0.item.id) == id }) else { return nil }
         return LiveDeck(
-            deck: Deck(id: id, name: entry.space.name, color: .blue, kind: .windows), windows: entry.space.windows
+            deck: Deck(id: id, name: entry.space.name, kind: .windows), windows: entry.space.windows
         )
     }
 
@@ -141,6 +141,11 @@ final class Overview {
             ?? NSWorkspace.shared.icon(for: .application)
         icons[window.pid] = icon
         return icon
+    }
+
+    /// The windows behind `items`: a desktop's own windows, any other item itself.
+    func appWindows(of items: [WindowInfo]) -> [WindowInfo] {
+        items.flatMap { SpaceItems.isDesktop($0) ? space(of: $0)?.windows ?? [] : [$0] }
     }
 
     // MARK: - Editing decks
@@ -185,9 +190,9 @@ final class Overview {
         return desktops.count > 1 ? space : nil
     }
 
-    func recolor(_ id: UUID, to color: DeckColor) {
+    func setSymbol(_ id: UUID, to symbol: String) {
         guard let index = decks.firstIndex(where: { $0.id == id }) else { return }
-        decks[index].color = color
+        decks[index].symbol = symbol
     }
 
     /// Dissolves the deck. Its windows stay open.

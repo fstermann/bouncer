@@ -28,7 +28,7 @@ import Testing
 
     @Test func aDeckOfSpacesFindsItsDesktopsByIdentifierAndStoresThemSo() {
         let items = SpaceItems.items(for: spaces)
-        let stored = [Deck(name: "Work", color: .blue, kind: .spaces, members: [
+        let stored = [Deck(name: "Work", kind: .spaces, members: [
             DeckMember(app: "", title: nil, windowID: nil, space: "d2"),
             DeckMember(app: "com.example.Slack", title: "w20", windowID: 20)
         ])]
@@ -48,7 +48,7 @@ import Testing
     }
 
     @Test func aRemovedDesktopIsKeptByIdentifierButMatchesNothing() {
-        let stored = [Deck(name: "Work", color: .blue, kind: .spaces, members: [
+        let stored = [Deck(name: "Work", kind: .spaces, members: [
             DeckMember(app: "", title: nil, windowID: nil, space: "gone")
         ])]
         let items = SpaceItems.items(for: spaces)
@@ -64,7 +64,7 @@ import Testing
     }
 
     @Test func unavailableSpaceInventoryPreservesStoredMembership() {
-        let deck = Deck(name: "Work", color: .blue, kind: .spaces, members: [
+        let deck = Deck(name: "Work", kind: .spaces, members: [
             DeckMember(app: "", title: nil, windowID: nil, space: "d1"),
             DeckMember(app: "com.example.app", title: nil, windowID: 9)
         ])
@@ -76,10 +76,10 @@ import Testing
         let spaces = [SpaceInfo(id: 1, uuid: "d1", kind: .desktop(number: 1), isCurrent: true, windows: [window(10)])]
         let items = SpaceItems.items(for: spaces)
         let decks = [
-            Deck(name: "W", color: .blue, kind: .windows, members: [
+            Deck(name: "W", kind: .windows, members: [
                 DeckMember(app: "com.example.app", title: "w10", windowID: 99)
             ]),
-            Deck(name: "S", color: .pink, kind: .spaces, members: [
+            Deck(name: "S", kind: .spaces, members: [
                 DeckMember(app: "", title: nil, windowID: nil, space: "d1")
             ])
         ]

@@ -16,7 +16,7 @@ import Testing
     }
 
     private func deck(_ members: [DeckMember], name: String = "Code") -> Deck {
-        Deck(name: name, color: .blue, members: members)
+        Deck(name: name, members: members)
     }
 
     @Test func matchesByWindowNumberFirst() {
@@ -118,13 +118,12 @@ import Testing
     }
 
     @Test func groupingMakesTheNextNamedDeck() {
-        let existing = Deck(name: "Deck 1", color: .blue, members: [DeckMatching.member(for: window(1))])
+        let existing = Deck(name: "Deck 1", members: [DeckMatching.member(for: window(1))])
         let (decks, id) = DeckMatching.grouping([window(1), window(2)], in: [existing])
         #expect(decks.count == 2)
         #expect(decks[0].members.isEmpty)
         #expect(decks[1].id == id)
         #expect(decks[1].name == "Deck 2")
-        #expect(decks[1].color == .pink)
         #expect(decks[1].members.map(\.windowID) == [1, 2])
     }
 }
@@ -182,7 +181,7 @@ import Testing
         )
     }
 
-    private let deck = Deck(name: "Deck 1", color: .blue, members: [
+    private let deck = Deck(name: "Deck 1", members: [
         DeckMember(app: "com.example.app", title: "w1", windowID: 1)
     ])
 
@@ -275,7 +274,7 @@ import Testing
         for target in [HoverTarget.tray, .trayWindow(1)] {
             let overview = desktopOverview()
             let item = overview.items[0]
-            let deck = Deck(name: "Work", color: .blue, kind: .spaces)
+            let deck = Deck(name: "Work", kind: .spaces)
             overview.decks = [deck]
             overview.hoverFrames = [.desktop(item.id): first, .deck(deck.id): second, target: tray]
             #expect(overview.press(at: center(first)))

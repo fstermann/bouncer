@@ -1,21 +1,6 @@
 import Settings
 import SwiftUI
 
-public extension DeckColor {
-    var color: Color {
-        switch self {
-        case .blue: Color(red: 0x60 / 255, green: 0xA5 / 255, blue: 0xFA / 255)
-        case .pink: Color(red: 0xF4 / 255, green: 0x72 / 255, blue: 0xB6 / 255)
-        case .green: Color(red: 0x34 / 255, green: 0xD3 / 255, blue: 0x99 / 255)
-        case .orange: Color(red: 0xFB / 255, green: 0x92 / 255, blue: 0x3C / 255)
-        case .purple: Color(red: 0xA7 / 255, green: 0x8B / 255, blue: 0xFA / 255)
-        case .yellow: Color(red: 0xFA / 255, green: 0xCC / 255, blue: 0x15 / 255)
-        case .red: Color(red: 0xF8 / 255, green: 0x71 / 255, blue: 0x71 / 255)
-        case .teal: Color(red: 0x2D / 255, green: 0xD4 / 255, blue: 0xBF / 255)
-        }
-    }
-}
-
 /// The springs the overview moves by, at the mockup's timings.
 enum Springs {
     static let fan = Animation.spring(duration: 0.25, bounce: 0.15)
@@ -26,7 +11,7 @@ enum Springs {
 }
 
 /// A deck in the grid: up to three of its windows stacked and offset, fanned out while it is the
-/// one the tray shows, over its colour, name and window count.
+/// one the tray shows, its badge on the corner, over its name and its apps' icons.
 struct DeckStack: View {
     let live: LiveDeck
     let overview: Overview
@@ -37,9 +22,7 @@ struct DeckStack: View {
             ZStack {
                 if live.windows.isEmpty {
                     RoundedRectangle(cornerRadius: Metrics.cornerRadius + 1)
-                        .strokeBorder(
-                            live.deck.color.color.opacity(0.7), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])
-                        )
+                        .strokeBorder(.white.opacity(0.45), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
                 } else {
                     let stack = Array(live.windows.prefix(3).enumerated()).reversed()
                     ForEach(stack, id: \.element.id) { depth, window in
@@ -57,8 +40,16 @@ struct DeckStack: View {
             }
             .frame(width: Metrics.card.width, height: Metrics.card.height)
             .overlay(alignment: .topTrailing) { Badge(text: overview.badge(of: live.windows)) }
+            .overlay(alignment: .bottomLeading) { DeckBadge(deck: live.deck).offset(x: -7, y: 9) }
             .animation(Springs.fan, value: isActive)
-            DeckLabel(deck: live.deck, count: live.windows.count, font: .system(size: 12, weight: .medium))
+            HStack(spacing: 6) {
+                Text(live.deck.name)
+                AppIconRow(windows: overview.appWindows(of: live.windows), overview: overview)
+            }
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(.white)
+            .shadow(color: .black.opacity(0.4), radius: 1.5, y: 1)
+            .lineLimit(1)
         }
         .contentShape(Rectangle())
     }
@@ -158,20 +149,18 @@ struct StackLayer: Equatable {
     }
 }
 
-/// A deck's dot, name and count, as the grid and the tray head both show it.
+/// A deck's badge, name and count, as the tray head shows it.
 struct DeckLabel: View {
     let deck: Deck
     let count: Int
     let font: Font
     var countSuffix = ""
-    var showsDot = true
+    var showsBadge = true
 
     var body: some View {
         HStack(spacing: 6) {
-            if showsDot {
-                Circle()
-                    .fill(deck.color.color)
-                    .frame(width: 8, height: 8)
+            if showsBadge {
+                DeckBadge(deck: deck, size: 20)
             }
             Text(deck.name)
             Text("\(count)\(countSuffix)")
