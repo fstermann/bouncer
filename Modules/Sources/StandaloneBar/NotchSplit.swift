@@ -13,6 +13,9 @@ enum NotchSplit {
         /// The band's ends, in window-server x.
         let reach: ClosedRange<CGFloat>
         let chevron: CGRect?
+        /// Whether the section went behind the chevron. One that did not fits right of the notch, and
+        /// is revealed there unshifted.
+        let overflows: Bool
         /// The section's end and the notch it was read against.
         let end: CGFloat
         let notch: ClosedRange<CGFloat>
@@ -30,6 +33,8 @@ enum NotchSplit {
         /// leaves it nothing to give.
         func holds(endingAt end: CGFloat, notch: ClosedRange<CGFloat>) -> Bool {
             guard notch == self.notch else { return false }
+            // Unshifted, nothing takes up a move: the band would be placed where the section was.
+            guard overflows else { return end == self.end }
             return end == self.end
                 || [self.end, end].allSatisfy { NotchSplit.shift(for: width, endingAt: $0, notch: notch) > 0 }
         }
