@@ -4,7 +4,7 @@ import Decks
 import Settings
 import SwiftUI
 
-/// The window overview: whether it is on, its shortcut, the permissions it needs, and its decks.
+/// The window overview: whether it is on, its shortcut, and the permissions it needs.
 struct DeckOptions: View {
     @Binding var preferences: Preferences
     @Bindable var permissions: DecksPermissions
@@ -58,48 +58,6 @@ struct DeckOptions: View {
                     status: permissions.accessibility ? .granted : .missing,
                     pane: "Privacy_Accessibility"
                 )
-                DeckList(decks: $preferences.decks)
-            }
-        }
-    }
-}
-
-/// Each deck's colour, name and level, and a button to delete it. Deleting a deck leaves its windows open.
-private struct DeckList: View {
-    @Binding var decks: [Deck]
-
-    var body: some View {
-        if decks.isEmpty {
-            LabeledContent("Decks") {
-                Text("None yet. Drag a card onto another in the overview.")
-                    .foregroundStyle(.secondary)
-            }
-        } else {
-            ForEach($decks) { $deck in
-                HStack(spacing: 10) {
-                    Menu {
-                        ForEach(DeckColor.allCases, id: \.self) { color in
-                            Button(color.rawValue.capitalized) { deck.color = color }
-                        }
-                    } label: {
-                        Circle().fill(deck.color.color).frame(width: 12, height: 12)
-                    }
-                    .menuStyle(.button)
-                    .buttonStyle(.plain)
-                    .fixedSize()
-                    TextField("Name", text: $deck.name)
-                        .textFieldStyle(.plain)
-                    Spacer()
-                    Text(deck.kind == .windows ? "Windows" : "Spaces")
-                        .foregroundStyle(.secondary)
-                    Button(role: .destructive) {
-                        decks.removeAll { $0.id == deck.id }
-                    } label: {
-                        Image(systemName: "trash")
-                    }
-                    .buttonStyle(.borderless)
-                    .help("Delete this deck. Its windows stay open.")
-                }
             }
         }
     }

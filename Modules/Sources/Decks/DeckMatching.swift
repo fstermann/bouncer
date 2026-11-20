@@ -130,9 +130,9 @@ enum DeckMatching {
         }
     }
 
-    /// `decks` with a new deck holding `windows`, named and coloured as the next one.
+    /// `decks` with a new deck holding `windows`, named as the next one.
     static func grouping(_ windows: [WindowInfo], in decks: [Deck]) -> (decks: [Deck], id: UUID) {
-        let deck = Deck(name: nextName(in: decks), color: nextColor(in: decks), members: windows.map(member(for:)))
+        let deck = Deck(name: nextName(in: decks), members: windows.map(member(for:)))
         var decks = decks
         for window in windows { decks = removing(window, from: decks) }
         return (decks + [deck], deck.id)
@@ -143,12 +143,5 @@ enum DeckMatching {
         let names = Set(decks.map(\.name))
         let number = (1...).first { !names.contains("Deck \($0)") } ?? decks.count + 1
         return "Deck \(number)"
-    }
-
-    /// The first colour no deck has, or round again once every one is taken.
-    static func nextColor(in decks: [Deck]) -> DeckColor {
-        let used = Set(decks.map(\.color))
-        return DeckColor.allCases.first { !used.contains($0) }
-            ?? DeckColor.allCases[decks.count % DeckColor.allCases.count]
     }
 }

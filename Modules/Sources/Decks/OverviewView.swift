@@ -236,12 +236,7 @@ struct WindowCard: View {
                     if let place { PlaceTag(text: place).padding(6) }
                 }
                 .overlay(alignment: .topTrailing) { Badge(text: badge) }
-            Text(window.label)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.white)
-                .shadow(color: .black.opacity(0.4), radius: 1.5, y: 1)
-                .lineLimit(1)
-                .truncationMode(.tail)
+            WindowName(label: window.label, icon: icon)
                 .frame(maxWidth: Metrics.card.width)
         }
         .contentShape(Rectangle())
