@@ -252,7 +252,11 @@ final class NotchTab {
     }
 
     private func make(_ frame: CGRect) -> BarWindow {
-        let tab = BarWindow(frame: frame, level: .mainMenu)
+        // A full screen Space's bar is a window at the menu bar's level that draws the items itself, so a
+        // band at that level covers them; one below is hidden by that bar, which is black there anyway.
+        let level = FullScreenSpace.isActive
+            ? NSWindow.Level(rawValue: NSWindow.Level.mainMenu.rawValue - 1) : .mainMenu
+        let tab = BarWindow(frame: frame, level: level)
         conceal(tab)
         content.wantsLayer = true
         Self.shape(band)
