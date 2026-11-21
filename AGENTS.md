@@ -7,7 +7,7 @@ macOS menu bar manager. Read `docs/ARCHITECTURE.md` before changing how hiding w
 ```sh
 make test      # module tests — fast, no Xcode project needed
 make lint      # SwiftLint (must be clean)
-make run       # generate project, build, launch
+make run       # generate project, build, launch; returns once Bouncer Dev answers make ctl
 make bench     # time Bouncer Dev against budgets; drives the screen, see docs/PERFORMANCE.md
 make release   # signed universal DMG + Sparkle zip; needs RELEASE_SIGN_IDENTITY
 ```
@@ -46,11 +46,15 @@ make ctl CMD="key cmd+shift+n"              # a real key press: hot keys, focus 
 make ctl CMD="type Weekly sync"             # text into whatever has focus
 make ctl CMD="tap 756 60"                   # like press, but the pointer stays, so a panel does not close
 make ctl CMD="rtap 756 60"                  # the same as a right-click
+make ctl CMD="still press 900 15"           # any command, then wait until the bar's frames stop moving
 ffmpeg -loglevel error -i bar.mov -vf "fps=5,scale=1512:-1,tile=1x15" -frames:v 1 sheet.png
 ```
 
 Clicks posted from a shell do not land; `press` and `drag` do, because Bouncer Dev posts them.
-`hit` says what a click would reach without making one. The last
+`hit` says what a click would reach without making one. Wrap an action in `still` instead of
+sleeping after it: it replies "still after N ms" once frames held for 0.2 s, "nothing moved" if
+none changed within 0.6 s, and fails after 10 s. It sees frames only, so a fade still needs a
+recording. The last
 line turns a recording into one image of stacked frames, which can be Read. A black bar
 in a picture means the user is in a full-screen space: ask them to leave it.
 

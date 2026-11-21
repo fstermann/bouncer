@@ -24,6 +24,42 @@ public final class DevHarness {
         self.controller = controller
         self.menuBar = menuBar
         commands["capture"] = { [weak self] words in await self?.capture(words) ?? "harness gone" }
+        commands["still"] = { [weak self] words in await self?.still(words) ?? "harness gone" }
+        commands["ready"] = { _ in "ready" }
+    }
+
+    /// `still [command ...]`: runs the command, then waits for the bar's frames to stop moving.
+    private func still(_ words: [String]) async -> String {
+        let action = words.joined(separator: " ")
+        let before = action.isEmpty ? nil : await Self.frames()
+        let reply = action.isEmpty ? nil : await handle(action)
+        if let reply, ["failed", "unknown", "usage"].contains(where: reply.hasPrefix) { return reply }
+        let clock = ContinuousClock()
+        let start = clock.now
+        var stillness = DevStillness(before: before, at: 0)
+        while true {
+            let frames = await Self.frames()
+            let elapsed = start.duration(to: clock.now) / .seconds(1)
+            if let verdict = stillness.read(frames, at: elapsed) {
+                let milliseconds = Int(elapsed * 1000)
+                let outcome = switch verdict {
+                case .still: "still after \(milliseconds) ms"
+                case .neverMoved: "nothing moved in \(milliseconds) ms"
+                case .stillMoving: "failed: still moving after \(milliseconds) ms"
+                }
+                return reply.map { "\(outcome) (\($0))" } ?? outcome
+            }
+            try? await Task.sleep(for: .milliseconds(16))
+        }
+    }
+
+    /// Every item, by Accessibility (the only source on macOS 27) and by the window server, and Bouncer's windows.
+    private static func frames() async -> [CGRect] {
+        let items = await DevBarReader.accessibilityItems().map(\.frame)
+        let windows = StatusItemScanner.scan().map(\.frame) + DevBarReader.bouncerWindows().map(\.frame)
+        return (items + windows).sorted {
+            ($0.minX, $0.minY, $0.width, $0.height) < ($1.minX, $1.minY, $1.width, $1.height)
+        }
     }
 
     /// `capture <path> <seconds> <height> <scale> <command ...>`: frames around the command, run as its own.
