@@ -68,7 +68,7 @@ enum DevCamera {
 
 /// Waits for a recording's file to be finished, which comes after the stream stops.
 @available(macOS 15, *)
-private final class RecordingEnd: NSObject, SCRecordingOutputDelegate, @unchecked Sendable {
+final class RecordingEnd: NSObject, SCRecordingOutputDelegate, @unchecked Sendable {
     private let lock = NSLock()
     private var finish: CheckedContinuation<Void, Never>?
     private var isDone = false

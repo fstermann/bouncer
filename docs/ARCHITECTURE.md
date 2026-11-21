@@ -624,7 +624,8 @@ These are enforced by review, not by tooling:
    "did anything change" is `==` and persistence is one encode.
 5. **Release builds use whole-module optimisation and thin LTO** (`project.yml`).
 
-Measure before optimising: `Log.signposter` is wired up for
+Measure before optimising: `make bench` times what a person waits for against budgets
+([PERFORMANCE.md](PERFORMANCE.md)), and `Log.signposter` is wired up for
 `xctrace record --template 'Time Profiler'`.
 
 ## Roadmap

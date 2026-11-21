@@ -28,7 +28,7 @@ RELEASE_SIGN_IDENTITY ?=
 # the default in project.yml; the release workflow passes the repository it is building.
 SU_FEED_URL ?=
 
-.PHONY: all generate build run ctl release test lint format clean
+.PHONY: all generate build run ctl bench release test lint format clean
 
 all: build
 
@@ -50,6 +50,13 @@ run: build
 ## Drive a running Bouncer Dev: make ctl CMD="shoot /tmp/bar.png" (see Tools/barctl.swift)
 ctl:
 	@swift Tools/barctl.swift $(CMD)
+
+## Time a running Bouncer Dev: make bench ARGS="--scenario bar-open --runs 3" (see Tools/bench.swift)
+bench:
+	@mkdir -p .bench
+	@xcrun swiftc -O Tools/bench.swift -o .bench/bench
+	@xcrun swiftc -O Tools/bench-items.swift -o .bench/bench-items
+	@.bench/bench $(ARGS)
 
 ## Build the two artifacts a release is made of: the disk image a person downloads, and
 ## the archive Sparkle downloads. The release workflow runs this same target.
