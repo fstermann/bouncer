@@ -119,7 +119,7 @@ held its own Screen Recording grant.
 | Divider short of a length threshold | Goes behind the chevron with everything left of it, and the chevron stays on screen. Up to 527 pt with the section ending at x 1266 and Ableton Live in front |
 | Divider past that threshold | **Hides everything left of it, chevron included**: too wide for the overflow left of the notch, so it is dropped. 528 to 740 pt there. The threshold is a length, not a position: with the section ending at 1376, 525 pt already hid everything. It moves with the front app's menus, which the overflow trims only so far |
 | Divider of 741 pt and up | Evicted, and every item comes back, wherever it ends |
-| Display without a notch | Not measured. The limit is presumably where the app menus end, which moves with the front app |
+| Display without a notch | Measured 2026-11-21 in a macOS 27.2 VM, 1512 pt wide, Finder in front, 12 items left of the divider. The overflow reaches the app menus, about 980 pt, past the eviction limit (740 pt kept, 760 evicted), so **no length hides everything**: 600 pt left 5 items in view, 680 left 3, 720 left 2, 740 left 1, each beside the chevron. `ExpandedDivider` takes 730 |
 | Full screen space | Every capture of the bar is black. The window list cannot tell: the `MenuBarAgent` window is missing from it even while the bar is drawn |
 
 So hiding by width still works, but only within a band of lengths. Too short and the chevron
