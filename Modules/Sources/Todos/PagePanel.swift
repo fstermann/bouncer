@@ -45,6 +45,7 @@ final class PagePanel<Page: PanelPage> {
     private var isReshaping = false
     /// Counts refits, so a spring a later one took over does not settle the panel under it.
     private var reshapes = 0
+    private var hasLaidOut = false
     private let leave = LeaveWatch()
 
     private static var cornerRadius: CGFloat { 12 }
@@ -67,16 +68,16 @@ final class PagePanel<Page: PanelPage> {
         hang(page, from: screen)
         let window = make(page)
         guard let surface, let content else { return }
-        // Laid out now, so the page has measured itself before it starts to grow. Held as moving, so
-        // the heights it measures only set where it rests, rather than spring a panel not yet shown.
-        isMoving = true
-        content.layoutSubtreeIfNeeded()
-        isMoving = false
+        // Until a page has been laid out once, it has no height to grow towards.
+        if !hasLaidOut || duration == nil {
+            isMoving = true
+            fill(page)
+            isMoving = false
+        }
         let origin = start ?? notch.rect
         reach(origin, in: window)
         window.orderFrontRegardless()
         window.makeKey()
-        page.focusRequests += 1
         guard let duration else {
             await onceCovered()
             return settle(window)
@@ -86,13 +87,7 @@ final class PagePanel<Page: PanelPage> {
         // The content is pinned to the surface's top centre, so the surface reveals it as it grows.
         shape(surface, to: local(origin, in: window))
         if start != nil {
-            // Fades in over the panel it replaces, which is only taken away once it is covered.
-            let appear = Motion(duration: duration * 0.6, bounce: 0)
-            for view in body(surface) {
-                view.alphaValue = 0
-                appear.fade(view, to: 1)
-            }
-            await appear.finished()
+            await appear(in: window, from: origin, over: duration, for: page)
             await onceCovered()
         } else if !notch.isReal {
             body(surface).forEach { $0.alphaValue = 0 }
@@ -103,12 +98,57 @@ final class PagePanel<Page: PanelPage> {
         if start == nil, !notch.isReal { body(surface).forEach { grow.fade($0, to: 1) } }
         // Grown out of another page, it is already where that page shows it.
         if start == nil { fadeIn(pageButton, on: grow) }
+        // Grown towards the height the page measured last time, and on from mid-flight if it differs.
+        if fillOnScreen(window, for: page) { reshape(window) }
         Motion(duration: duration * 1.6, bounce: 0, delay: duration * 0.6, startingWith: grow).focusIn([content])
         await grow.finished()
-        isMoving = false
-        guard window === self.window else { return }
+        settleGrown(window)
+    }
+
+    /// Settles the panel once it has grown, unless a reshape carries it on and settles it on landing.
+    private func settleGrown(_ window: NSWindow) {
+        guard window === self.window, let content else { return }
         Motion.unfocus([content])
+        guard !isReshaping else { return }
+        isMoving = false
         settle(window)
+    }
+
+    /// Fades in over the panel it replaces, which is only taken away once it is covered.
+    private func appear(in window: NSWindow, from origin: CGRect, over duration: TimeInterval, for page: Page) async {
+        guard let surface else { return }
+        let appear = Motion(duration: duration * 0.6, bounce: 0)
+        for view in body(surface) {
+            view.alphaValue = 0
+            appear.fade(view, to: 1)
+        }
+        if fillOnScreen(window, for: page) {
+            reach(origin, in: window)
+            shape(surface, to: local(origin, in: window))
+        }
+        await appear.finished()
+    }
+
+    /// Fills the panel, if it is still empty, once its first motion is on screen rather than after the
+    /// layout. Returns whether the page measured another height than the one it was growing towards.
+    private func fillOnScreen(_ window: NSWindow, for page: Page) -> Bool {
+        guard content?.superview == nil else { return false }
+        let measured = rest
+        window.displayIfNeeded()
+        CATransaction.flush()
+        fill(page)
+        return rest != measured
+    }
+
+    /// Adds the page to the panel and lays it out, which takes the todo page some 90 ms. Laid out while
+    /// held as moving, so the heights it measures only set where it rests.
+    private func fill(_ page: Page) {
+        guard let surface, let content else { return }
+        surface.addSubview(content)
+        surface.resizeSubviews(withOldSize: surface.bounds.size)
+        content.layoutSubtreeIfNeeded()
+        hasLaidOut = true
+        page.focusRequests += 1
     }
 
     /// Lets go of the window at once, so an open started while this one is still going away
@@ -242,8 +282,7 @@ final class PagePanel<Page: PanelPage> {
         let content = NSHostingView(rootView: page.view)
         // Sized by the panel, which follows the height the page measures for itself.
         content.sizingOptions = []
-        // Kept at the panel's resting size; the surface pins it to its top centre.
-        surface.addSubview(content)
+        // Kept at the panel's resting size; the surface pins it to its top centre once `fill` adds it.
         let menuHost = NSHostingView(rootView: page.menuView)
         menuHost.sizingOptions = []
         root.addSubview(menuHost)
@@ -313,11 +352,6 @@ extension PagePanel {
         pageButton.place(atX: left, midY: notch.rect.midY - window.frame.minY)
     }
 
-    fileprivate func fadeIn(_ view: NSView, on motion: Motion) {
-        view.alphaValue = 0
-        motion.fade(view, to: 1)
-    }
-
     /// Gives the panel `rect`, at once or on `motion`, and the fillets joining its top to the top of
     /// the display go with its edges.
     fileprivate func shape(_ surface: NSView, to rect: CGRect, on motion: Motion? = nil) {
@@ -327,22 +361,12 @@ extension PagePanel {
         }
     }
 
-    /// The panel and its fillets, which are drawn beside it rather than in it, since the panel cuts
-    /// its content to its own shape.
-    fileprivate func body(_ surface: NSView) -> [NSView] {
-        [surface] + (surface.superview?.subviews.filter { $0 is NotchShoulder } ?? [])
-    }
-
     fileprivate func frame(around rects: [CGRect]) -> CGRect {
         let union = rects.dropFirst().reduce(rects[0]) { $0.union($1) }
         return CGRect(
             x: union.minX - Self.room.width, y: union.minY - Self.room.height,
             width: union.width + Self.room.width * 2, height: union.height + Self.room.height
         )
-    }
-
-    fileprivate func local(_ rect: CGRect, in window: NSWindow) -> CGRect {
-        rect.offsetBy(dx: -window.frame.minX, dy: -window.frame.minY)
     }
 
     /// Springs the panel from where it is drawn, mid-flight if need be, to the page's new height: with the
