@@ -28,7 +28,7 @@ RELEASE_SIGN_IDENTITY ?=
 # the default in project.yml; the release workflow passes the repository it is building.
 SU_FEED_URL ?=
 
-.PHONY: all generate build run ctl bench release test lint format clean
+.PHONY: all generate build run ctl bench bench-vm bench-vm-setup bench-tools vm-up vm-ctl vm-items vm-down release test lint format clean
 
 all: build
 
@@ -52,11 +52,37 @@ ctl:
 	@swift Tools/barctl.swift $(CMD)
 
 ## Time a running Bouncer Dev: make bench ARGS="--scenario bar-open --runs 3" (see Tools/bench.swift)
-bench:
+bench: bench-tools
+	@.bench/bench $(ARGS)
+
+## The same inside a Tart VM, off this Mac's screen: make bench-vm ARGS="--runs 3" (see docs/PERFORMANCE.md)
+bench-vm: bench-tools
+	@sh Tools/bench-vm.sh run $(ARGS)
+
+## Make the VM bench-vm runs in, once per Mac
+bench-vm-setup: bench-tools
+	@sh Tools/bench-vm.sh setup
+
+bench-tools:
 	@mkdir -p .bench
 	@xcrun swiftc -O Tools/bench.swift -o .bench/bench
 	@xcrun swiftc -O Tools/bench-items.swift -o .bench/bench-items
-	@.bench/bench $(ARGS)
+	@xcrun swiftc -O Tools/barctl.swift -o .bench/barctl
+
+## A lasting VM to try Bouncer Dev in, off this Mac's screen; run it again after a build to reload
+vm-up: bench-tools
+	@sh Tools/bench-vm.sh up
+
+## make ctl, in the VM: make vm-ctl CMD="shoot /path/bar.png" copies the picture back
+vm-ctl:
+	@sh Tools/bench-vm.sh ctl $(CMD)
+
+## The fixture that fills the hidden section, in the VM: make vm-items ON=off to stop it
+vm-items:
+	@sh Tools/bench-vm.sh items $(or $(ON),on)
+
+vm-down:
+	@sh Tools/bench-vm.sh down
 
 ## Build the two artifacts a release is made of: the disk image a person downloads, and
 ## the archive Sparkle downloads. The release workflow runs this same target.
