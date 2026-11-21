@@ -16,6 +16,11 @@ enum AgentOverflow {
         return identifier(of: chevron)?.hasSuffix(expandedSuffix) == true ? .open : .closed
     }
 
+    /// `state`, read off the main thread: MenuBarAgent can take some 300 ms to answer after a reveal.
+    static func current() async -> State {
+        await Task.detached { state }.value
+    }
+
     /// Opens the overflow if there is one to open. Whether it did shows in `state`.
     static func open() {
         guard let chevron = chevron(), state == .closed else { return }

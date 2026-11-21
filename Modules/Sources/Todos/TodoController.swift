@@ -111,7 +111,8 @@ public final class TodoController {
         on screen: NSScreen? = nil, from start: CGRect? = nil, closesOnLeave: Bool = true,
         onceCovered: @MainActor () async -> Void = {}
     ) async {
-        guard !isOpen, let file = resolveFile() else { return }
+        // What was to be covered goes all the same, or a bar turning into this page waits for good.
+        guard !isOpen, let file = resolveFile() else { return await onceCovered() }
         isOpen = true
         self.closesOnLeave = closesOnLeave
         self.file = file

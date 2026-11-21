@@ -30,6 +30,9 @@ extension StandaloneBarController {
 
         let tabFrame = NotchTab.frame(under: notch.range, barHeight: height)
         let layout = lastLayout?.holds(endingAt: end, notch: notch.range) == true ? lastLayout : nil
+        if let layout, !layout.overflows {
+            return await openRightOfTheNotch(as: layout, at: tabFrame, takingOver: takeOver)
+        }
         if let takeOver { await cover(for: takeOver, at: tabFrame, reaching: layout?.reach) }
         let duration = slide
         // The band goes out both ways at once, covering the items, which land behind it. The right
@@ -47,13 +50,7 @@ extension StandaloneBarController {
         if layout == nil { _ = await AgentItems.revealed(in: notch.range.upperBound...end, height: height) }
         let settled = await settleBothSides(notch: notch.range, expectingOverflow: layout != nil)
         var frames = settled.frames
-        // Read here only before the first close: a reading taken while the bar still moves would
-        // split it differently from one open to the next.
-        if layout == nil, let width = sectionWidth(in: frames, notch: notch.range, end: end) {
-            menuBar.sectionShift = NotchSplit.shift(for: width, endingAt: end, notch: notch.range)
-            await AgentItems.change(from: frames)
-            frames = await settleBothSides(notch: notch.range, expectingOverflow: true).frames
-        }
+        if layout == nil { frames = await splitIfOverflowing(frames, notch: notch.range, end: end) }
         await showing?.value
         let reach = NotchSplit.band(over: frames, notch: notch.range, end: end)
         tab.shade(over: AgentOverflow.frame, notch: notch.range)
@@ -64,6 +61,83 @@ extension StandaloneBarController {
             await showLeftSide(openedAt: settled.opened, notch: notch.range, end: end, over: duration)
             await rightSide?.value
         }
+        finishOpeningInTheBar(over: tabFrame)
+        Task { await rememberLayout(from: await AgentItems.settled()) }
+    }
+
+    /// Splits the section evenly around the notch on its first open, if it went behind the chevron, and
+    /// returns where its items landed. Read here only before the first close: a reading taken while
+    /// the bar still moves would split it differently from one open to the next.
+    private func splitIfOverflowing(
+        _ frames: [CGRect], notch: ClosedRange<CGFloat>, end: CGFloat
+    ) async -> [CGRect] {
+        guard await AgentOverflow.current() != .absent,
+              let width = sectionWidth(in: frames, notch: notch, end: end)
+        else { return frames }
+        menuBar.sectionShift = NotchSplit.shift(for: width, endingAt: end, notch: notch)
+        await AgentItems.change(from: frames)
+        return await settleBothSides(notch: notch, expectingOverflow: true).frames
+    }
+
+    /// Opens a section that fits right of the notch: revealed where it is, with no chevron to wait
+    /// for, so the band goes out at once to where it reached last time and the items fade in on it
+    /// as macOS draws them, which it starts some 160 ms after the reveal. Then fitted to them.
+    private func openRightOfTheNotch(
+        as layout: NotchSplit.Layout, at tabFrame: CGRect, takingOver takeOver: TakeOver?
+    ) async {
+        let reach = layout.reach
+        if let takeOver { await cover(for: takeOver, at: tabFrame, reaching: reach) }
+        let revealed = reveal(shiftedFor: nil, end: layout.end, notch: layout.notch)
+        if takeOver != nil {
+            try? await Task.sleep(until: revealed + .seconds(Self.rightSideLands))
+            takeOver?.letGo()
+            async let left: Void = tab.uncover(.left, over: slide)
+            await tab.uncover(.right, over: slide)
+            await left
+        } else {
+            await tab.show(at: tabFrame, reaching: reach, over: slide)
+        }
+        tab.shade(over: nil, notch: layout.notch)
+        finishOpeningInTheBar(over: tabFrame)
+        Task { await fitOrOpenTheOverflow(notch: layout.notch) }
+    }
+
+    /// Fits the band to the items once they hold still. The section may have grown since it was
+    /// measured, an app having added items, and gone behind the chevron: then the chevron is opened,
+    /// and the next open measures it again.
+    private func fitOrOpenTheOverflow(notch: ClosedRange<CGFloat>) async {
+        guard await AgentOverflow.current() != .absent else {
+            let frames = await AgentItems.settled()
+            fitBand(to: frames)
+            return await rememberLayout(from: frames)
+        }
+        guard isOpen else { return }
+        lastLayout = nil
+        let settled = await settleBothSides(notch: notch, expectingOverflow: true)
+        fitBand(to: settled.frames)
+        try? await Task.sleep(until: settled.opened + .seconds(AgentOverflow.slide))
+        let frames = await AgentItems.frames()
+        fitBand(to: frames)
+        await rememberLayout(from: frames)
+    }
+
+    /// Keeps how the section lies for the next open. Read while the bar is open rather than as it
+    /// closes: MenuBarAgent can take some 400 ms to answer, and the close would wait on it. Only
+    /// with the chevron open or with none: closed, it holds just the right side.
+    private func rememberLayout(from frames: [CGRect]) async {
+        let overflow = await AgentOverflow.current()
+        let chevron = await Task.detached { AgentOverflow.frame }.value
+        guard isOpen, overflow != .closed, let end = menuBar.hiddenSectionEnd,
+              let notch = Notch.on(displayOf: CGRect(x: end, y: 0, width: 1, height: 1)),
+              let width = NotchSplit.hiddenWidth(of: frames.filter { $0 != chevron }, notch: notch.range, end: end)
+        else { return }
+        lastLayout = NotchSplit.Layout(
+            width: width, reach: NotchSplit.band(over: frames, notch: notch.range, end: end), chevron: chevron,
+            overflows: overflow == .open, end: end, notch: notch.range
+        )
+    }
+
+    private func finishOpeningInTheBar(over tabFrame: CGRect) {
         finishOpening(of: [], from: [:], over: tabFrame)
         closeWhenTheOverflowCloses()
         refitWhenAppsComeAndGo()
@@ -123,7 +197,9 @@ extension StandaloneBarController {
     /// in or out changes how far the section reaches, and macOS says nothing when it lands.
     func refitInTheBar() async {
         menuBar.onHiddenDividerMove = nil
-        fitBand(to: await AgentItems.settled())
+        let frames = await AgentItems.settled()
+        fitBand(to: frames)
+        await rememberLayout(from: frames)
     }
 
     private func fitBand(to frames: [CGRect]) {
@@ -166,14 +242,19 @@ extension StandaloneBarController {
         fitBand(to: now)
         await AgentItems.change(from: now, within: Self.itemsArrive)
         fitBand(to: await AgentItems.frames())
-        fitBand(to: await AgentItems.settled())
+        let frames = await AgentItems.settled()
+        fitBand(to: frames)
+        await rememberLayout(from: frames)
     }
 
     /// How long after an app is listed its items may still land.
     private static let itemsArrive: Duration = .seconds(2)
 
-    /// How long the items take to go once collapsed: the overflow back into the notch, the rest fading.
-    private static let itemsLeave = 0.3
+    /// How long macOS takes to take the items away once collapsed, measured at 235 to 530 ms.
+    private static let itemsLeave = 0.55
+    /// How long the items fade under the cover, through most of the time macOS takes, so they go in
+    /// one fade rather than vanishing ahead of a band left empty.
+    private static let itemsFade = 0.45
 
     /// How long after the reveal the right side has landed, its last item measured some 150 ms in.
     private static let rightSideLands = 0.2
@@ -199,25 +280,12 @@ extension StandaloneBarController {
         appSwitches.map(NSWorkspace.shared.notificationCenter.removeObserver)
         appSwitches = nil
         appsChange = nil
-        // The reverse of opening: both sides fade out together and leave behind the cover, which
-        // goes back into the notch once the app menus are back.
-        let leaving = animated ? slide : nil
-        let covering = ContinuousClock.now
-        tab.cover(over: leaving)
-        // Measured only with the chevron open: closed, it holds just the right side.
-        if AgentOverflow.state == .open,
-           let end = menuBar.hiddenSectionEnd,
-           let notch = Notch.on(displayOf: CGRect(x: end, y: 0, width: 1, height: 1)) {
-            let frames = await AgentItems.frames()
-            if let width = sectionWidth(in: frames, notch: notch.range, end: end) {
-                let reach = NotchSplit.band(over: frames, notch: notch.range, end: end)
-                lastLayout = NotchSplit.Layout(
-                    width: width, reach: reach, chevron: AgentOverflow.frame, end: end, notch: notch.range
-                )
-            }
-        }
-        if let leaving { try? await Task.sleep(until: covering + .seconds(leaving)) }
-        AgentOverflow.close()
+        // The reverse of opening: the items fade out under the cover while macOS takes them away,
+        // then the band goes back into the notch.
+        tab.cover(over: animated ? Self.itemsFade : nil)
+        // Only where there is one: looking finds MenuBarAgent busy as often as not, and the
+        // collapse would wait on it.
+        if lastLayout?.overflows != false { await Task.detached { AgentOverflow.close() }.value }
         menuBar.setVisibility(.collapsed)
         menuBar.setBoundaryMarkersVisible(true)
         // Waited even unanimated: a todo page taking over covers the items only until it grows.
@@ -240,8 +308,10 @@ extension StandaloneBarController {
     ) async -> (frames: [CGRect], opened: ContinuousClock.Instant) {
         if expectingOverflow { await AgentOverflow.appearance() }
         let opened = ContinuousClock.now
-        AgentOverflow.open()
-        let frames = AgentOverflow.state == .open
+        // Off the main thread: MenuBarAgent answers nothing for some 300 ms after a reveal, and the
+        // right side's uncovering must not wait behind it.
+        let state = await Task.detached { AgentOverflow.open(); return AgentOverflow.state }.value
+        let frames = state == .open
             ? await AgentItems.overflowed(leftOf: notch.lowerBound)
             : await AgentItems.frames()
         return (frames, opened)

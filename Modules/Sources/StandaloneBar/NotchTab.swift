@@ -33,10 +33,13 @@ final class NotchTab {
     /// a few frames to show, so it goes up before it is needed.
     var isConcealed = false { didSet { [window, coverWindow].forEach(conceal) } }
 
-    /// Shades `chevron`, and as far right of the notch as the button needs. No chevron, no shade.
+    /// Shades `chevron`, and as far right of the notch as the button needs. With no chevron, as a
+    /// section that fits right of the notch has, only the button's room, which macOS leaves empty.
     func shade(over chevron: CGRect?, notch: ClosedRange<CGFloat>) {
         let reach = pageButton.isHidden ? 0 : PageButton.gap * 2 + PageButton.size
-        shade(chevron.map { NotchSplit.shade(over: $0, notch: notch, reach: reach) })
+        guard chevron != nil || reach > 0 else { return shade(nil) }
+        let chevron = chevron ?? CGRect(x: notch.upperBound, y: 0, width: 0, height: tabFrame.height)
+        shade(NotchSplit.shade(over: chevron, notch: notch, reach: reach))
     }
     /// The notch the band grows out of and the window's frame, in window-server coordinates.
     private var tabFrame = CGRect.zero
@@ -232,7 +235,10 @@ final class NotchTab {
     }
 
     private func fade(_ layer: CALayer, to opacity: Float, over duration: TimeInterval?) {
-        let start = layer.presentation()?.opacity ?? layer.opacity
+        // From where a fade in flight has got to; with none, the model value is what is drawn, while
+        // the presentation layer of a layer put in a new window still holds what it last drew.
+        let inFlight = layer.animation(forKey: "fade") == nil ? nil : layer.presentation()?.opacity
+        let start = inFlight ?? layer.opacity
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         layer.opacity = opacity
