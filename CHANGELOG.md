@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.9.1](https://github.com/fstermann/bouncer/compare/v0.9.0...v0.9.1) (2026-11-21)
+
+
+### Bug Fixes
+
+* hidden items in full screen, and make bench ([#55](https://github.com/fstermann/bouncer/issues/55)) ([2954955](https://github.com/fstermann/bouncer/commit/295495592667e17722c22cb77ddd07b850c40ebc))
+* hide items without a notch on macOS 27, and bench in a VM ([#58](https://github.com/fstermann/bouncer/issues/58)) ([e002546](https://github.com/fstermann/bouncer/commit/e00254675896bce21e206784f44256257b6e14e5))
+
+
+### Performance
+
+* faster bar open, one-motion close, tolerant leave ([#53](https://github.com/fstermann/bouncer/issues/53)) ([d5006bd](https://github.com/fstermann/bouncer/commit/d5006bdecbe4babd87cac51cf58024338ccafb4f))
+
 ## [0.9.0](https://github.com/fstermann/bouncer/compare/v0.8.0...v0.9.0) (2026-11-20)
 
 
