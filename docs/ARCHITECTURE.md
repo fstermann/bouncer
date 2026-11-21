@@ -101,31 +101,49 @@ user switches it on, with the divider mechanism still doing the hiding.
 
 On macOS 27 none of the below applies: `openInTheBar` reveals the section into the menu bar and
 leaves it there. Items can only sit right of the notch, and those that do not fit go behind a
-chevron, which Bouncer opens through Accessibility so they show left of the notch. Widening the
-divider while revealed (`sectionShift`) pushes half the section past what fits, so `NotchSplit`
-picks the shift that lands it evenly on both sides, from the width measured at the last close
-(and on the first open only: a reading taken while the overflow still arrives, in batches up to
-100 ms apart, splits it differently each time). A black shade above the items hides the chevron
-and takes its clicks, which would take the left side away and leave the band over the app menus;
-it holds the page button instead. The layout read at close also places the band, so an open grows it both ways at once with a
-copy above the items in two halves, and reveals the section behind it. The right half fades 200 ms after
-the reveal, opening or switching from the todo page alike: the right side lands an item at a time
-from some 30 ms in, while Accessibility stalls for some 300 ms, so it is not read. The left half fades once the overflow has slid out (400 ms after the
-chevron is pressed): until then app menus draw over the band, and any fade before it shows them
-through. Closing runs the
-other way: the copy fades in, the section collapses behind it, then both shrink into the notch. macOS slides both sides out of the notch itself, so nothing is photographed or
-replicated, clicks reach the real items, and Screen Recording is not needed. The bar adds only
-`NotchTab`: a black band grown sideways out of the notch behind the items, at the menu bar's own
-level, which the window server draws over the bar's backdrop and under its items. Closing closes the chevron before collapsing: it stays open
-across a collapse, and left open, every later reveal draws the overflow over the app menus. Another app coming to the
-front closes it, open or collapsed, taking the left side back into the notch, so the bar closes with
-it, and a layout is only measured while it is open. An item dragged in or out while the bar is open moves the section's ends, so
-every release reads the items again once they hold still and refits the band. An app launching or
-quitting adds or takes away items, so a change to the running apps, watched only while the bar is
-open, refits it too; the launch notification would miss agents, which own most items. Accessibility stalls through a
-drag, so during one the band's right end follows the divider, which items dragged in or out move
-and whose window moves say so. Items
-that fit on neither side are dropped by macOS and cannot be shown. Rearranging is not built there.
+chevron, which Bouncer opens through Accessibility so they show left of the notch. macOS slides both
+sides out of the notch itself, so nothing is photographed or replicated, clicks reach the real items,
+and Screen Recording is not needed. The bar adds only `NotchTab`: a black band grown sideways out of
+the notch behind the items, at the menu bar's own level, which the window server draws over the bar's
+backdrop and under its items, and a copy of it above the items in two halves, the cover.
+
+How the section lay last time (`NotchSplit.Layout`) decides how it opens. It is read while the bar is
+open, in the background once the items hold still, and again after a drag, an app coming or going, or
+the chevron opening: MenuBarAgent can take some 400 ms to answer Accessibility, and a close that read
+it would wait. It is kept only with the chevron open or with none, since a closed chevron holds just
+the right side. The first open has none, so it reveals the section, waits for it, and measures it.
+
+- **A section that fits right of the notch** (no chevron) is revealed where it is, unshifted. With
+  no chevron to wait for, the band goes out at once to where it reached last time, the items draw on
+  it as macOS lands them, some 160 ms after the reveal, and the band is then fitted to them. An app
+  may have added items since, sending the section behind the chevron: then the chevron is opened, the
+  layout dropped, and the next open measures it again.
+- **A section that overflows** is split. Widening the divider while revealed (`sectionShift`) pushes
+  half the section past what fits, so `NotchSplit` picks the shift that lands it evenly on both sides,
+  from the width measured before (on the first open only after the overflow has arrived, in batches up
+  to 100 ms apart, or it splits differently each time). The band grows both ways at once, covered, and
+  the section is revealed behind it. The right half uncovers 200 ms after the reveal: the right side
+  lands an item at a time from some 30 ms in, while Accessibility stalls for some 300 ms, so it is not
+  read. The left half uncovers once the overflow has slid out, 400 ms after the chevron is pressed:
+  until then app menus draw over the band, and any fade before it shows them through. A black shade
+  above the items hides the chevron and takes its clicks, which would take the left side away and
+  leave the band over the app menus; it holds the page button instead.
+
+Closing is one motion. The cover fades in over the items for 450 ms, eased out so the close shows at
+once, while macOS takes them away, which it does 235 to 530 ms after the collapse; then the band goes
+back into the notch. The items so go in one fade rather than vanishing ahead of a band left empty.
+The chevron is closed before the collapse, where the layout says there is one: it stays open across a
+collapse, and left open, every later reveal draws the overflow over the app menus. Asking whether
+there is one finds MenuBarAgent busy as often as not, and the collapse would wait.
+
+Another app coming to the front closes the chevron, open or collapsed, taking the left side back into
+the notch, so the bar closes with it. An item dragged in or out while the bar is open moves the
+section's ends, so every release reads the items again once they hold still and refits the band. An
+app launching or quitting adds or takes away items, so a change to the running apps, watched only
+while the bar is open, refits it too; the launch notification would miss agents, which own most
+items. Accessibility stalls through a drag, so during one the band's right end follows the divider,
+which items dragged in or out move and whose window moves say so. Items that fit on neither side are
+dropped by macOS and cannot be shown. Rearranging is not built there.
 
 There is no capture pipeline. The section is photographed once per open, in a single call,
 while its items are still parked off the display — ScreenCaptureKit cannot reach a window
@@ -306,7 +324,10 @@ panel's shape and pinned to its top, so the panel reveals it rather than the con
 beside a panel still on its way. The content comes into focus as the panel lands and goes out of
 focus as it leaves. A page whose height changes while it is open springs to the new height either
 way (`PagePanel.reshape`), from wherever a spring still under way has the panel, so a page added
-later gets the same motion by reporting its height.
+later gets the same motion by reporting its height. The panel starts growing before the page is laid
+out, which takes the todo page some 90 ms, towards the height it measured last time, and springs on
+from mid-flight if the layout measures another; only the first open after launch, with no height
+measured yet, lays out first. The todo list builds only the rows in view.
 With both pages on, hover opens whichever the switch last chose (`Preferences.notchPage`). Without
 the items page, the notch opens the todo page and the rest of the menu bar reveals the items. Switching morphs
 rather than closing one panel and opening the other, and the todo panel does all the moving: it
