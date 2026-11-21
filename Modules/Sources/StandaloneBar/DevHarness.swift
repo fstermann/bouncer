@@ -23,6 +23,22 @@ public final class DevHarness {
     public init(controller: StandaloneBarController, menuBar: MenuBarManager) {
         self.controller = controller
         self.menuBar = menuBar
+        commands["capture"] = { [weak self] words in await self?.capture(words) ?? "harness gone" }
+    }
+
+    /// `capture <path> <seconds> <height> <scale> <command ...>`: frames around the command, run as its own.
+    private func capture(_ words: [String]) async -> String {
+        let numbers = words.dropFirst().prefix(3).compactMap(Double.init)
+        guard words.count > 4, numbers.count == 3 else {
+            return "usage: capture <path> <seconds> <height> <scale> <command ...>"
+        }
+        let action = words.dropFirst(4).joined(separator: " ")
+        return await outcome {
+            try await DevCapture.capture(
+                seconds: min(numbers[0], DevCamera.longestRecording), height: numbers[1], scale: numbers[2],
+                to: URL(fileURLWithPath: words[0]), action: { await self.handle(action) }
+            )
+        }
     }
 
     public func listen() {

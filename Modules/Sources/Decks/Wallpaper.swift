@@ -23,7 +23,32 @@ enum Wallpaper {
                 imageURL(in: $0, space: desktop.uuid, display: desktop.display)
             }
         } ?? NSWorkspace.shared.desktopImageURL(for: screen)
-        return url.flatMap(NSImage.init(contentsOf:))
+        return url.flatMap { picture(at: $0, for: screen) }
+    }
+
+    private struct Decoded {
+        let url: URL, changed: Date?, size: CGFloat, image: NSImage
+    }
+    @MainActor private static var decoded: Decoded?
+
+    /// The picture at `url`, decoded at `screen`'s size in points and kept until it changes. The overview
+    /// blurs it by 28 pt, which leaves nothing a sharper copy would show, and decoding the whole picture
+    /// held up the overview's first frame on every open.
+    @MainActor private static func picture(at url: URL, for screen: NSScreen) -> NSImage? {
+        let changed = try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+        let size = max(screen.frame.width, screen.frame.height)
+        if let decoded, decoded.url == url, decoded.changed == changed, decoded.size == size { return decoded.image }
+        let options = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: size
+        ] as CFDictionary
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let picture = CGImageSourceCreateThumbnailAtIndex(source, 0, options)
+        else { return nil }
+        let image = NSImage(cgImage: picture, size: .zero)
+        decoded = Decoded(url: url, changed: changed, size: size, image: image)
+        return image
     }
 
     /// The desktop whose picture stands behind `spaces`: the current one, or the first when a full screen

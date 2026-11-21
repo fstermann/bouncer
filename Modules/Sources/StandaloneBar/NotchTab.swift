@@ -107,8 +107,9 @@ final class NotchTab {
         covering.setFrame(cgFrame: windowFrame)
         moveCovers(over: nil)
         placeCoverButton()
-        for side in [Side.left, .right] { fade(cover(on: side), to: 1, over: duration) }
-        if let layer = coverButton.layer { fade(layer, to: 1, over: duration) }
+        // Eased out, so a close shows at once: a linear fade dims the items enough to see only some 100 ms in.
+        for side in [Side.left, .right] { fade(cover(on: side), to: 1, over: duration, easingOut: true) }
+        if let layer = coverButton.layer { fade(layer, to: 1, over: duration, easingOut: true) }
         covering.orderFrontRegardless()
     }
 
@@ -234,7 +235,7 @@ final class NotchTab {
         layer.add(group, forKey: "move")
     }
 
-    private func fade(_ layer: CALayer, to opacity: Float, over duration: TimeInterval?) {
+    private func fade(_ layer: CALayer, to opacity: Float, over duration: TimeInterval?, easingOut: Bool = false) {
         // From where a fade in flight has got to; with none, the model value is what is drawn, while
         // the presentation layer of a layer put in a new window still holds what it last drew.
         let inFlight = layer.animation(forKey: "fade") == nil ? nil : layer.presentation()?.opacity
@@ -248,11 +249,16 @@ final class NotchTab {
         animation.fromValue = start
         animation.toValue = opacity
         animation.duration = duration
+        if easingOut { animation.timingFunction = CAMediaTimingFunction(name: .easeOut) }
         layer.add(animation, forKey: "fade")
     }
 
     private func make(_ frame: CGRect) -> BarWindow {
-        let tab = BarWindow(frame: frame, level: .mainMenu)
+        // A full screen Space's bar is a window at the menu bar's level that draws the items itself, so a
+        // band at that level covers them; one below is hidden by that bar, which is black there anyway.
+        let level = FullScreenSpace.isActive
+            ? NSWindow.Level(rawValue: NSWindow.Level.mainMenu.rawValue - 1) : .mainMenu
+        let tab = BarWindow(frame: frame, level: level)
         conceal(tab)
         content.wantsLayer = true
         Self.shape(band)

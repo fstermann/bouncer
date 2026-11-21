@@ -8,6 +8,7 @@ macOS menu bar manager. Read `docs/ARCHITECTURE.md` before changing how hiding w
 make test      # module tests — fast, no Xcode project needed
 make lint      # SwiftLint (must be clean)
 make run       # generate project, build, launch
+make bench     # time Bouncer Dev against budgets; drives the screen, see docs/PERFORMANCE.md
 make release   # signed universal DMG + Sparkle zip; needs RELEASE_SIGN_IDENTITY
 ```
 

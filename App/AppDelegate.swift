@@ -20,14 +20,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         outerDividerImage: Self.templateImage(named: "SectionStartIcon")
     )
     private lazy var reveal = RevealController(manager: menuBar, settings: settings)
-    private lazy var standaloneBar = StandaloneBarController(menuBar: menuBar, settings: settings)
+    lazy var standaloneBar = StandaloneBarController(menuBar: menuBar, settings: settings)
     private lazy var todos = TodoController(settings: settings)
     lazy var notes = NoteController(settings: settings)
     lazy var claude = ClaudeController(settings: settings)
     lazy var reminders = ReminderController(settings: settings)
     var reminderSources: ObservationLoop?
     /// Every page but the items page, in the order the page button lists them.
-    private lazy var contentPages: [(page: NotchPage, controller: any NotchPageController)] = [
+    lazy var contentPages: [(page: NotchPage, controller: any NotchPageController)] = [
         (.todos, todos), (.notes, notes), (.claude, claude)
     ]
     private var pageSwitches: ObservationLoop?
@@ -63,6 +63,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         #if DEV
         harness = DevHarness(controller: standaloneBar, menuBar: menuBar)
         harness?.listen()
+        wireRest()
         #endif
         wireDecks()
         Log.app.info("Bouncer launched")
