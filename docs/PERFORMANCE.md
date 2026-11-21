@@ -14,6 +14,37 @@ It drives this Mac's screen for about 10 minutes: hands off the mouse and keyboa
 than a full screen Space (where the bar hides until the pointer reaches the top). It relaunches Bouncer
 Dev first. `.bench/` is ignored by Git.
 
+## In a VM
+
+`make bench-vm` runs the same bench in a throwaway macOS 27.2 VM, so this Mac's screen stays free. It
+copies the current Debug build in, takes the same `ARGS`, and brings the results back as
+`.bench/<commit>-vm.json`. A full run takes about 12 minutes.
+
+```sh
+make bench-vm ARGS="--scenario bar-open --runs 3"
+```
+
+VM numbers are for before and after comparisons only: graphics are virtualized and the display has
+no notch, so it takes the notch stand-in path. The budgets are checked on the real Mac.
+
+### First time on a Mac
+
+1. Install [Tart](https://tart.run), which runs macOS VMs on Apple's Virtualization framework. Its
+   licence allows internal use.
+   ```sh
+   brew trust --formula openai/tools/softnet
+   brew install openai/tools/tart
+   ```
+2. `make build`, then `make bench-vm-setup`. It downloads macOS 27.2 (30 GB, 35 GB on disk) into a
+   template VM named `bouncer-bench`, with 4 CPUs, 6 GB of memory and a 1512×982 display, then opens it
+   in a window with Bouncer Dev running.
+3. In the VM (password `admin`), add Bouncer Dev under Privacy & Security to Screen & System Audio
+   Recording and to Accessibility, allow any alert, and press return in the terminal.
+
+The grants are saved in the template, and every run starts from a clone of it. They follow the
+signature, so they hold across rebuilds as long as `.signing.mk` names the same identity. A new
+identity means granting them again in `make bench-vm-setup`.
+
 ## Budgets
 
 | Metric | Budget | Why |

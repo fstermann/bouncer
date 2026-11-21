@@ -82,7 +82,7 @@ final class ControlItem: NSObject {
         super.init()
         item.button?.target = self
         item.button?.action = #selector(clicked)
-        if Self.notch(for: item.button?.window) != nil {
+        if Self.barEvicts {
             moveObserver = NotificationCenter.default.addObserver(
                 forName: NSWindow.didMoveNotification, object: item.button?.window, queue: .main
             ) { [weak self] _ in
@@ -133,13 +133,18 @@ final class ControlItem: NSObject {
         ExpandedDivider.length(
             rightEdge: hasSettled ? restingRightEdge : nil,
             notch: Self.notch(for: item.button?.window),
+            evicts: Self.barEvicts,
             keeping: keepsVisible?()?.maxX
         )
     }
 
-    /// The notch an expanded divider has to reach into, `nil` where the bar still lets it run off the display.
+    private static var barEvicts: Bool {
+        if #available(macOS 27, *) { true } else { false }
+    }
+
+    /// The notch an expanded divider has to reach into, `nil` on a display without one.
     private static func notch(for window: NSWindow?) -> ClosedRange<CGFloat>? {
-        guard #available(macOS 27, *), let screen = window?.screen ?? NSScreen.main else { return nil }
+        guard let screen = window?.screen ?? NSScreen.main else { return nil }
         let notch = DisplayNotch.range(
             left: screen.auxiliaryTopLeftArea, right: screen.auxiliaryTopRightArea, screen: screen.frame
         )

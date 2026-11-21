@@ -29,9 +29,16 @@ To check how a SwiftUI view looks without driving the app, render it in a tempor
 
 ## Checking it yourself
 
-Don't ask the user to try a bar change and report back; drive a running Bouncer Dev with
-`make ctl`. It talks to `DevHarness` (Bouncer Dev only), which holds the Screen Recording and
-Accessibility grants a shell lacks, and prints the app's reply:
+Don't ask the user to try a bar change and report back, and never drive this Mac's screen: the user
+works on it. Check in the VM instead (setup in `docs/PERFORMANCE.md`). `make vm-up` starts it with the
+current build and these settings, or reloads a new build into it; `make vm-ctl CMD="..."` takes every
+command below, and a file a command writes (`shoot`, `record`, `dump`) is copied back to the path given.
+`make vm-items` fills its hidden section with 12 fixture items (`ON=off` stops them), and `make vm-down`
+deletes it. The VM's display has no notch, so it takes the stand-in path; a check that needs the real
+notch or display is the user's: ask them.
+
+The commands talk to `DevHarness` (Bouncer Dev only), which holds the Screen Recording and
+Accessibility grants a shell lacks, and print the app's reply. Shown as `make ctl`, the same on this Mac:
 
 ```sh
 make ctl CMD="click"                        # what a click on the icon does
@@ -70,10 +77,8 @@ a brightness threshold is an icon's edge. Pixels are half points on the built-in
 `key`, `type` and `tap` move the user's pointer and type into their apps: ask before using them.
 
 Once a change builds, run `make run` without asking, so the user can try the new Bouncer Dev
-straight away. The user works on this Mac while you test, so screen checks are theirs to start:
-before the first `make ctl` in a turn, confirm with the AskUserQuestion tool. Ask once per turn:
-that yes covers every screen check until the user writes again. Builds, `make run`, `make test`
-and `make lint` need no confirmation.
+straight away. Builds, `make run`, `make test`, `make lint` and everything `make vm-*` need no
+confirmation. `make ctl` on this Mac only with the user's go-ahead for that check.
 
 ## Rules
 
