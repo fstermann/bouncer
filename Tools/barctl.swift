@@ -1,8 +1,10 @@
 // Sends one command to the dev harness in a running Bouncer Dev and prints its reply.
 //
-// Run through the interpreter: `make ctl CMD="shoot /tmp/bar.png"`. Posting a distributed
+// Compiled once by `make ctl CMD="shoot /tmp/bar.png"`. Posting a distributed
 // notification needs no permission; the harness inside the app holds the ones that do.
 //
+//   still [command ...]                runs the command, then waits until the bar's frames stop moving
+//   ready                              waits for a launching Bouncer Dev to answer
 //   click                              what a click on Bouncer's icon does
 //   open, close                        the standalone bar
 //   dump [path]                        every item, the chevron and Bouncer's windows, with frames
@@ -28,13 +30,22 @@ var reply: String?
 let observer = center.addObserver(forName: Notification.Name("com.bouncer.dev.reply"), object: id, queue: .main) {
     reply = $0.userInfo?["result"] as? String ?? ""
 }
-center.postNotificationName(
-    Notification.Name("com.bouncer.dev.command"), object: command, userInfo: ["reply": id], deliverImmediately: true
-)
+func post() {
+    center.postNotificationName(
+        Notification.Name("com.bouncer.dev.command"), object: command, userInfo: ["reply": id], deliverImmediately: true
+    )
+}
+post()
 
+// A command posted before the app listens is dropped, so `ready` posts again until it is answered.
 let deadline = Date().addingTimeInterval(40)
+var posted = Date()
 while reply == nil, Date() < deadline {
     RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+    if command == "ready", Date().timeIntervalSince(posted) > 0.25 {
+        post()
+        posted = Date()
+    }
 }
 guard let reply else {
     print("no reply: is Bouncer Dev running?")

@@ -41,15 +41,22 @@ build: generate
 	xcodebuild -project $(PROJECT) -scheme $(SCHEME) -configuration $(CONFIG) \
 		-derivedDataPath $(BUILD_DIR) $(SIGN_FLAGS) build
 
-## Build and launch
-run: build
+BARCTL := .build/tools/barctl
+
+$(BARCTL): Tools/barctl.swift
+	@mkdir -p $(@D)
+	@xcrun swiftc -O $< -o $@
+
+## Build and launch; a Debug build returns once its harness answers, so `make ctl` can follow at once
+run: build $(BARCTL)
 	@pkill -x "$(APP_NAME)" || true
 	@while pgrep -x "$(APP_NAME)" >/dev/null; do sleep 0.1; done
 	open "$(BUILD_DIR)/Build/Products/$(CONFIG)/$(APP_NAME).app"
+	@$(if $(filter Debug,$(CONFIG)),$(BARCTL) ready >/dev/null,true)
 
 ## Drive a running Bouncer Dev: make ctl CMD="shoot /tmp/bar.png" (see Tools/barctl.swift)
-ctl:
-	@swift Tools/barctl.swift $(CMD)
+ctl: $(BARCTL)
+	@$(BARCTL) $(CMD)
 
 ## Time a running Bouncer Dev: make bench ARGS="--scenario bar-open --runs 3" (see Tools/bench.swift)
 bench:
