@@ -339,8 +339,7 @@ struct TodoPageView: View {
 
     private var list: some View {
         ScrollView {
-            // Lazy: building every row up front took some 135 ms of each open with 98 todos.
-            LazyVStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 0) {
                 ForEach(page.sections, id: \.todos.first?.id) { section in
                     if let title = section.title { heading(title) }
                     ForEach(section.todos) { todo in
