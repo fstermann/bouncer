@@ -324,10 +324,7 @@ panel's shape and pinned to its top, so the panel reveals it rather than the con
 beside a panel still on its way. The content comes into focus as the panel lands and goes out of
 focus as it leaves. A page whose height changes while it is open springs to the new height either
 way (`PagePanel.reshape`), from wherever a spring still under way has the panel, so a page added
-later gets the same motion by reporting its height. The panel starts growing before the page is laid
-out, which takes the todo page some 90 ms, towards the height it measured last time, and springs on
-from mid-flight if the layout measures another; only the first open after launch, with no height
-measured yet, lays out first. The todo list builds only the rows in view.
+later gets the same motion by reporting its height.
 With both pages on, hover opens whichever the switch last chose (`Preferences.notchPage`). Without
 the items page, the notch opens the todo page and the rest of the menu bar reveals the items. Switching morphs
 rather than closing one panel and opening the other, and the todo panel does all the moving: it
