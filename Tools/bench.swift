@@ -116,9 +116,9 @@ let scenarios: [Scenario] = [
                  height: fullHeight, scale: 0.25, barOnly: false),
     ]
 } + [
-    Scenario(name: "decks-open", action: "key cmd+shift+w", seconds: 3,
+    Scenario(name: "decks-open", action: "key cmd+escape", seconds: 3,
              height: fullHeight, scale: 0.25, barOnly: false),
-    Scenario(name: "decks-close", setup: ["key cmd+shift+w"], action: "key cmd+shift+w",
+    Scenario(name: "decks-close", setup: ["key cmd+escape"], action: "key cmd+escape",
              height: fullHeight, scale: 0.25, barOnly: false),
 ]
 

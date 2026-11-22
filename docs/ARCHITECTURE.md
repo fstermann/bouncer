@@ -431,7 +431,7 @@ switches between them alike.
 
 ### Decks
 
-An overview of every window, opened with a hot key (`Preferences.decksShortcut`, ⌘⇧W by default),
+An overview of every window, opened with a hot key (`Preferences.decksShortcut`, ⌘⎋ by default),
 in which the user groups windows, or whole Spaces, into named decks (`DecksController`). Off by
 default, behind `Preferences.enableDecks`, and in a module of its own, `Decks`, because it needs
 Screen Recording for pictures and titles and Accessibility to focus, tile and read Dock badges.
@@ -515,7 +515,7 @@ Known limits:
   a minimum width keeps it, overlapping its neighbour.
 - Dock badges are read once per opening, so a count that changes while the overview is open
   shows the old value. An app whose badge the user hid in Notifications settings shows none.
-- The hot key is taken from every app while Decks is on: ⌘⇧W no longer reaches the frontmost
+- The hot key is taken from every app while Decks is on: ⌘⎋ no longer reaches the frontmost
   app. F3 needs Mission Control's own F3 turned off in System Settings first.
 - A desktop cannot move to another display, and a window cannot be dropped into a particular
   desktop. `SLSMoveWindowsToManagedSpace` does nothing for another app's window, and the compat-ID

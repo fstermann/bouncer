@@ -107,7 +107,7 @@ public struct Preferences: Codable, Hashable, Sendable {
     public var spaceOrder: [String]
 
     public static let defaultDecksShortcut = HotKey.Shortcut(
-        keyCode: kVK_ANSI_W, modifiers: HotKey.Shortcut.commandShift
+        keyCode: kVK_Escape, modifiers: cmdKey
     )
 
     public init(

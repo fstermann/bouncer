@@ -38,6 +38,12 @@ public final class HotKey {
             return shortcut
         }
 
+        /// Whether a key press cancels recording: Escape alone, since with a modifier it can be a shortcut.
+        public static func cancelsRecording(keyCode: UInt16, flags: UInt) -> Bool {
+            let modifierFlags: UInt = 1 << 20 | 1 << 19 | 1 << 18 | 1 << 17
+            return Int(keyCode) == kVK_Escape && flags & modifierFlags == 0
+        }
+
         /// As Bouncer writes its shortcuts elsewhere, ⌃⌥⌘⇧ first: "⌘⇧B", "F3".
         public var name: String {
             let symbols: [(Int, String)] = [(controlKey, "⌃"), (optionKey, "⌥"), (cmdKey, "⌘"), (shiftKey, "⇧")]

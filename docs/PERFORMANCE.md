@@ -66,7 +66,7 @@ Bouncer Dev where the action starts, then records the screen around one action:
   (`Tools/bench-items.swift`), so the section needs both sides of the notch.
 - `bar-to-todos`, `todos-to-bar`: ⌘⇧B from the bar, the icon from the todo page.
 - `todos-`, `notes-`, `claude-open` and `-close`: ⌘⇧B, ⌘⇧N, ⌘⇧C.
-- `decks-open`, `decks-close`: ⌘⇧W.
+- `decks-open`, `decks-close`: ⌘⎋.
 - `idle`: Bouncer Dev's CPU time and wakeups over 30 s, nothing touched.
 
 `first` is when the first changed pixel reached the screen, `done` when the screen stopped changing,

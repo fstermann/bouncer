@@ -63,7 +63,7 @@ struct DeckOptions: View {
     }
 }
 
-/// A shortcut field: click it, then press the keys. Escape cancels.
+/// A shortcut field: click it, then press the keys. Escape alone cancels.
 private struct ShortcutRecorder: View {
     @Binding var shortcut: HotKey.Shortcut
     @State private var monitor: Any?
@@ -77,11 +77,10 @@ private struct ShortcutRecorder: View {
 
     private func start() {
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            if event.keyCode == UInt16(53) {
+            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask).rawValue
+            if HotKey.Shortcut.cancelsRecording(keyCode: event.keyCode, flags: flags) {
                 stop()
-            } else if let recorded = HotKey.Shortcut.recorded(
-                keyCode: event.keyCode, flags: event.modifierFlags.intersection(.deviceIndependentFlagsMask).rawValue
-            ) {
+            } else if let recorded = HotKey.Shortcut.recorded(keyCode: event.keyCode, flags: flags) {
                 shortcut = recorded
                 stop()
             }
