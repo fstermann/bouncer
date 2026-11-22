@@ -1,6 +1,6 @@
 # bouncer
 
-macOS menu bar manager. Read `docs/ARCHITECTURE.md` before changing how hiding works.
+Menu bar app for hidden icons, todos, notes, windows and Claude. Read `docs/ARCHITECTURE.md` before changing how hiding works.
 
 ## Commands
 
