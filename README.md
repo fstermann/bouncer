@@ -5,7 +5,10 @@
   <img src="Assets/logo-light.svg" alt="bouncer" height="96">
 </picture>
 
-### A menu bar manager for macOS. Decides what gets in.
+### Everything at hand from the menu bar
+
+bouncer is a macOS menu bar app that hides extra icons and keeps your todos, meeting notes,
+windows and quick Claude questions one click away.
 
 bouncer splits the menu bar into three sections — **Visible**, **Hidden** and
 **Always Hidden** — and collapses the ones you are not using.<br>
