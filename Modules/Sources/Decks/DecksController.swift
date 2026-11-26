@@ -133,6 +133,7 @@ public final class DecksController {
         let overview = session.overview
         let panel = session.panel
         overview.onPick = { [weak self] in self?.bringForward($0) }
+        overview.onSwitch = { [weak self] in self?.switchTo($0) }
         overview.onDismiss = { [weak self] in self?.close() }
         overview.onGrant = { [weak self] in self?.grant($0) }
         overview.onDecksChange = { [weak self, weak overview] decks in

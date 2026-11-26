@@ -451,7 +451,8 @@ display's desktops and full screen apps. Opening reads the Spaces once for every
 others. Keys go to the display under the pointer. A window dragged onto another display's overview
 shows there and, dropped, moves to that display's current desktop at the same relative place
 (`DisplayMove`), through Accessibility. A deck dragged there moves all its windows but full screen
-ones; a deck pressed and let go without moving is a click. A window on a desktop that is not current
+ones; a deck pressed and let go without moving is a click. A desktop with no window of its own is
+switched to with `SpaceSwitch` alone. A window on a desktop that is not current
 is reached by switching to that desktop first, as tiling does, since Accessibility lists only the
 current Space's windows and the remote-token lookup misses some apps. Bouncer Dev's `decks split`
 opens two overviews on halves of one display to check this without a second one.
@@ -509,7 +510,6 @@ current Space's windows only, and has no Spaces level.
 Known limits:
 
 - Minimized windows are not listed.
-- An empty desktop cannot be switched to: no call goes to a Space that has no window to front.
 - Tile all lays out only the deck's windows on one desktop, the current one if it holds any. A full
   screen window cannot be resized, and no public call moves a window between Spaces. An app with
   a minimum width keeps it, overlapping its neighbour.

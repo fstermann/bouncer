@@ -9,7 +9,7 @@ extension Overview {
     }
 
     /// What picking `item` brings forward: itself, or for a desktop its front window. Empty for an empty
-    /// desktop, which no public call can switch to.
+    /// desktop, which is switched to instead.
     func pickable(_ item: WindowInfo) -> [WindowInfo] {
         guard view == .spaces, SpaceItems.isDesktop(item) else { return [item] }
         guard let desktop = space(of: item) else { return [] }
@@ -41,9 +41,24 @@ extension Overview {
     }
 
     func pick(_ items: [WindowInfo]) {
+        if view == .spaces, items.count == 1, SpaceItems.isDesktop(items[0]), let desktop = space(of: items[0]) {
+            return go(to: desktop)
+        }
         let windows = items.flatMap(pickable)
         guard !windows.isEmpty else { return }
         onPick?(windows)
+    }
+
+    /// Brings forward `desktop`'s front window, or, with none of its own, switches to it.
+    func go(to desktop: SpaceInfo) {
+        let windows = front(of: desktop)
+        if !windows.isEmpty {
+            onPick?(windows)
+        } else if desktop.isCurrent {
+            onDismiss?()
+        } else {
+            onSwitch?(desktop)
+        }
     }
 
     func tile(_ id: UUID) {
