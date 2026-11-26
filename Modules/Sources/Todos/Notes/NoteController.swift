@@ -44,6 +44,8 @@ public final class NoteController {
     private var closesOnLeave = true
     private var windows: [NoteWindow] = []
     private var noteToShow: String?
+    /// How far each note's text was scrolled when it was left, by file name, for this run only.
+    var bodyScrolls: [String: CGFloat] = [:]
     /// The folder each popped-out note came from, which it keeps saving to.
     private var poppedOutFolders: [ObjectIdentifier: NoteFolder] = [:]
     /// The wait before the latest change to each note open is written.
@@ -113,7 +115,7 @@ public final class NoteController {
         page.onScreenshot = settings.preferences.enableScreenshots ? panelScreenshot : nil
         reload()
         if let draft = page.editing, let note = page.notes.first(where: { $0.name == draft.saved.name }) {
-            page.editing = NoteDraft(note)
+            page.editing = restoredDraft(of: note)
         } else {
             page.editing = nil
         }
@@ -171,7 +173,7 @@ public final class NoteController {
         note.name = folder.free(NoteName.make(title: title, start: start))
         folder.write(note.markdown(over: ""), to: note.name)
         reload()
-        page.editing = NoteDraft(note)
+        page.editing = restoredDraft(of: note)
         onChange?()
     }
 
@@ -196,7 +198,7 @@ public final class NoteController {
             window.makeKeyAndOrderFront(nil)
             return
         }
-        page.editing = NoteDraft(note)
+        page.editing = restoredDraft(of: note)
     }
 
     private func back() {
@@ -229,7 +231,10 @@ public final class NoteController {
     /// Saves the note, renames its file once its title or start has changed, and moves it into its
     /// project's folder: not while it is typed, when every letter would rename it.
     private func finish(_ draft: NoteDraft) {
-        defer { onChange?() }
+        defer {
+            bodyScrolls[draft.saved.name] = draft.bodyScroll
+            onChange?()
+        }
         save(draft)
         let note = draft.saved
         let isMisplaced = NoteName.folder(of: note.name) != NoteName.folder(for: note.project)
@@ -351,5 +356,14 @@ extension NoteController {
         page.tagOrder = settings.preferences.tagOrder
         reload()
         onChange?()
+    }
+}
+
+extension NoteController {
+    /// A draft of `note`, scrolled as it was last left.
+    func restoredDraft(of note: Note) -> NoteDraft {
+        let draft = NoteDraft(note)
+        draft.bodyScroll = bodyScrolls[note.name] ?? 0
+        return draft
     }
 }
