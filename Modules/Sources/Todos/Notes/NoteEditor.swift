@@ -64,11 +64,12 @@ struct NoteEditor: View {
             Divider().overlay(.white.opacity(0.1))
             NoteBody(
                 text: $draft.body, images: images, focusRequests: draft.bodyFocusRequests,
-                embedRequest: draft.embedRequest
-            ) { isWriting in
-                lineMoveKeys.isActive = isWriting
-                arrowKeys.isActive = isWriting
-            }
+                embedRequest: draft.embedRequest, scrollTop: draft.bodyScroll, onScroll: { draft.bodyScroll = $0 },
+                onFocus: { isWriting in
+                    lineMoveKeys.isActive = isWriting
+                    arrowKeys.isActive = isWriting
+                }
+            )
             .onDisappear {
                 lineMoveKeys.isActive = false
                 arrowKeys.isActive = false

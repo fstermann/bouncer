@@ -10,6 +10,9 @@ struct NoteBody: NSViewRepresentable {
     /// Bumped to put the cursor in the text.
     let focusRequests: Int
     var embedRequest: EmbedRequest?
+    /// How far down the text starts scrolled.
+    var scrollTop: CGFloat = 0
+    var onScroll: (CGFloat) -> Void = { _ in }
     let onFocus: (Bool) -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -38,7 +41,18 @@ struct NoteBody: NSViewRepresentable {
         scrollView.hasVerticalScroller = true
         scrollView.scrollerStyle = .overlay
         scrollView.scrollerKnobStyle = .light
+        // A turn later, once the view has its size; the watching starts after, so the scroll to the
+        // top a new view starts at is not taken for the user's.
+        DispatchQueue.main.async { [coordinator = context.coordinator] in
+            if let container = textView.textContainer { textView.layoutManager?.ensureLayout(for: container) }
+            textView.scroll(CGPoint(x: 0, y: scrollTop))
+            coordinator.watchScrolling(of: scrollView.contentView)
+        }
         return scrollView
+    }
+
+    static func dismantleNSView(_ scrollView: NSScrollView, coordinator: Coordinator) {
+        coordinator.stopWatchingScrolling()
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
@@ -71,6 +85,22 @@ struct NoteBody: NSViewRepresentable {
 
         init(_ body: NoteBody) {
             self.body = body
+        }
+
+        func watchScrolling(of clip: NSClipView) {
+            clip.postsBoundsChangedNotifications = true
+            NotificationCenter.default.addObserver(
+                self, selector: #selector(scrolled), name: NSView.boundsDidChangeNotification, object: clip
+            )
+        }
+
+        func stopWatchingScrolling() {
+            NotificationCenter.default.removeObserver(self, name: NSView.boundsDidChangeNotification, object: nil)
+        }
+
+        @objc private func scrolled(_ notification: Notification) {
+            guard let clip = notification.object as? NSClipView else { return }
+            body.onScroll(clip.bounds.origin.y)
         }
 
         func textDidChange(_ notification: Notification) {

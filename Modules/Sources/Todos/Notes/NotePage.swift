@@ -23,6 +23,8 @@ final class NoteDraft: Identifiable {
     var bodyFocusRequests = 1
     /// An image to put in at the cursor, as a screenshot taken from the header is.
     var embedRequest: EmbedRequest?
+    /// How far the text is scrolled down, so the note opens again where it was left.
+    @ObservationIgnored var bodyScroll: CGFloat = 0
 
     nonisolated var id: ObjectIdentifier { ObjectIdentifier(self) }
 
