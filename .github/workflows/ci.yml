@@ -12,12 +12,15 @@ concurrency:
 jobs:
   # Fast feedback: the logic modules build and test without an Xcode project.
   test:
+    # Release-please's PRs change only the version and changelog.
+    if: ${{ !startsWith(github.head_ref, 'release-please--') }}
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
       - run: swift test --package-path Modules
 
   lint:
+    if: ${{ !startsWith(github.head_ref, 'release-please--') }}
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
@@ -25,6 +28,7 @@ jobs:
       - run: swiftlint lint --strict
 
   build:
+    if: ${{ !startsWith(github.head_ref, 'release-please--') }}
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
