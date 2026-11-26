@@ -47,6 +47,8 @@ final class Overview {
 
     /// The user picked windows to bring forward, the last of them focused.
     @ObservationIgnored var onPick: (@MainActor ([WindowInfo]) -> Void)?
+    /// The user picked a desktop with no window of its own to bring forward.
+    @ObservationIgnored var onSwitch: (@MainActor (SpaceInfo) -> Void)?
     @ObservationIgnored var onDismiss: (@MainActor () -> Void)?
     /// The user asked for a permission's pane in System Settings.
     @ObservationIgnored var onGrant: (@MainActor (Permission) -> Void)?

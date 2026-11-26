@@ -1,6 +1,6 @@
 import AppKit
 
-/// Adding and removing desktops from the Spaces view, through Mission Control.
+/// Going to, adding and removing desktops from the Spaces view.
 extension DecksController {
     func wireDesktops(_ session: Session) {
         session.overview.onAddDesktop = { [weak self] in
@@ -12,6 +12,13 @@ extension DecksController {
                 await MissionControl.removeDesktop(at: place.index, of: place.count, on: $0)
             }
         }
+    }
+
+    /// Goes to `desktop`, which has no window to bring forward that would take the display there.
+    func switchTo(_ desktop: SpaceInfo) {
+        let order = spaceOrder(of: desktop)
+        close()
+        Task.detached { _ = SpaceSwitch.go(to: desktop.id, on: desktop.display, order: order) }
     }
 
     /// Makes `change` in Mission Control on `area`'s display with the overview kept over it, then opens the

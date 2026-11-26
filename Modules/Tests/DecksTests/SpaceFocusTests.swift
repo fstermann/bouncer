@@ -47,4 +47,23 @@ import Testing
         #expect(overview.pickable(items[1].item) == [local])
         #expect(overview.pickable(items[2].item).isEmpty)
     }
+
+    @MainActor @Test func pickingADesktopWithNoWindowOfItsOwnSwitchesToItOrClosesOnTheCurrentOne() {
+        let shared = window(1)
+        let desktops = [desktop(1, windows: []), desktop(2, windows: []), desktop(3, windows: [shared])]
+        let items = SpaceItems.items(for: desktops)
+        let overview = Overview(windows: [shared], spaceItems: items, decks: [],
+                                wallpaper: nil, canRaise: true, canSeeTitles: true)
+        overview.view = .spaces
+        var switched: [UInt64] = []
+        var dismissed = 0
+        overview.onSwitch = { switched.append($0.id) }
+        overview.onDismiss = { dismissed += 1 }
+        overview.onPick = { _ in Issue.record("nothing to bring forward") }
+        overview.pick([items[1].item])
+        overview.jump(to: 2)
+        overview.pick([items[0].item])
+        #expect(switched == [2, 2])
+        #expect(dismissed == 1)
+    }
 }

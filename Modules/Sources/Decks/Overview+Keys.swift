@@ -8,8 +8,7 @@ extension Overview {
         guard let desktop = spaceItems.first(where: { $0.space.kind == .desktop(number: number) })?.space else {
             return
         }
-        let windows = front(of: desktop)
-        if !windows.isEmpty { onPick?(windows) }
+        go(to: desktop)
     }
 
     /// Brings forward the first card the filter left: a deck's windows, or an item.
