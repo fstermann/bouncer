@@ -63,6 +63,14 @@ private func window(_ id: CGWindowID, app: String = "Code", title: String? = nil
         #expect(Wallpaper.imageURL(in: store, space: "s2", display: "D") == nil)
     }
 
+    @Test func aSpaceWithoutItsOwnTakesThePictureForAllSpaces() throws {
+        let all = try store("com.apple.wallpaper.choice.image", url: "file:///all.png")
+        var store = try store("com.apple.wallpaper.choice.image", url: "file:///Users/Shared/a.png")
+        store["AllSpacesAndDisplays"] = ((all["Spaces"] as? [String: Any])?["s1"] as? [String: Any])?["Default"]
+        #expect(Wallpaper.imageURL(in: store, space: "s2", display: "D") == URL(string: "file:///all.png"))
+        #expect(Wallpaper.imageURL(in: store, space: "s1", display: "D") == URL(string: "file:///Users/Shared/a.png"))
+    }
+
     @Test func givesNoFileForAColour() throws {
         let store = try store("com.apple.wallpaper.choice.color", url: "file:///x.png")
         #expect(Wallpaper.imageURL(in: store, space: "s1", display: "D") == nil)

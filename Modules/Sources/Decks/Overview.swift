@@ -38,6 +38,8 @@ final class Overview {
     }
     /// Each window's picture, once it has arrived.
     var thumbnails: [CGWindowID: NSImage] = [:]
+    /// Each desktop's own picture for its card in the Spaces view, by Space UUID, once read.
+    var desktopPictures: [String: NSImage] = [:]
     /// Each app's Dock badge, by process, once read.
     var badges: [pid_t: String] = [:]
     /// The deck the tray shows, or `nil` while it is closed.

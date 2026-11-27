@@ -58,24 +58,45 @@ struct DeckStack: View {
     static let brightness: [Double] = [0, -0.12, -0.25]
 }
 
-/// A desktop in the Spaces view: up to three of its windows stacked as a deck's are, over its name and
-/// window count. Hovering it opens the tray on its windows.
+/// A desktop in the Spaces view: its own picture with up to three of its windows stacked on it as a
+/// deck's are, over its name and window count. Hovering it opens the tray on its windows.
 struct DesktopStack: View {
     let desktop: WindowInfo
     let overview: Overview
     let isActive: Bool
 
+    /// How large the windows stand on the desktop's picture, so it shows round them.
+    private static let windowScale: CGFloat = 0.72
+
     var body: some View {
-        let windows = overview.space(of: desktop)?.windows ?? []
+        let space = overview.space(of: desktop)
+        let windows = space?.windows ?? []
+        let picture = space.flatMap { overview.desktopPictures[$0.uuid] }
         VStack(spacing: 9) {
             ZStack {
+                if let picture {
+                    Image(nsImage: picture)
+                        .resizable()
+                        .interpolation(.high)
+                        .scaledToFill()
+                        .frame(width: Metrics.card.width, height: Metrics.card.height)
+                        .clipShape(RoundedRectangle(cornerRadius: Metrics.cornerRadius))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: Metrics.cornerRadius)
+                                .strokeBorder(.white.opacity(0.15), lineWidth: 0.5)
+                        }
+                        .shadow(color: .black.opacity(0.45), radius: 15, y: 10)
+                        .overlay { Highlight(isOn: isActive) }
+                }
                 if windows.isEmpty {
                     RoundedRectangle(cornerRadius: Metrics.cornerRadius + 1)
                         .strokeBorder(.white.opacity(0.45), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+                        .opacity(picture == nil ? 1 : 0)
                         .overlay {
                             Text("Empty")
                                 .font(.system(size: 11))
-                                .foregroundStyle(.white.opacity(0.6))
+                                .foregroundStyle(.white.opacity(picture == nil ? 0.6 : 0.85))
+                                .shadow(color: .black.opacity(0.5), radius: 1.5, y: 1)
                         }
                 } else {
                     let stack = Array(windows.prefix(3).enumerated()).reversed()
@@ -87,9 +108,10 @@ struct DesktopStack: View {
                             .rotationEffect(.degrees(layer.rotation))
                             .offset(layer.offset)
                             .overlay {
-                                if depth == 0 { Highlight(isOn: isActive) }
+                                if depth == 0, picture == nil { Highlight(isOn: isActive) }
                             }
                     }
+                    .scaleEffect(picture == nil ? 1 : Self.windowScale)
                 }
             }
             .frame(width: Metrics.card.width, height: Metrics.card.height)

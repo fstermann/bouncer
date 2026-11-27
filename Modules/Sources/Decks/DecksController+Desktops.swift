@@ -3,6 +3,7 @@ import AppKit
 /// Going to, adding and removing desktops from the Spaces view.
 extension DecksController {
     func wireDesktops(_ session: Session) {
+        if session.overview.hasSpaces { Self.readDesktopPictures(into: session.overview) }
         session.overview.onAddDesktop = { [weak self] in
             self?.changeDesktops(on: session.area) { await MissionControl.addDesktop(on: $0) }
         }
@@ -10,6 +11,24 @@ extension DecksController {
             guard let place = SpaceList.position(of: space.id) else { return }
             self?.changeDesktops(on: session.area) {
                 await MissionControl.removeDesktop(at: place.index, of: place.count, on: $0)
+            }
+        }
+    }
+
+    /// Reads each desktop's picture for its card once the overview is up, so its first frame waits for none.
+    /// The current desktop falls back to the picture the overview stands on.
+    private static func readDesktopPictures(into overview: Overview) {
+        let desktops = overview.spaceItems.map(\.space).filter { if case .desktop = $0.kind { true } else { false } }
+        let size = Metrics.card, scale = NSScreen.screens.map(\.backingScaleFactor).max() ?? 2
+        Task.detached(priority: .userInitiated) { [weak overview] in
+            let pictures = Wallpaper.cardPictures(of: desktops, size: size, scale: scale)
+            await MainActor.run {
+                guard let overview else { return }
+                var images = pictures.mapValues { NSImage(cgImage: $0, size: .zero) }
+                if let current = desktops.first(where: \.isCurrent), images[current.uuid] == nil {
+                    images[current.uuid] = overview.wallpaper
+                }
+                overview.desktopPictures = images
             }
         }
     }
