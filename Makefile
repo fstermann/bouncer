@@ -17,7 +17,8 @@ APP_NAME := $(if $(filter Release,$(CONFIG)),Bouncer,Bouncer Dev)
 # A local .signing.mk may name a real identity; it is not checked in.
 -include .signing.mk
 SIGN_IDENTITY ?= -
-SIGN_FLAGS := CODE_SIGN_IDENTITY="$(SIGN_IDENTITY)"
+# Manual, or Xcode asks for a development team to sign the packages' resource bundles.
+SIGN_FLAGS := CODE_SIGN_IDENTITY="$(SIGN_IDENTITY)" CODE_SIGN_STYLE=Manual
 
 # Releases are signed with a certificate of their own, so the one private key that must never
 # be lost — losing it costs every user their permissions — is only ever used to cut a release.
@@ -107,7 +108,7 @@ release: generate
 	fi
 	xcodebuild -project $(PROJECT) -scheme $(SCHEME) -configuration Release \
 		-destination 'generic/platform=macOS' \
-		-derivedDataPath $(BUILD_DIR) CODE_SIGN_IDENTITY="$(RELEASE_SIGN_IDENTITY)" \
+		-derivedDataPath $(BUILD_DIR) CODE_SIGN_IDENTITY="$(RELEASE_SIGN_IDENTITY)" CODE_SIGN_STYLE=Manual \
 		$(if $(SU_FEED_URL),SU_FEED_URL="$(SU_FEED_URL)") build
 	rm -rf $(RELEASE_DIR)
 	mkdir -p $(RELEASE_DIR)/stage $(RELEASE_DIR)/sparkle
