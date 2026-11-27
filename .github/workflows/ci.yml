@@ -17,8 +17,7 @@ jobs:
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
-      # Swift Build, as the native build system copies asset catalogs without compiling them.
-      - run: swift test --package-path Modules --build-system swiftbuild
+      - run: swift test --package-path Modules
 
   lint:
     if: ${{ !startsWith(github.head_ref, 'release-please--') }}
