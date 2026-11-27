@@ -63,6 +63,14 @@ private func window(_ id: CGWindowID, app: String = "Code", title: String? = nil
         #expect(Wallpaper.imageURL(in: store, space: "s2", display: "D") == nil)
     }
 
+    @Test func aSpaceWithoutItsOwnTakesThePictureForAllSpaces() throws {
+        let all = try store("com.apple.wallpaper.choice.image", url: "file:///all.png")
+        var store = try store("com.apple.wallpaper.choice.image", url: "file:///Users/Shared/a.png")
+        store["AllSpacesAndDisplays"] = ((all["Spaces"] as? [String: Any])?["s1"] as? [String: Any])?["Default"]
+        #expect(Wallpaper.imageURL(in: store, space: "s2", display: "D") == URL(string: "file:///all.png"))
+        #expect(Wallpaper.imageURL(in: store, space: "s1", display: "D") == URL(string: "file:///Users/Shared/a.png"))
+    }
+
     @Test func givesNoFileForAColour() throws {
         let store = try store("com.apple.wallpaper.choice.color", url: "file:///x.png")
         #expect(Wallpaper.imageURL(in: store, space: "s1", display: "D") == nil)
@@ -93,6 +101,17 @@ private func window(_ id: CGWindowID, app: String = "Code", title: String? = nil
         ]
         #expect(Wallpaper.dockWindow(of: "d2", in: entries) == 9)
         #expect(Wallpaper.dockWindow(of: "d3", in: entries) == nil)
+    }
+
+    @Test func findsWindowManagersWallpaperWindows() {
+        func entry(_ owner: String, _ name: String, _ number: Int) -> [String: Any] {
+            [kCGWindowOwnerName as String: owner, kCGWindowName as String: name, kCGWindowNumber as String: number]
+        }
+        let entries = [
+            entry("WindowManager", "Wallpaper", 27), entry("WindowManager", "Fullscreen Backdrop", 30),
+            entry("Wallpaper", "Offscreen Wallpaper Window", 31), entry("WindowManager", "Wallpaper", 1355)
+        ]
+        #expect(Wallpaper.windowManagerWallpapers(in: entries) == [27, 1355])
     }
 }
 
