@@ -127,7 +127,7 @@ release: generate
 
 ## Run the module tests (no Xcode project needed — fast)
 test:
-	swift test --package-path Modules
+	swift test --package-path Modules --build-system swiftbuild
 
 lint:
 	swiftlint lint --quiet
