@@ -98,6 +98,22 @@ import Testing
         return overview
     }
 
+    @Test func theCurrentFullScreenSpaceGroupsLikeAnyOtherCard() {
+        let app = window(9)
+        let spaces = [
+            SpaceInfo(id: 1, uuid: "d1", kind: .desktop(number: 1), isCurrent: false, windows: []),
+            SpaceInfo(id: 2, uuid: "fs", kind: .fullScreen, isCurrent: true, windows: [app])
+        ]
+        let overview = Overview(windows: [app], spaceItems: SpaceItems.items(for: spaces), decks: [], wallpaper: nil,
+                                canRaise: true, canSeeTitles: true)
+        overview.view = .spaces
+        overview.hoverFrames = [
+            .desktop(overview.items[0].id): frames[0], .window(app.id): frames[1], .newDeck: frames[2]
+        ]
+        drag(overview, from: center(frames[1]), to: center(frames[2]))
+        #expect(overview.arrangement.decks.map { $0.windows.map(\.id) } == [[app.id]])
+    }
+
     @Test func aSpaceDroppedAtACardsEdgeMovesThere() {
         let overview = desktops()
         let items = overview.items
