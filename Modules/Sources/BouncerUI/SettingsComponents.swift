@@ -1,4 +1,5 @@
 import AppKit
+import BouncerFoundation
 import MenuBar
 import Screenshots
 import Settings
@@ -25,9 +26,9 @@ enum Mode: CaseIterable, Identifiable {
 
     var icon: Image {
         switch self {
-        case .menuBarItems: Image(systemName: "menubar.rectangle")
-        case .todos: Image(systemName: "checklist")
-        case .notes: Image(systemName: "note.text")
+        case .menuBarItems: Image(.items)
+        case .todos: Image(.todos)
+        case .notes: Image(.note)
         case .claude: Image(nsImage: ClaudeMark.image(side: 15))
         }
     }
@@ -61,9 +62,9 @@ enum Mode: CaseIterable, Identifiable {
 }
 
 extension Section where Parent == Label<Text, Image>, Footer == EmptyView, Content: View {
-    /// A section headed by its title and an SF Symbol.
-    init(_ title: String, systemImage: String, @ViewBuilder content: () -> Content) {
-        self.init(content: content) { Label(title, systemImage: systemImage) }
+    /// A section headed by its title and one of Bouncer's icons.
+    init(_ title: String, icon: Icon, @ViewBuilder content: () -> Content) {
+        self.init(content: content) { Label(title, icon: icon) }
     }
 }
 
@@ -80,12 +81,12 @@ struct PermissionRow: View {
         LabeledContent(name) {
             switch status {
             case .granted:
-                Label("Granted", systemImage: "checkmark.circle.fill")
+                Label("Granted", icon: .checkCircleFill)
                     .labelStyle(.titleAndIcon)
                     .foregroundStyle(.green)
             case .missing:
                 HStack(spacing: 8) {
-                    Label("Not granted", systemImage: "exclamationmark.triangle.fill")
+                    Label("Not granted", icon: .warning)
                         .labelStyle(.titleAndIcon)
                         .foregroundStyle(.orange)
                     Button("Open System Settings", action: openPane)
@@ -188,7 +189,7 @@ struct NoteOptions: View {
     @Binding var preferences: Preferences
 
     var body: some View {
-        Section("Meeting notes", systemImage: "note.text") {
+        Section("Meeting notes", icon: .note) {
             LabeledContent("Folder") {
                 HStack(spacing: 8) {
                     Text(folderName)
@@ -233,7 +234,7 @@ struct ScreenshotOptions: View {
     @State private var canRecordScreen = Screenshot.isPermitted
 
     var body: some View {
-        Section("Screenshots", systemImage: "camera.viewfinder") {
+        Section("Screenshots", icon: .cameraRegion) {
             Toggle(isOn: $preferences.enableScreenshots) {
                 Text("Screenshot buttons")
                 Text("Put a screenshot of the screen, or of a region or window you pick, in a meeting note or "
@@ -262,7 +263,7 @@ struct ImageOptions: View {
     @Binding var preferences: Preferences
 
     var body: some View {
-        Section("Pasted images", systemImage: "photo") {
+        Section("Pasted images", icon: .image) {
             LabeledContent("Folder") {
                 HStack(spacing: 8) {
                     Text(folderName)
@@ -349,7 +350,7 @@ struct TodoOptions: View {
     @Binding var preferences: Preferences
 
     var body: some View {
-        Section("Todos", systemImage: "checklist") {
+        Section("Todos", icon: .todos) {
             LabeledContent("File") {
                 HStack(spacing: 8) {
                     SelectablePath(path: filePath)

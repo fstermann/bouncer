@@ -1,4 +1,5 @@
 import AppKit
+import BouncerFoundation
 import SwiftUI
 
 /// The colours a tag's chip can be drawn in, stored by name.
@@ -66,7 +67,7 @@ struct Palette<Page: TagFiltering>: View {
                     name = tag
                     isRenaming = true
                 } label: {
-                    Image(systemName: "pencil").font(.caption).foregroundStyle(.secondary).padding(.leading, 6)
+                    Image(.pencil).font(.caption).foregroundStyle(.secondary).padding(.leading, 6)
                 }
                 .buttonStyle(.plain)
                 .help("Rename tag")
@@ -76,7 +77,7 @@ struct Palette<Page: TagFiltering>: View {
                     page.menu = nil
                     page.categories(under: tag).forEach { page.onRemoveCategory?($0) }
                 } label: {
-                    Image(systemName: "trash").font(.caption).foregroundStyle(.secondary).padding(.leading, 6)
+                    Image(.trash).font(.caption).foregroundStyle(.secondary).padding(.leading, 6)
                 }
                 .buttonStyle(.plain)
                 .help("Delete tag")

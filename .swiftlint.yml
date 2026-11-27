@@ -24,3 +24,10 @@ identifier_name:
 
 force_unwrapping:
   severity: error
+
+custom_rules:
+  bouncer_icons:
+    name: Bouncer icons
+    regex: 'systemName:|systemImage:|systemSymbolName:'
+    message: "Use Icon from BouncerFoundation (Assets/Icons, Tools/icons.sh), not an SF Symbol."
+    severity: error

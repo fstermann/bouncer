@@ -1,4 +1,5 @@
 import AppKit
+import BouncerFoundation
 import SwiftUI
 
 /// A note's text, with each embedded image shown as one photo icon that shows the image while the
@@ -132,7 +133,7 @@ final class ImageAttachment: NSTextAttachment {
     private static let icon: NSImage = {
         let configuration = NSImage.SymbolConfiguration(pointSize: 12, weight: .regular)
             .applying(NSImage.SymbolConfiguration(paletteColors: [.white.withAlphaComponent(0.6)]))
-        let symbol = NSImage(systemSymbolName: "photo", accessibilityDescription: "Image")?
+        let symbol = Icon.image.nsImage(accessibilityDescription: "Image")?
             .withSymbolConfiguration(configuration) ?? NSImage()
         return symbol
     }()

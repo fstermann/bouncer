@@ -1,3 +1,4 @@
+import BouncerFoundation
 import Settings
 import SwiftUI
 
@@ -140,7 +141,7 @@ extension DesktopStack {
         let isOver = overview.hovered == .removeDesktop(desktop.id)
         if overview.drag == nil, isOver || overview.hovered == .desktop(desktop.id),
            let space = overview.removable(desktop) {
-            Image(systemName: "xmark")
+            Image(.close)
                 .font(.system(size: 9, weight: .bold))
                 .foregroundStyle(.black.opacity(0.75))
                 .frame(width: 20, height: 20)
@@ -217,8 +218,7 @@ struct FullScreenBar: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: change == .leave
-                  ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+            Image(change == .leave ? .leaveFullScreen : .fullScreen)
             Text(change == .leave ? "Leave full screen" : "Full screen")
         }
         .font(.system(size: 14, weight: .medium))

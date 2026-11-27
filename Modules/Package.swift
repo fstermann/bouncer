@@ -20,7 +20,7 @@ let package = Package(
         .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.9.5"),
     ],
     targets: [
-        .target(name: "BouncerFoundation"),
+        .target(name: "BouncerFoundation", resources: [.process("Resources")]),
         .target(name: "Settings", dependencies: ["BouncerFoundation"]),
         .target(name: "MenuBar", dependencies: ["BouncerFoundation", "Settings"]),
         .target(
@@ -36,6 +36,7 @@ let package = Package(
         // Behind its own module because it asks for Screen Recording and Accessibility.
         .target(name: "Decks", dependencies: ["BouncerFoundation", "Settings"]),
         .target(name: "Todos", dependencies: ["BouncerFoundation", "MenuBar", "Screenshots", "Settings"]),
+        .testTarget(name: "BouncerFoundationTests", dependencies: ["BouncerFoundation"]),
         .testTarget(name: "DecksTests", dependencies: ["Decks"]),
         .testTarget(name: "MenuBarTests", dependencies: ["MenuBar"]),
         .testTarget(name: "ScreenshotsTests", dependencies: ["Screenshots"]),

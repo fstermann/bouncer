@@ -1,3 +1,4 @@
+import BouncerFoundation
 import MenuBar
 import Observation
 import SwiftUI
@@ -124,10 +125,10 @@ struct ClaudePageView: View {
         HStack(spacing: 8) {
             Group {
                 if page.isInChat {
-                    Button { page.onBack?() } label: { Label("Chats", systemImage: "chevron.left") }
+                    Button { page.onBack?() } label: { Label("Chats", icon: .chevronLeft) }
                         .help("Back to your chats, where the next question starts a new one")
                 } else {
-                    Button { page.isChoosingFolder.toggle() } label: { Label(page.folderName, systemImage: "folder") }
+                    Button { page.isChoosingFolder.toggle() } label: { Label(page.folderName, icon: .folder) }
                         .lineLimit(1)
                         .help("The folder the next chat starts in")
                         .anchorPreference(key: MenuAnchor.self, value: .bounds) { page.isChoosingFolder ? $0 : nil }
@@ -136,7 +137,7 @@ struct ClaudePageView: View {
             .frame(maxWidth: Self.leftOfNotch, alignment: .leading)
             Spacer()
             if page.isInChat {
-                Button { page.onHandOff?() } label: { Label("Terminal", systemImage: "apple.terminal") }
+                Button { page.onHandOff?() } label: { Label("Terminal", icon: .terminal) }
                     .disabled(!page.canHandOff || page.isAnswering)
                     .help("Go on with this chat in the terminal")
             }
@@ -199,7 +200,7 @@ struct ClaudePageView: View {
                 }
             if page.onScreenshot != nil { screenshotButtons }
             if page.isAnswering {
-                Button { page.onStop?() } label: { Image(systemName: "stop.circle") }
+                Button { page.onStop?() } label: { Image(.stop) }
                     .buttonStyle(.plain)
                     .font(.callout)
                     .foregroundStyle(.secondary)

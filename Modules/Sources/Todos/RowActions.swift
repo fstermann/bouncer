@@ -1,3 +1,4 @@
+import BouncerFoundation
 import MenuBar
 import SwiftUI
 
@@ -17,14 +18,14 @@ struct RowActions: View {
         HStack(alignment: .top, spacing: 0) {
             VStack(alignment: .leading, spacing: 0) {
                 if !todo.isDone {
-                    item(todo.isInProgress ? "Mark open" : "Mark in progress", "circle.lefthalf.filled") {
+                    item(todo.isInProgress ? "Mark open" : "Mark in progress", .circleHalf) {
                         page.onMark?(todo, !todo.isInProgress)
                     }
                 }
-                item(todo.isDone ? "Mark open" : "Mark done", "checkmark.circle") { page.onToggle?(todo) }
+                item(todo.isDone ? "Mark open" : "Mark done", .checkCircle) { page.onToggle?(todo) }
                 if page.sessions[ClaudeQueue.key(of: todo)] != nil {
-                    item("Resume in Terminal", "terminal") { page.onResume?(todo) }
-                    item("Abort Claude", "xmark.circle") { page.onAbort?([todo]) }
+                    item("Resume in Terminal", .terminal) { page.onResume?(todo) }
+                    item("Abort Claude", .closeCircle) { page.onAbort?([todo]) }
                 }
                 item(
                     ClaudeQueue.isForClaude(todo) ? "Remove from Claude" : "Mark for Claude",
@@ -33,11 +34,11 @@ struct RowActions: View {
                     page.toggleTag(ClaudeQueue.tag, of: todo)
                 }
                 MenuDivider()
-                if !page.tags.isEmpty { opener("Tags", "tag", .tags) }
-                opener("Due date", "calendar", .due)
+                if !page.tags.isEmpty { opener("Tags", .tag, .tags) }
+                opener("Due date", .calendar, .due)
                 MenuDivider()
-                item("Edit", "pencil") { page.startEditing(todo) }
-                item("Delete", "trash") { page.onDelete?(todo) }
+                item("Edit", .pencil) { page.startEditing(todo) }
+                item("Delete", .trash) { page.onDelete?(todo) }
             }
             .frame(width: 180)
             .menuSurface()
@@ -67,8 +68,8 @@ struct RowActions: View {
         }
     }
 
-    private func item(_ title: String, _ icon: String, action: @escaping () -> Void) -> some View {
-        item(title, Image(systemName: icon), action: action)
+    private func item(_ title: String, _ icon: Icon, action: @escaping () -> Void) -> some View {
+        item(title, Image(icon), action: action)
     }
 
     private func item(_ title: String, _ icon: Image, action: @escaping () -> Void) -> some View {
@@ -79,8 +80,8 @@ struct RowActions: View {
         .onHover { if $0 { submenu = nil } }
     }
 
-    private func opener(_ title: String, _ icon: String, _ kind: Submenu) -> some View {
-        MenuItem(title: title, icon: Image(systemName: icon), hasArrow: true, isOpen: submenu == kind) {
+    private func opener(_ title: String, _ icon: Icon, _ kind: Submenu) -> some View {
+        MenuItem(title: title, icon: Image(icon), hasArrow: true, isOpen: submenu == kind) {
             submenu = kind
         }
             .onHover { if $0 { submenu = kind } }
@@ -98,7 +99,7 @@ struct QueueActions: View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(page.queueGroups, id: \.folder) { group in
                 let count = group.todos.count == 1 ? "1 todo" : "\(group.todos.count) todos"
-                let icon = Image(systemName: "paperplane")
+                let icon = Image(.send)
                 MenuItem(title: "Send \(count) to Claude", detail: name(of: group.folder), icon: icon) {
                     page.menu = nil
                     page.onSend?(group.todos, group.folder)
@@ -123,17 +124,17 @@ struct WorkingActions: View {
             ForEach(page.workingSessions, id: \.session.id) { group in
                 let count = group.todos.count == 1 ? "1 todo" : "\(group.todos.count) todos"
                 let folder = URL(filePath: group.session.folder).lastPathComponent
-                MenuItem(title: "Resume \(count)", detail: folder, icon: Image(systemName: "terminal")) {
+                MenuItem(title: "Resume \(count)", detail: folder, icon: Image(.terminal)) {
                     page.menu = nil
                     if let todo = group.todos.first { page.onResume?(todo) }
                 }
-                MenuItem(title: "Abort \(count)", detail: folder, icon: Image(systemName: "xmark.circle")) {
+                MenuItem(title: "Abort \(count)", detail: folder, icon: Image(.closeCircle)) {
                     page.menu = nil
                     page.onAbort?(group.todos)
                 }
             }
             if !page.workingSessions.isEmpty { MenuDivider() }
-            MenuItem(title: "Mark all done", icon: Image(systemName: "checkmark.circle")) {
+            MenuItem(title: "Mark all done", icon: Image(.checkCircle)) {
                 page.menu = nil
                 page.onFinish?(page.working)
             }
@@ -151,12 +152,12 @@ struct RepositoryLink: View {
     var body: some View {
         if let folder = page.repositories[tag] {
             HStack(spacing: 6) {
-                Image(systemName: "folder").foregroundStyle(.secondary)
+                Image(.folder).foregroundStyle(.secondary)
                 Text((folder as NSString).abbreviatingWithTildeInPath)
                     .lineLimit(1)
                     .truncationMode(.middle)
                     .frame(maxWidth: 260, alignment: .leading)
-                Button { page.onLink?(tag, false) } label: { Image(systemName: "xmark") }
+                Button { page.onLink?(tag, false) } label: { Image(.close) }
                     .buttonStyle(.plain)
                     .foregroundStyle(.secondary)
                     .help("Unlink \(folder)")
@@ -165,7 +166,7 @@ struct RepositoryLink: View {
             .help(folder)
         } else {
             Button { page.onLink?(tag, true) } label: {
-                Label("Link repository…", systemImage: "folder.badge.plus").font(.caption)
+                Label("Link repository…", icon: .folderAdd).font(.caption)
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
@@ -195,8 +196,8 @@ struct MenuItem: View {
                 Text(title)
                 Spacer(minLength: 12)
                 if let detail { Text(detail).foregroundStyle(.secondary).lineLimit(1) }
-                if hasArrow { Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.secondary) }
-                if isChecked { Image(systemName: "checkmark").font(.caption.weight(.semibold)) }
+                if hasArrow { Image(.chevronRight).font(.caption2).foregroundStyle(.secondary) }
+                if isChecked { Image(.checkmark).font(.caption.weight(.semibold)) }
             }
             .font(.callout)
             .padding(.horizontal, 8)
@@ -237,7 +238,7 @@ struct TagChoices: View {
             ForEach(tags, id: \.self) { tag in
                 let depth = TagPath.lineage(of: tag).count - 1
                 MenuItem(
-                    title: TagPath.leaf(of: tag), icon: Image(systemName: "circle.fill"),
+                    title: TagPath.leaf(of: tag), icon: Image(.dot),
                     iconColor: page.color(of: tag) ?? .white.opacity(0.35), isChecked: carried.contains(tag)
                 ) { toggle(tag) }
                     .padding(.leading, CGFloat(depth) * 14)

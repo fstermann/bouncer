@@ -1,3 +1,4 @@
+import BouncerFoundation
 import SwiftUI
 
 /// The field a todo is typed into, with its due day and tags behind icons, and tags offered while
@@ -12,13 +13,13 @@ struct InputRow: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Image(systemName: "plus")
+            Image(.plus)
                 .frame(width: TodoPage.markWidth)
                 .foregroundStyle(.tertiary)
             field
             if !page.tags.isEmpty {
                 MenuButton(page: page, menu: RowMenu(line: nil, kind: .tags), help: "Set tags") {
-                    Image(systemName: "tag")
+                    Image(.tag)
                         .font(.callout)
                         .foregroundStyle(TaskText(page.draft).tags.isEmpty ? .secondary : .primary)
                 }

@@ -97,7 +97,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 keyEquivalent: ""
             )
             item.target = self
-            item.image = NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: nil)
+            item.image = Icon.refresh.nsImage(accessibilityDescription: nil)
         }
         menu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
             .target = self

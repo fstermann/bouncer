@@ -1,4 +1,5 @@
 import AppKit
+import BouncerFoundation
 import MenuBar
 import SwiftUI
 
@@ -159,7 +160,7 @@ struct TodoRow: View {
     }
 
     private var undoDelete: some View {
-        Button { page.onRestore?(todo) } label: { Image(systemName: "arrow.uturn.backward") }
+        Button { page.onRestore?(todo) } label: { Image(.restore) }
             .buttonStyle(.plain)
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -174,13 +175,13 @@ struct StatusMark: View {
     var body: some View {
         Group {
             if todo.isDone {
-                Image(systemName: "checkmark.circle.fill")
+                Image(.checkCircleFill)
             } else if todo.isInProgress && ClaudeQueue.isForClaude(todo) {
                 Image(nsImage: ClaudeMark.image(side: 13)).renderingMode(.template)
             } else if todo.isInProgress {
-                Image(systemName: "circle.lefthalf.filled")
+                Image(.circleHalf)
             } else {
-                Image(systemName: "circle")
+                Image(.circle)
             }
         }
         .frame(width: TodoPage.markWidth)

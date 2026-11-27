@@ -1,3 +1,4 @@
+import BouncerFoundation
 import Settings
 import SwiftUI
 
@@ -101,7 +102,7 @@ struct NotePageView: View {
 
     private var inputRow: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Image(systemName: "plus")
+            Image(.plus)
                 .frame(width: TodoPage.markWidth)
                 .foregroundStyle(.tertiary)
             TextField("Start a meeting", text: $page.draft)
@@ -127,7 +128,7 @@ struct NoteRow: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Image(systemName: "note.text")
+            Image(.note)
                 .frame(width: TodoPage.markWidth)
                 .foregroundStyle(.tertiary)
             VStack(alignment: .leading, spacing: 2) {
@@ -140,10 +141,10 @@ struct NoteRow: View {
                     if isHovered {
                         Group {
                             Button { page.onArchive?(note) } label: {
-                                Image(systemName: note.isArchived ? "archivebox.fill" : "archivebox")
+                                Image(note.isArchived ? .archiveFill : .archive)
                             }
                             .help(note.isArchived ? "Take out of the archive" : "Archive, tagging it archived")
-                            Button { page.onDelete?(note) } label: { Image(systemName: "trash") }
+                            Button { page.onDelete?(note) } label: { Image(.trash) }
                                 .help("Move to Trash")
                         }
                         .buttonStyle(.plain)

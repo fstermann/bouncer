@@ -1,4 +1,5 @@
 import AppKit
+import BouncerFoundation
 import SwiftUI
 
 /// An embedded image's icon, which shows the image whole under the pointer while the pointer rests on it.
@@ -10,7 +11,7 @@ struct ImagePreview: View {
     private static let delay: Duration = .milliseconds(300)
 
     var body: some View {
-        Image(systemName: "photo")
+        Image(.image)
             .foregroundStyle(.secondary)
             .contentShape(Rectangle())
             .onHover(perform: hover)

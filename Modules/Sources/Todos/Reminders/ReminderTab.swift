@@ -1,4 +1,5 @@
 import AppKit
+import BouncerFoundation
 import MenuBar
 import SwiftUI
 
@@ -78,7 +79,7 @@ struct ReminderTab: View {
             .buttonStyle(.plain)
             .help(help)
             Button(action: dismiss) {
-                Image(systemName: "xmark").font(.system(size: 9, weight: .semibold)).foregroundStyle(.secondary)
+                Image(.close).font(.system(size: 9, weight: .semibold)).foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
             .help("Dismiss")
@@ -99,8 +100,8 @@ struct ReminderTab: View {
 
     @ViewBuilder private func icon(_ kind: Reminder.Kind) -> some View {
         switch kind {
-        case .todo: Image(systemName: "bell.fill").foregroundStyle(.orange)
-        case .meeting: Image(systemName: "person.2.fill").foregroundStyle(.blue)
+        case .todo: Image(.bellFill).foregroundStyle(.orange)
+        case .meeting: Image(.peopleFill).foregroundStyle(.blue)
         case .claude: Image(nsImage: ClaudeMark.image(side: 12)).renderingMode(.template).foregroundStyle(.orange)
         }
     }

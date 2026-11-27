@@ -4,7 +4,7 @@ import Foundation
 public struct Deck: Codable, Hashable, Sendable, Identifiable {
     public var id: UUID
     public var name: String
-    /// The SF Symbol on the deck's badge; `nil` until the user picks one.
+    /// The icon on the deck's badge, by name; `nil` until the user picks one. Older saves hold an SF Symbol name.
     public var symbol: String?
     /// Which of the overview's two views the deck belongs to.
     public var kind: DeckKind
