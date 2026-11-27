@@ -102,6 +102,17 @@ private func window(_ id: CGWindowID, app: String = "Code", title: String? = nil
         #expect(Wallpaper.dockWindow(of: "d2", in: entries) == 9)
         #expect(Wallpaper.dockWindow(of: "d3", in: entries) == nil)
     }
+
+    @Test func findsWindowManagersWallpaperWindows() {
+        func entry(_ owner: String, _ name: String, _ number: Int) -> [String: Any] {
+            [kCGWindowOwnerName as String: owner, kCGWindowName as String: name, kCGWindowNumber as String: number]
+        }
+        let entries = [
+            entry("WindowManager", "Wallpaper", 27), entry("WindowManager", "Fullscreen Backdrop", 30),
+            entry("Wallpaper", "Offscreen Wallpaper Window", 31), entry("WindowManager", "Wallpaper", 1355)
+        ]
+        #expect(Wallpaper.windowManagerWallpapers(in: entries) == [27, 1355])
+    }
 }
 
 @Suite struct OverviewFilterTests {
