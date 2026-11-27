@@ -20,11 +20,12 @@ extension Overview {
 
     /// Drops a window: into full screen, or into or out of a deck.
     private func drop(_ drag: Drag, on target: HoverTarget?) {
-        if let change = fullScreenDrop(of: drag) {
-            if target == .fullScreen { onFullScreen?(drag.window, change == .enter) }
+        if target == .fullScreen {
+            if let change = fullScreenDrop(of: drag) { onFullScreen?(drag.window, change == .enter) }
             return
         }
-        if target == .fullScreen { return }
+        // A desktop's windows are dragged out only to go full screen; the full screen Space's own card groups.
+        if drag.source == .desktop { return }
         let others = decks.filter { $0.kind != view }
         let mine = decks.filter { $0.kind == view }
         switch DeckDrop.drop(drag.window, from: drag.source, on: dropTarget(target), in: arrangement, decks: mine) {
