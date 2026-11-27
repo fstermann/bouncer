@@ -8,8 +8,7 @@ import Testing
     @Test func findsTheTranscriptClaudeCodeKeepsForTheSessionsFolder() {
         let session = ClaudeSession(id: "abc", folder: "/Users/me/projects/private-gateway/my_app.v2")
         #expect(
-            ClaudeQueue.transcript(of: session, home: "/Users/me/")
-                == "/Users/me/.claude/projects/-Users-me-projects-private-gateway-my-app-v2/abc.jsonl"
+            ClaudeQueue.transcript(of: session) == "projects/-Users-me-projects-private-gateway-my-app-v2/abc.jsonl"
         )
     }
 
@@ -90,6 +89,48 @@ import Testing
     @Test func theNewSessionScriptAsksInTheRepository() {
         let script = TerminalHandoff.script(shell: "/bin/zsh", folder: "/r", prompt: "Please 'quote'", session: "s-1")
         #expect(script.contains(#"claude --session-id "$3" -- "$2"' claude '/r' 'Please '\''quote'\''' 's-1'"#))
+    }
+
+    @Test(arguments: ["default", "custom", "missing"])
+    func resumeChecksForTheTranscriptInTheLoginShell(_ scenario: String) throws {
+        let files = FileManager.default
+        let home = files.temporaryDirectory.appending(path: UUID().uuidString)
+        let repo = home.appending(path: "Bob's repo")
+        try files.createDirectory(at: repo, withIntermediateDirectories: true)
+        defer { try? files.removeItem(at: home) }
+
+        let custom = home.appending(path: "custom config")
+        let session = ClaudeSession(id: "s-1", folder: repo.path(percentEncoded: false))
+        let config = scenario == "custom" ? custom : home.appending(path: ".claude")
+        let transcript = config.appending(path: ClaudeQueue.transcript(of: session))
+        try files.createDirectory(at: transcript.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data().write(to: transcript)
+
+        let profile = #"""
+        if [ -n "$HANDOFF_CONFIG" ]; then export CLAUDE_CONFIG_DIR="$HANDOFF_CONFIG"; fi
+        claude() { printf '%s\n' "$@"; }
+        """#
+        try profile.write(to: home.appending(path: ".zshrc"), atomically: true, encoding: .utf8)
+        let script = TerminalHandoff.script(shell: "/bin/zsh", resuming: session, retrying: "Please 'quote'")
+        let command = home.appending(path: "handoff.command")
+        try script.write(to: command, atomically: true, encoding: .utf8)
+
+        let process = Process()
+        process.executableURL = URL(filePath: "/bin/sh")
+        process.arguments = [command.path(percentEncoded: false)]
+        process.environment = [
+            "HOME": home.path(percentEncoded: false), "ZDOTDIR": home.path(percentEncoded: false),
+            "HANDOFF_CONFIG": scenario == "default" ? "" : custom.path(percentEncoded: false)
+        ]
+        let output = Pipe()
+        process.standardOutput = output
+        try process.run()
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        #expect(process.terminationStatus == 0)
+        let arguments = try #require(String(bytes: data, encoding: .utf8))
+        let expected = scenario == "missing" ? "--session-id\ns-1\n--\nPlease 'quote'\n" : "--resume\ns-1\n"
+        #expect(arguments == expected)
     }
 
     @Test func aSessionIsKeptByTheTodosTitleOnly() {

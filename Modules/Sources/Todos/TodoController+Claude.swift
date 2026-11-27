@@ -15,10 +15,7 @@ extension TodoController {
     /// group of those Claude works on.
     func send(_ todos: [Todo], to folder: String) {
         let session = ClaudeSession(id: UUID().uuidString.lowercased(), folder: folder)
-        let prompt = ClaudeQueue.prompt(
-            for: todos, images: copiedImages(of: todos, for: session.id), branch: ClaudeQueue.branch(at: Date())
-        )
-        TerminalHandoff.start(asking: prompt, in: folder, as: session.id)
+        TerminalHandoff.start(asking: claudePrompt(for: todos, session: session), in: folder, as: session.id)
         for todo in todos { settings.preferences.claudeSessions[ClaudeQueue.key(of: todo)] = session }
         page.sessions = settings.preferences.claudeSessions
         guard let file, var markdown = file.read() else { return }
@@ -27,6 +24,12 @@ extension TodoController {
         }
         file.write(markdown)
         reload()
+    }
+
+    private func claudePrompt(for todos: [Todo], session: ClaudeSession) -> String {
+        ClaudeQueue.prompt(
+            for: todos, images: copiedImages(of: todos, for: session.id), branch: ClaudeQueue.branch(at: Date())
+        )
     }
 
     /// Copies of the todos' images by name, in a temporary folder: Terminal may not read the images folder,
@@ -46,11 +49,8 @@ extension TodoController {
     func resume(_ todo: Todo) {
         let sessions = settings.preferences.claudeSessions
         guard let session = sessions[ClaudeQueue.key(of: todo)] else { return }
-        let home = FileManager.default.homeDirectoryForCurrentUser.path(percentEncoded: false)
-        guard !FileManager.default.fileExists(atPath: ClaudeQueue.transcript(of: session, home: home)) else {
-            return TerminalHandoff.open(session: session.id, in: session.folder)
-        }
-        send(page.working.filter { sessions[ClaudeQueue.key(of: $0)] == session }, to: session.folder)
+        let todos = page.working.filter { sessions[ClaudeQueue.key(of: $0)] == session }
+        TerminalHandoff.resume(session, retrying: claudePrompt(for: todos, session: session))
     }
 
     /// Puts `todos` back in the queue to be sent again, and forgets their sessions. Their terminal stays open.

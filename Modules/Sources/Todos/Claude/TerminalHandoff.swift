@@ -1,4 +1,5 @@
 import AppKit
+import Settings
 
 /// Goes on with a chat in the terminal, as `claude --resume` in the folder it began in, or starts one there.
 ///
@@ -14,6 +15,11 @@ enum TerminalHandoff {
     @MainActor
     static func start(asking prompt: String, in folder: String, as session: String) {
         run(script(shell: ClaudeRun.shell, folder: folder, prompt: prompt, session: session), named: session)
+    }
+
+    @MainActor
+    static func resume(_ session: ClaudeSession, retrying prompt: String) {
+        run(script(shell: ClaudeRun.shell, resuming: session, retrying: prompt), named: session.id)
     }
 
     @MainActor
@@ -34,20 +40,43 @@ enum TerminalHandoff {
     /// function applies here too. Without the markers Claude Code leaves for its children, which a
     /// Terminal launched from a Claude Code shell passes on, and which stop the session being saved.
     static func script(shell: String, folder: String, session: String) -> String {
-        """
-        #!/bin/sh
-        unset CLAUDECODE CLAUDE_CODE_CHILD_SESSION
-        exec \(quoted(shell)) -lic 'cd "$1" && claude --resume "$2"' claude \(quoted(folder)) \(quoted(session))
-
-        """
+        script(shell: shell, command: #"cd "$1" && claude --resume "$2""#, arguments: [folder, session])
     }
 
     static func script(shell: String, folder: String, prompt: String, session: String) -> String {
-        let arguments = [folder, prompt, session].map(quoted).joined(separator: " ")
+        script(
+            shell: shell, command: #"cd "$1" && claude --session-id "$3" -- "$2""#,
+            arguments: [folder, prompt, session]
+        )
+    }
+
+    static func script(shell: String, resuming session: ClaudeSession, retrying prompt: String) -> String {
+        let command = #"""
+        cd "$1" || exit $?
+        if [ -f "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/$4" ]; then
+            claude --resume "$3"
+        else
+            claude --session-id "$3" -- "$2"
+        fi
+        """#
+        return script(
+            shell: shell, command: command,
+            arguments: [session.folder, prompt, session.id, ClaudeQueue.transcript(of: session)]
+        )
+    }
+
+    private static func script(shell: String, command: String, arguments: [String]) -> String {
+        let arguments = arguments.map(quoted).joined(separator: " ")
         return """
         #!/bin/sh
         unset CLAUDECODE CLAUDE_CODE_CHILD_SESSION
-        exec \(quoted(shell)) -lic 'cd "$1" && claude --session-id "$3" -- "$2"' claude \(arguments)
+        \(quoted(shell)) -lic \(quoted(command)) claude \(arguments)
+        result=$?
+        if [ "$result" -ne 0 ] && [ -t 0 ]; then
+            printf '\\nClaude handoff failed (exit %s). Press Return to close.\\n' "$result" >&2
+            IFS= read -r ignored
+        fi
+        exit "$result"
 
         """
     }

@@ -21,7 +21,8 @@ import Testing
     @Test func theHandoffResumesInTheChatsFolderThroughTheLoginShell() {
         let script = TerminalHandoff.script(shell: "/bin/zsh", folder: "/Users/me/Bob's notes", session: "abc-123")
         #expect(script.hasPrefix("#!/bin/sh\nunset CLAUDECODE CLAUDE_CODE_CHILD_SESSION\n"))
-        #expect(script.contains(#"exec '/bin/zsh' -lic 'cd "$1" && claude --resume "$2"' claude"#))
+        #expect(script.contains(#"'/bin/zsh' -lic 'cd "$1" && claude --resume "$2"' claude"#))
+        #expect(script.contains("Press Return to close."))
         #expect(script.contains(#"'/Users/me/Bob'\''s notes' 'abc-123'"#))
     }
 
