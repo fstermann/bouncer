@@ -1,4 +1,5 @@
 import AppKit
+import BouncerFoundation
 import SwiftUI
 
 /// A todo being changed, in place of its row: its title and note, with its tags and due day behind
@@ -48,7 +49,7 @@ struct TodoEditor: View {
         HStack(spacing: 10) {
             if !page.tags.isEmpty {
                 MenuButton(page: page, menu: RowMenu(line: todo.line, kind: .tags), help: "Set tags") {
-                    Image(systemName: "tag").foregroundStyle(.secondary)
+                    Image(.tag).foregroundStyle(.secondary)
                 }
             }
             MenuButton(page: page, menu: choosingDue, help: "Set a due date") {
@@ -58,7 +59,7 @@ struct TodoEditor: View {
                 page.editing = nil
                 page.onDelete?(todo)
             } label: {
-                Image(systemName: "trash").foregroundStyle(.secondary)
+                Image(.trash).foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
             .help("Delete")
@@ -115,7 +116,7 @@ struct DueLabel: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            Image(systemName: "calendar")
+            Image(.calendar)
             if let due { Text(TaskDay.label(for: due, time: time, today: Date()).text) }
         }
         .font(.callout)
@@ -154,14 +155,14 @@ struct DueChoices: View {
 
     /// Today, tomorrow and Friday, which the keyboard steps through.
     static let quick: [QuickChoice] = [
-        QuickChoice(title: "Today", icon: "sun.max", choice: .today),
-        QuickChoice(title: "Tomorrow", icon: "sunrise", choice: .tomorrow),
-        QuickChoice(title: "Friday", icon: "briefcase", choice: .thisWeek)
+        QuickChoice(title: "Today", icon: .today, choice: .today),
+        QuickChoice(title: "Tomorrow", icon: .tomorrow, choice: .tomorrow),
+        QuickChoice(title: "Friday", icon: .briefcase, choice: .thisWeek)
     ]
 
     struct QuickChoice {
         let title: String
-        let icon: String
+        let icon: Icon
         let choice: DueChoice
     }
 
@@ -169,13 +170,13 @@ struct DueChoices: View {
         let today = Date()
         VStack(alignment: .leading, spacing: 0) {
             if let typed, !Self.quick.map({ TaskDay.string(for: $0.choice, today: today) }).contains(typed) {
-                choice(TaskDay.label(for: typed, today: today).text, icon: "text.cursor", day: typed)
+                choice(TaskDay.label(for: typed, today: today).text, icon: .textCursor, day: typed)
             }
             ForEach(Self.quick, id: \.title) { quick in
                 choice(quick.title, icon: quick.icon, day: TaskDay.string(for: quick.choice, today: today))
             }
             MenuItem(
-                title: "Pick a date", detail: pickedLabel, icon: Image(systemName: "calendar"),
+                title: "Pick a date", detail: pickedLabel, icon: Image(.calendar),
                 isOpen: isPickingDate, isChecked: pickedLabel != nil && !isPickingDate
             ) { isPickingDate.toggle() }
             if isPickingDate {
@@ -189,7 +190,7 @@ struct DueChoices: View {
             if let due {
                 MenuDivider()
                 timeRow(on: due)
-                MenuItem(title: "Remove date", icon: Image(systemName: "xmark.circle")) { choose(nil, true) }
+                MenuItem(title: "Remove date", icon: Image(.closeCircle)) { choose(nil, true) }
             }
         }
         .frame(width: 210)
@@ -199,11 +200,11 @@ struct DueChoices: View {
     @ViewBuilder private func timeRow(on due: String) -> some View {
         if let time {
             HStack(spacing: 8) {
-                Image(systemName: "bell").frame(width: 16).foregroundStyle(.secondary)
+                Image(.bell).frame(width: 16).foregroundStyle(.secondary)
                 Text("Time")
                 Spacer(minLength: 12)
                 TimeField(date: timeDate(time, on: due), isEditing: $isEditingTime).fixedSize()
-                Button { chooseTime(nil) } label: { Image(systemName: "xmark").font(.caption) }
+                Button { chooseTime(nil) } label: { Image(.close).font(.caption) }
                     .buttonStyle(.plain)
                     .foregroundStyle(.secondary)
                     .help("Remove the time")
@@ -212,7 +213,7 @@ struct DueChoices: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
         } else {
-            MenuItem(title: "Add a time", icon: Image(systemName: "bell")) {
+            MenuItem(title: "Add a time", icon: Image(.bell)) {
                 chooseTime(TaskTime.string(for: Self.nextHour()))
             }
             .help("Remind me at a time that day")
@@ -229,10 +230,10 @@ struct DueChoices: View {
     }
 
     /// Checked while chosen, and highlighted while the keyboard is on it.
-    private func choice(_ title: String, icon: String, day: String) -> some View {
+    private func choice(_ title: String, icon: Icon, day: String) -> some View {
         let isChosen = due == day && !isPickingDate
         return MenuItem(
-            title: title, detail: Self.shortDate(day), icon: Image(systemName: icon),
+            title: title, detail: Self.shortDate(day), icon: Image(icon),
             isOpen: highlighted == day, isChecked: isChosen
         ) { choose(isChosen ? nil : day, true) }
     }

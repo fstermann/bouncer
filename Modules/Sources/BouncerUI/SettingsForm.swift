@@ -1,4 +1,5 @@
 import AppKit
+import BouncerFoundation
 import Decks
 import Settings
 import StandaloneBar
@@ -31,7 +32,7 @@ struct SettingsForm: View {
 
     var body: some View {
         Form {
-            Section("Modes", systemImage: "switch.2") {
+            Section("Modes", icon: .toggles) {
                 ForEach(Mode.allCases) { mode in
                     Toggle(isOn: mode.binding(in: $settings.preferences)) {
                         Label {
@@ -73,7 +74,7 @@ struct SettingsForm: View {
     }
 
     @ViewBuilder private var generalSection: some View {
-        Section("General", systemImage: "gearshape") {
+        Section("General", icon: .gear) {
             Toggle("Launch Bouncer at login", isOn: $launchAtLogin)
                 .onChange(of: launchAtLogin) { LaunchAtLogin.isEnabled = launchAtLogin }
 
@@ -82,7 +83,7 @@ struct SettingsForm: View {
     }
 
     @ViewBuilder private var openingSection: some View {
-        Section("Opening", systemImage: "cursorarrow.motionlines") {
+        Section("Opening", icon: .cursorMotion) {
             HoverRevealOptions(preferences: $settings.preferences)
 
             Toggle("Animate the panel", isOn: $settings.preferences.animateBar)
@@ -99,7 +100,7 @@ struct SettingsForm: View {
     }
 
     @ViewBuilder private var menuBarItemsSection: some View {
-        Section("Menu bar items", systemImage: "menubar.rectangle") {
+        Section("Menu bar items", icon: .items) {
             Toggle("Enable an always-hidden section", isOn: $settings.preferences.enableAlwaysHiddenSection)
 
             Picker("Hide again", selection: rehideMode) {
@@ -146,7 +147,7 @@ struct SettingsForm: View {
     }
 
     @ViewBuilder private var updatesSection: some View {
-        Section("Updates", systemImage: "arrow.down.circle") {
+        Section("Updates", icon: .download) {
             // A dev build, or an updater that failed to start, updates nothing — so it does
             // not offer the choice either.
             if updates.isRunning {

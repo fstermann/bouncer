@@ -122,6 +122,9 @@ Two principles decide every tradeoff — see README. In practice:
   stay put across pages is placed in screen coordinates, on whole points, from the frame its
   window actually got, never inside a view that animates. Never claim "it does not move" from
   eyeballing.
+- **Icons are Bouncer's own, never SF Symbols.** A new icon is drawn as an SVG in `Assets/Icons`,
+  added to `Icon`, and built with `Tools/icons.sh`. Show the user the drawing and get their OK
+  before wiring it into a view; don't reuse an existing icon for a new meaning without asking.
 - `App/Resources/Logo.svg` is the source of truth for the mark. The app icon, the
   README lockups, `MenuBarIcon.imageset`, `MenuBarIconOpen.imageset`,
   `SectionEndIcon.imageset` and its mirror `SectionStartIcon.imageset` are derived from

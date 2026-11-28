@@ -10,7 +10,7 @@ struct DeckOptions: View {
     @Bindable var permissions: DecksPermissions
 
     var body: some View {
-        Section(DecksController.name, systemImage: "square.stack.3d.up") {
+        Section(DecksController.name, icon: .stack) {
             Toggle(isOn: $preferences.enableDecks) {
                 Text("Show a window overview")
                 Text("Press \(preferences.decksShortcut.name) to see every window and Space, grouped into decks. "

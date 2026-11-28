@@ -1,3 +1,4 @@
+import BouncerFoundation
 import Screenshots
 import SwiftUI
 
@@ -20,9 +21,9 @@ extension ClaudePage {
 extension ClaudePageView {
     var screenshotButtons: some View {
         Group {
-            Button { Task { await page.screenshot(.screen) } } label: { Image(systemName: "camera") }
+            Button { Task { await page.screenshot(.screen) } } label: { Image(.camera) }
                 .help("Screenshot the screen into the question")
-            Button { Task { await page.screenshot(.region) } } label: { Image(systemName: "camera.viewfinder") }
+            Button { Task { await page.screenshot(.region) } } label: { Image(.cameraRegion) }
                 .help("Screenshot a region or, after Space, a window into the question")
         }
         .buttonStyle(.plain)

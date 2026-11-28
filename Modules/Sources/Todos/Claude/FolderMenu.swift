@@ -1,3 +1,4 @@
+import BouncerFoundation
 import SwiftUI
 
 extension ClaudePage {
@@ -73,7 +74,7 @@ private struct FolderChoice: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 6) {
-                Image(systemName: "checkmark")
+                Image(.checkmark)
                     .opacity(isChosen ? 1 : 0)
                     .foregroundStyle(.secondary)
                 if let folder {

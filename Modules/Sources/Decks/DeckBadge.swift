@@ -1,22 +1,30 @@
 import AppKit
+import BouncerFoundation
 import Settings
 import SwiftUI
 
-/// The SF Symbols a deck's badge can show.
+/// The icons a deck's badge can show.
 enum DeckSymbols {
     /// What a deck shows until one is picked.
-    static let fallback = "rectangle.stack.fill"
+    static let fallback = Icon.stack
 
-    static let choices = [
-        fallback, "star.fill", "heart.fill", "bolt.fill", "flame.fill", "leaf.fill",
-        "house.fill", "briefcase.fill", "person.2.fill", "bubble.left.and.bubble.right.fill", "envelope.fill",
-        "calendar", "book.fill", "graduationcap.fill", "hammer.fill", "wrench.and.screwdriver.fill",
-        "gearshape.fill", "terminal.fill", "chevron.left.forwardslash.chevron.right", "sparkles",
-        "paintbrush.fill", "music.note", "gamecontroller.fill", "cart.fill"
+    static let choices: [Icon] = [
+        fallback, .star, .heart, .bolt, .flame, .leaf, .house, .briefcase, .people, .chat, .envelope, .calendar,
+        .book, .graduation, .hammer, .wrench, .gear, .terminal, .code, .sparkles, .paintbrush, .music, .gamepad, .cart
     ]
 
-    static func symbol(of deck: Deck) -> String {
-        deck.symbol ?? fallback
+    /// The SF Symbol names decks saved before Bouncer drew its own icons, in the order of `choices`.
+    static let legacy = Dictionary(uniqueKeysWithValues: zip([
+        "rectangle.stack.fill", "star.fill", "heart.fill", "bolt.fill", "flame.fill", "leaf.fill", "house.fill",
+        "briefcase.fill", "person.2.fill", "bubble.left.and.bubble.right.fill", "envelope.fill", "calendar",
+        "book.fill", "graduationcap.fill", "hammer.fill", "wrench.and.screwdriver.fill", "gearshape.fill",
+        "terminal.fill", "chevron.left.forwardslash.chevron.right", "sparkles", "paintbrush.fill", "music.note",
+        "gamecontroller.fill", "cart.fill"
+    ], choices))
+
+    static func symbol(of deck: Deck) -> Icon {
+        guard let saved = deck.symbol else { return fallback }
+        return Icon(rawValue: saved) ?? legacy[saved] ?? fallback
     }
 }
 
@@ -34,7 +42,7 @@ struct DeckBadge: View {
     var size: CGFloat = 28
 
     var body: some View {
-        Image(systemName: DeckSymbols.symbol(of: deck))
+        Image(DeckSymbols.symbol(of: deck))
             .font(.system(size: size * 0.43, weight: .bold))
             .foregroundStyle(.white)
             .frame(width: size, height: size)
@@ -78,7 +86,7 @@ struct SymbolPicker: View {
     var body: some View {
         HStack(spacing: 6) {
             ForEach(DeckSymbols.choices, id: \.self) { symbol in
-                Image(systemName: symbol)
+                Image(symbol)
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.white)
                     .frame(width: 24, height: 24)
@@ -87,7 +95,7 @@ struct SymbolPicker: View {
                         Circle().strokeBorder(.white, lineWidth: symbol == DeckSymbols.symbol(of: deck) ? 2 : 0)
                     }
                     .contentShape(Circle())
-                    .onTapGesture { overview.setSymbol(deck.id, to: symbol) }
+                    .onTapGesture { overview.setSymbol(deck.id, to: symbol.rawValue) }
             }
         }
     }

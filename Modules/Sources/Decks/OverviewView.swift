@@ -1,3 +1,4 @@
+import BouncerFoundation
 import Settings
 import SwiftUI
 
@@ -193,7 +194,7 @@ struct OverviewView: View {
     /// The filter typed so far. Kept in the layout while empty, so the first key does not push the cards down.
     private var filter: some View {
         HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
+            Image(.search)
             Text(overview.query)
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(.white)
@@ -356,7 +357,7 @@ struct PermissionBanner: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: "exclamationmark.triangle.fill")
+            Image(.warning)
                 .foregroundStyle(.orange)
             Text(message)
                 .foregroundStyle(.white)

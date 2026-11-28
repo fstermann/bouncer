@@ -1,4 +1,5 @@
 import AppKit
+import BouncerFoundation
 import Settings
 
 /// The notch panel's page showing, as one icon just right of the notch, which lists every page that
@@ -89,17 +90,18 @@ public final class PageButton: NSView {
 
     private static func image(for page: NotchPage) -> NSImage? {
         if page == .claude { return ClaudeMark.image(side: 13) }
-        return NSImage(systemSymbolName: page.symbol, accessibilityDescription: page.help)
+        return page.icon?.nsImage(accessibilityDescription: page.help)
     }
 }
 
 extension NotchPage {
-    public var symbol: String {
+    /// `nil` for Claude, whose page shows Claude's own mark.
+    public var icon: Icon? {
         switch self {
-        case .items: "menubar.rectangle"
-        case .todos: "checklist"
-        case .notes: "note.text"
-        case .claude: "sparkle"
+        case .items: .items
+        case .todos: .todos
+        case .notes: .note
+        case .claude: nil
         }
     }
 

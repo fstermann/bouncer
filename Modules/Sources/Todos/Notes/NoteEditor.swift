@@ -1,4 +1,5 @@
 import AppKit
+import BouncerFoundation
 import Screenshots
 import SwiftUI
 
@@ -85,7 +86,7 @@ struct NoteEditor: View {
     private var header: some View {
         HStack(spacing: 10) {
             if let onBack {
-                Button(action: onBack) { Image(systemName: "chevron.left") }
+                Button(action: onBack) { Image(.chevronLeft) }
                     .help("All meetings")
             }
             TextField("Title", text: $draft.title)
@@ -95,10 +96,10 @@ struct NoteEditor: View {
             if let onScreenshot { screenshotButtons(onScreenshot) }
             if let clock { timer(clock) }
             if let onPopOut {
-                Button(action: onPopOut) { Image(systemName: "macwindow.on.rectangle") }
+                Button(action: onPopOut) { Image(.popOut) }
                     .help("Open in a window")
             }
-            Button(action: onDelete) { Image(systemName: "trash") }
+            Button(action: onDelete) { Image(.trash) }
                 .help("Move to Trash")
         }
         .buttonStyle(.plain)
@@ -107,9 +108,9 @@ struct NoteEditor: View {
 
     private func screenshotButtons(_ take: @escaping TakeScreenshot) -> some View {
         Group {
-            Button { screenshot(.screen, with: take) } label: { Image(systemName: "camera") }
+            Button { screenshot(.screen, with: take) } label: { Image(.camera) }
                 .help("Screenshot the screen into the note")
-            Button { screenshot(.region, with: take) } label: { Image(systemName: "camera.viewfinder") }
+            Button { screenshot(.region, with: take) } label: { Image(.cameraRegion) }
                 .help("Screenshot a region or, after Space, a window into the note")
         }
         .disabled(isTakingScreenshot)
@@ -155,7 +156,7 @@ struct NoteEditor: View {
             if let timer = clock.timer {
                 TimerText(timer: timer, phase: clock.phase)
             } else {
-                Image(systemName: "timer")
+                Image(.timer)
             }
         }
         .menuStyle(.button)
@@ -168,12 +169,12 @@ struct NoteEditor: View {
     private enum Field {
         case people, project, tags, link
 
-        var symbol: String {
+        var icon: Icon {
             switch self {
-            case .people: "person.2"
-            case .project: "folder"
-            case .link: "link"
-            case .tags: "tag"
+            case .people: .people
+            case .project: .folder
+            case .link: .link
+            case .tags: .tag
             }
         }
 
@@ -203,7 +204,7 @@ struct NoteEditor: View {
         } else {
             switch field {
             case .people:
-                MetaRow(symbol: field.symbol, help: field.title) {
+                MetaRow(icon: field.icon, help: field.title) {
                     ChipField(
                         placeholder: field.title, items: $draft.people,
                         offered: { ListCompletion.suggestions(for: $0, carrying: $1, from: known.people) },
@@ -211,7 +212,7 @@ struct NoteEditor: View {
                     )
                 }
             case .project:
-                MetaRow(symbol: field.symbol, help: field.title) {
+                MetaRow(icon: field.icon, help: field.title) {
                     ChipField(
                         placeholder: field.title, items: project,
                         offered: { ListCompletion.suggestions(for: $0, carrying: $1, from: known.projects) },
@@ -221,7 +222,7 @@ struct NoteEditor: View {
                     )
                 }
             case .tags:
-                MetaRow(symbol: field.symbol, help: field.title) {
+                MetaRow(icon: field.icon, help: field.title) {
                     ChipField(
                         placeholder: field.title, items: $draft.tags,
                         offered: { TagCompletion.suggestions(for: $0, carrying: $1, from: known.tags) },
@@ -242,7 +243,7 @@ struct NoteEditor: View {
             // A turn later, once the field is in the window.
             if field == .link { Task { isTypingLocation = true } }
         } label: {
-            MetaRow(symbol: field.symbol, help: "Add \(field.title.lowercased())") {
+            MetaRow(icon: field.icon, help: "Add \(field.title.lowercased())") {
                 Text(field.title).foregroundStyle(.secondary)
             }
         }
@@ -250,13 +251,13 @@ struct NoteEditor: View {
     }
 
     private var location: some View {
-        MetaRow(symbol: Field.link.symbol, help: "Room or call link") {
+        MetaRow(icon: Field.link.icon, help: "Room or call link") {
             HStack(spacing: 4) {
                 TextField("Room or link", text: $draft.location)
                     .textFieldStyle(.plain)
                     .focused($isTypingLocation)
                 if let link = draft.link {
-                    Button { NSWorkspace.shared.open(link) } label: { Image(systemName: "arrow.up.right") }
+                    Button { NSWorkspace.shared.open(link) } label: { Image(.openLink) }
                         .buttonStyle(.plain)
                         .foregroundStyle(.secondary)
                         .help("Open link")
@@ -266,7 +267,7 @@ struct NoteEditor: View {
     }
 
     private var times: some View {
-        MetaRow(symbol: "clock", help: "When") { NoteTimes(draft: draft) }
+        MetaRow(icon: .clock, help: "When") { NoteTimes(draft: draft) }
     }
 
     /// The project as the one chip its field holds.
@@ -279,15 +280,15 @@ struct NoteEditor: View {
     }
 }
 
-/// One of a meeting's properties, behind its symbol.
+/// One of a meeting's properties, behind its icon.
 private struct MetaRow<Content: View>: View {
-    let symbol: String
+    let icon: Icon
     let help: String
     @ViewBuilder let content: Content
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Image(systemName: symbol)
+            Image(icon)
                 .frame(width: TodoPage.markWidth)
                 .foregroundStyle(.tertiary)
                 .help(help)
