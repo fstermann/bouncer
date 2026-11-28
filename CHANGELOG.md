@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.10.0](https://github.com/fstermann/bouncer/compare/v0.9.0...v0.10.0) (2026-11-28)
+
+
+### Features
+
+* **decks:** open the overview with Command-Escape by default ([aaf6d80](https://github.com/fstermann/bouncer/commit/aaf6d802347bf4201d5515228b3e4902b28b5e71))
+* **decks:** show each desktop's own picture on its card in the Spaces view ([eae25f0](https://github.com/fstermann/bouncer/commit/eae25f0b99f020cdd19b0097c3399cd3ffe071f0))
+* draw Bouncer's own icons in place of SF Symbols ([#63](https://github.com/fstermann/bouncer/issues/63)) ([f650f79](https://github.com/fstermann/bouncer/commit/f650f796ca475ddcdfd34b6f844a944f10630173))
+
+
+### Bug Fixes
+
+* **decks:** let the current full screen Space's card group in the Spaces view ([b96d86e](https://github.com/fstermann/bouncer/commit/b96d86e990ef83af956dd20dfc2c0b3573f9b949))
+* **decks:** switch to an empty desktop when it is picked ([a0ec768](https://github.com/fstermann/bouncer/commit/a0ec76849c2cc428d4de157e5a0eef3d4f103da2))
+* hidden items in full screen, and make bench ([#55](https://github.com/fstermann/bouncer/issues/55)) ([2954955](https://github.com/fstermann/bouncer/commit/295495592667e17722c22cb77ddd07b850c40ebc))
+* hide items without a notch on macOS 27, and bench in a VM ([#58](https://github.com/fstermann/bouncer/issues/58)) ([e002546](https://github.com/fstermann/bouncer/commit/e00254675896bce21e206784f44256257b6e14e5))
+* **notes:** reopen a note where its text was scrolled ([8bb1d2f](https://github.com/fstermann/bouncer/commit/8bb1d2f8734809ab504bf7767d799ddc0e3fad1e))
+* **todos:** show Claude handoff errors and resume from custom config ([#62](https://github.com/fstermann/bouncer/issues/62)) ([869b6fb](https://github.com/fstermann/bouncer/commit/869b6fb66f8feaa9ad82369a2e9accb038f7dc0a))
+
+
+### Performance
+
+* faster bar open, one-motion close, tolerant leave ([#53](https://github.com/fstermann/bouncer/issues/53)) ([d5006bd](https://github.com/fstermann/bouncer/commit/d5006bdecbe4babd87cac51cf58024338ccafb4f))
+
+
+### Documentation
+
+* match the AGENTS.md summary to the new tagline ([e683244](https://github.com/fstermann/bouncer/commit/e6832449dc95906cf23320921e185806bc88b58b))
+* new README tagline and intro ([73902c0](https://github.com/fstermann/bouncer/commit/73902c0e285fe41a9dfe0a92b614c168b4e09d8d))
+
 ## [0.9.0](https://github.com/fstermann/bouncer/compare/v0.8.0...v0.9.0) (2026-11-20)
 
 
