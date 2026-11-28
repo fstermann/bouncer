@@ -19,7 +19,8 @@ import Testing
     }
 
     @Test func catalogHoldsNoIconOutsideTheList() throws {
-        let sets = try FileManager.default.contentsOfDirectory(atPath: catalog.path).filter { $0.hasSuffix(".symbolset") }
+        let sets = try FileManager.default.contentsOfDirectory(atPath: catalog.path)
+            .filter { $0.hasSuffix(".symbolset") }
         let unlisted = sets.map { String($0.dropLast(".symbolset".count)) }.filter { Icon(rawValue: $0) == nil }
         #expect(unlisted.isEmpty, "\(unlisted)")
     }
